@@ -93,10 +93,34 @@
             <!-- ENVOLVEMOS OS FORMULÁRIOS DA FÁBRICA EM COLUNAS PARA O DESKTOP -->
             <div class="fabrica-form-wrapper">
                 
-                <!-- COLUNA 1: REPOSIÇÃO RÁPIDA -->
+            <!-- COLUNA 1: REPOSIÇÃO RÁPIDA -->
                 <div class="fabrica-col-left">
                     <div class="section-title" style="margin-top: 0; color: #b45309; border-left-color: #b45309;">⚡ Refazer Lote (Reposição)</div>
+                    
+                    <!-- 🚨 NOVO: RADAR DE ESTOQUE CRÍTICO 🚨 -->
+                    <div id="radar-producao-box" style="background: #fee2e2; border: 1px solid #fca5a5; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.1);">
+                        <div style="color: #991b1b; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                            🚨 ALERTA: Abaixo do Mínimo (5 un)
+                        </div>
+                        <p style="font-size: 0.75rem; color: #7f1d1d; margin-top: 0; margin-bottom: 15px;">Estes produtos estão em risco de falta, mesmo contando os que já estão na fila de maceração:</p>
+                        
+                        <div id="lista-radar-itens" style="display: flex; flex-direction: column; gap: 8px;">
+                            
+                            <!-- ISSO AQUI É SÓ UM EXEMPLO VISUAL! (O JS VAI APAGAR ISSO DEPOIS E CRIAR OS REAIS) -->
+                            <div class="radar-item">
+                                <div>
+                                    <strong>Perfume Scandal 40ml</strong>
+                                    <div class="detalhes">Prateleira: 2 | Macerando: 1 | <b>Total: 3</b></div>
+                                </div>
+                                <button class="radar-btn">Fabricar</button>
+                            </div>
+                            
+                        </div>
+                    </div>
+                    <!-- FIM DO RADAR -->
+
                     <div class="filtro-box" style="background: #fff9e6; border-color: #ffeeba; margin-bottom: 0; box-shadow: none;">
+                        
                         <p style="font-size: 0.8rem; color: #b45309; margin-top: 0; margin-bottom: 15px;">Vai fabricar um produto que já existe no estoque? Lance direto na fila de maceração!</p>
                         <div class="input-group" style="text-align: left;">
                             <label style="color: #b45309;">Qual produto será fabricado?</label>

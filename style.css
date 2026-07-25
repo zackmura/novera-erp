@@ -632,3 +632,57 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         max-width: 700px;
     }
 }
+
+
+/* ========================================================= */
+/* ETIQUETAS E RADAR DE ESTOQUE INTELIGENTE (GERAL)          */
+/* ========================================================= */
+
+.radar-item { 
+    background: #ffffff; 
+    padding: 12px; 
+    border-radius: 8px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    border-left: 4px solid #ef4444; 
+    font-size: 0.8rem; 
+    gap: 10px;
+}
+
+.radar-item strong { color: #7f1d1d; display: block; margin-bottom: 3px;}
+.radar-item .detalhes { color: #64748b; font-size: 0.7rem; }
+.radar-item .detalhes b { color: #b91c1c; }
+
+.radar-btn { 
+    background: #ef4444; 
+    color: #fff; 
+    border: none; 
+    padding: 8px 12px; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: bold; 
+    font-size: 0.75rem; 
+    transition: 0.2s;
+    white-space: nowrap;
+}
+.radar-btn:hover { background: #dc2626; }
+
+.badge-estoque { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 0.65rem; font-weight: bold; margin-top: 5px; }
+.badge-critico { background: #fee2e2; color: #991b1b; } 
+.badge-produzindo { background: #fef3c7; color: #a16207; } 
+.badge-saudavel { background: #dcfce3; color: #166534; } 
+
+/* Adaptação exclusiva para telas de celular */
+@media (max-width: 768px) {
+    .radar-item {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: left;
+    }
+    .radar-btn {
+        margin-top: 10px;
+        padding: 12px;
+        font-size: 0.85rem;
+    }
+}

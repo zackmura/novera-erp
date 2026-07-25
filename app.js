@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "7.8.25";
+const VERSAO_ATUAL_SISTEMA = "7.8.43";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -243,7 +243,7 @@ async function sincronizarDadosUnico() {
                 estoqueAgrupado[n].totalQtd += q;
             });
 
-            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();
+            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
             
             if (!dadosCarregados) {
@@ -648,12 +648,78 @@ function confirmarFinalizarProducao() {
     });
 }
 
+function calcularRadarProducao() {
+    const radarBox = document.getElementById('radar-producao-box');
+    const listaRadar = document.getElementById('lista-radar-itens');
+    if (!radarBox || !listaRadar) return;
+
+    let htmlItensCriticos = "";
+    let encontrouCriticos = false;
+
+    // 1. Precisamos saber quantos estão sendo fabricados de cada produto
+    let totalMacerandoPorProduto = {};
+    producaoGlobal.forEach(p => {
+        if (p.status === 'Em Andamento') {
+            let nomePadrao = padronizarTexto(p.nome_produto);
+            if (!totalMacerandoPorProduto[nomePadrao]) totalMacerandoPorProduto[nomePadrao] = 0;
+            totalMacerandoPorProduto[nomePadrao] += (parseFloat(p.qtd_prevista) || 0);
+        }
+    });
+
+    // 2. Varrer o estoque e aplicar a matemática
+    for (let key in estoqueAgrupado) {
+        let e = estoqueAgrupado[key];
+        
+        // FILTRO ESTREITO: APENAS PERFUMES! 
+        let tipoLowerCase = String(e.tipo).toLowerCase();
+        if(!tipoLowerCase.includes('perfume')) continue;
+
+        let qtdPrateleira = e.totalQtd;
+        let qtdMacerando = totalMacerandoPorProduto[key] || 0;
+        let estoqueProjetado = qtdPrateleira + qtdMacerando;
+
+        // SE O PROJETADO FOR MENOR QUE 5, ENTRA NO RADAR!
+        if (estoqueProjetado < 5) {
+            encontrouCriticos = true;
+            
+            htmlItensCriticos += `
+            <div class="radar-item">
+                <div>
+                    <strong>${e.nome}</strong>
+                    <div class="detalhes">Prateleira: ${qtdPrateleira} | Macerando: ${qtdMacerando} | <b>Projetado: ${estoqueProjetado}</b></div>
+                </div>
+                <!-- O AJUSTE FOI AQUI: Rola até a caixa de produto ficar bem no centro da tela -->
+                <button class="radar-btn" onclick="document.getElementById('pr-produto').value='${e.nome}'; document.getElementById('pr-produto').scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => document.getElementById('pr-qtd').focus(), 400);">🏭 Fabricar</button>
+            </div>`;
+        }
+    }
+
+    if (encontrouCriticos) {
+        listaRadar.innerHTML = htmlItensCriticos;
+        radarBox.style.display = 'block';
+    } else {
+        radarBox.style.display = 'none';
+        listaRadar.innerHTML = "";
+    }
+}
+
 function renderizarEstoque() { 
     const tBusca = document.getElementById('busca-estoque').value.toLowerCase().trim(); 
     const dFiltroLocal = document.getElementById('f-e-local'); 
     const localSelecionado = dFiltroLocal ? dFiltroLocal.value.trim() : ""; 
     const dFiltroGenero = document.getElementById('f-e-genero');
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
+
+    // -- NOVO CÁLCULO DE MACERAÇÃO PARA EXIBIR NO ESTOQUE --
+    let totalMacerandoPorProduto = {};
+    producaoGlobal.forEach(p => {
+        if (p.status === 'Em Andamento') {
+            let nomeP = padronizarTexto(p.nome_produto);
+            if (!totalMacerandoPorProduto[nomeP]) totalMacerandoPorProduto[nomeP] = 0;
+            totalMacerandoPorProduto[nomeP] += (parseFloat(p.qtd_prevista) || 0);
+        }
+    });
+    // -----------------------------------------------------
 
     let arrEstoque = Object.values(estoqueAgrupado); 
     arrEstoque = arrEstoque.filter(e => { 
@@ -686,8 +752,7 @@ function renderizarEstoque() {
         const precoNum = parseDinheiro(e.preco); 
         somaItens += qtdExibicao; 
         somaValor += (qtdExibicao * precoNum); 
-        let corQtd = qtdExibicao <= 0 ? "#991b1b" : (qtdExibicao < 5 ? "#ef4444" : "var(--brand-dark)"); 
-        let avisoQtd = qtdExibicao <= 0 ? `<span class="badge-status b-atrasado" style="margin-left:5px;">ESGOTADO</span>` : (qtdExibicao < 5 ? `<span class="badge-status b-hoje" style="margin-left:5px;">Baixo</span>` : ""); 
+        
         let opacidade = qtdExibicao <= 0 ? "opacity: 0.65; filter: grayscale(50%);" : ""; 
         let fotoUrls = e.foto ? e.foto.split(',') : []; 
         let urlPri = fotoUrls[0] || 'logo.png'; 
@@ -700,6 +765,27 @@ function renderizarEstoque() {
         else if(gLow === "infantil") { corFundoGen = "#dcfce7"; corTextoGen = "#166534"; }
         let badgeGenero = e.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${e.genero}</span>` : '';
 
+        // -- NOVO BLOCO DE INTELIGÊNCIA: AVALIAÇÃO DE SAÚDE --
+        let qtdMacerando = totalMacerandoPorProduto[padronizarTexto(e.nome)] || 0;
+        let qtdProjetada = qtdExibicao + qtdMacerando;
+        
+        let corCustoVal = "var(--brand-dark)";
+        let htmlSaudeEstoque = "";
+        
+        if (qtdProjetada < 5) {
+            corCustoVal = "#991b1b"; // Vermelho
+            htmlSaudeEstoque = `<span class="badge-estoque badge-critico">⚠️ Crítico: Abaixo de 5</span>`;
+        } else if (qtdExibicao < 5 && qtdMacerando > 0) {
+            corCustoVal = "#a16207"; // Amarelo
+            htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo">⏳ Tem lote vindo!</span>`;
+        } else {
+            corCustoVal = "#166534"; // Verde
+            htmlSaudeEstoque = `<span class="badge-estoque badge-saudavel">✔️ Estoque Seguro</span>`;
+        }
+        
+        let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 5px 0 0 0;">Fila de Maceração: +${qtdMacerando} un</p>` : "";
+        // --------------------------------------------------
+
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
         for(let loc in e.locais) { 
             if(e.locais[loc] > 0) { 
@@ -710,9 +796,27 @@ function renderizarEstoque() {
         if (qtdExibicao <= 0) locaisHtml = ""; 
         
         const nomeEncode = encodeURIComponent(e.nome); 
-        html += `<div class="rotulo-card" style="align-items:flex-start; ${opacidade}"><img src="${urlPri}" onerror="this.src='logo.png';" class="list-img" onclick="abrirModalImagem(this.src)"><div class="rotulo-info" style="flex:1;"><h4>${codigoBadge}${e.nome} ${badgeGenero} ${avisoQtd}</h4><p style="color:var(--primary); font-weight:700; margin-bottom:2px;">Venda: ${safeFmt(e.preco)}</p><p style="font-size:0.7rem; color:#888; margin-bottom:0;">Custo Fábrica: ${safeFmt(e.custo)}</p>${locaisHtml}</div><div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;"><div class="custo-val" style="color:${corQtd};">${qtdExibicao} un</div><div style="display:flex; gap:5px;"><button class="btn-acao" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button></div></div></div>`; 
+        html += `<div class="rotulo-card" style="align-items:flex-start; ${opacidade}">
+            <img src="${urlPri}" onerror="this.src='logo.png';" class="list-img" onclick="abrirModalImagem(this.src)">
+            <div class="rotulo-info" style="flex:1;">
+                <h4>${codigoBadge}${e.nome} ${badgeGenero}</h4>
+                <p style="color:var(--primary); font-weight:700; margin-bottom:2px;">Venda: ${safeFmt(e.preco)}</p>
+                <p style="font-size:0.7rem; color:#888; margin-bottom:0;">Custo Fábrica: ${safeFmt(e.custo)}</p>
+                ${locaisHtml}
+                ${htmlSaudeEstoque}
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+                <div class="custo-val" style="color:${corCustoVal};">${qtdExibicao} un</div>
+                ${htmlInfoProducao}
+                <div style="display:flex; gap:5px; margin-top: 5px;">
+                    <button class="btn-acao" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>
+                </div>
+            </div>
+        </div>`; 
     }); 
-    lista.innerHTML = html; document.getElementById('est-total-itens').innerText = somaItens; document.getElementById('est-valor-total').innerText = fmt(somaValor); 
+    lista.innerHTML = html; 
+    document.getElementById('est-total-itens').innerText = somaItens; 
+    document.getElementById('est-valor-total').innerText = fmt(somaValor); 
 }
 
 function abrirModalEditarEstoque(nomeEncoded) { const nomeDecoded = decodeURIComponent(nomeEncoded); const e = estoqueAgrupado[padronizarTexto(nomeDecoded)]; if (!e) return; document.getElementById('edit-e-nome').value = e.nome; document.getElementById('edit-e-tipo').value = e.tipo; document.getElementById('edit-e-custo').value = safeFmt(e.custo); document.getElementById('edit-e-preco').value = safeFmt(e.preco); document.getElementById('edit-e-codigo').value = e.codigo || ''; let fotos = e.foto ? e.foto.split(',') : []; document.getElementById('edit-e-img-preview').src = fotos[0] || 'logo.png'; document.getElementById('img-original-preview').src = fotos[0] || 'logo.png'; document.getElementById('edit-e-foto-antiga').value = e.foto || ''; document.getElementById('edit-e-foto-nova').value = ''; document.getElementById('ai-preview-box').style.display = 'none'; const container = document.getElementById('edit-e-locais-container'); container.innerHTML = ''; for (let loc in e.locais) { adicionarLinhaLocal(loc, e.locais[loc]); } if (Object.keys(e.locais).length === 0) adicionarLinhaLocal('Sede', 0); document.getElementById('modal-editar-estoque').style.display = 'flex'; }
