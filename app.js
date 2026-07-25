@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "7.8.44";
+const VERSAO_ATUAL_SISTEMA = "7.8.47";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -444,22 +444,29 @@ function salvarFilaProducao() {
     const qtdRendimento = document.getElementById('p-rendimento').value; 
     const precoVendaStr = document.getElementById('p-preco-venda').value; 
     
-    // CAPTURA A QUANTIDADE DE DIAS AO INVÉS DE UMA DATA FIXA
     const diasMaceracao = parseInt(document.getElementById('p-dias-maceracao').value) || 0;
     
     if (!essBaseVal || !tipoFinal || !qtdRendimento || !precoVendaStr) {
         return mostrarAlerta("Atenção", "Preencha todos os campos do controle de produção.", "warning"); 
     }
     
-    // O SISTEMA CALCULA A DATA DE PREVISÃO AUTOMATICAMENTE
-    const dataHojeCalculo = new Date();
-    dataHojeCalculo.setDate(dataHojeCalculo.getDate() + diasMaceracao);
-    const dataPrev = dataHojeCalculo.toISOString().split('T')[0];
+    // CORREÇÃO: Data local travada!
+    const dAtual = new Date();
+    const anoI = dAtual.getFullYear();
+    const mesI = String(dAtual.getMonth() + 1).padStart(2, '0');
+    const diaI = String(dAtual.getDate()).padStart(2, '0');
+    const dataInicio = `${anoI}-${mesI}-${diaI}`;
+
+    // Cálculo da previsão exata
+    dAtual.setDate(dAtual.getDate() + diasMaceracao);
+    const anoP = dAtual.getFullYear();
+    const mesP = String(dAtual.getMonth() + 1).padStart(2, '0');
+    const diaP = String(dAtual.getDate()).padStart(2, '0');
+    const dataPrev = `${anoP}-${mesP}-${diaP}`;
     
     const partes = essBaseVal.split('|'); const codNovera = partes[0]; const essBase = partes[1]; 
     const nomeProdutoFinal = `${tipoFinal} ${essBase} ${volume}ml`; 
     const precoVenda = parseDinheiro(precoVendaStr); 
-    const dataInicio = new Date().toISOString().split('T')[0];
 
     mostrarLoading("Colocando na Fila..."); 
     const msgLog = `⏳ Maceração: ${qtdRendimento}x [${nomeProdutoFinal}]. Previsão para: ${dataBR(dataPrev)} (${diasMaceracao} dias).`; 
@@ -1874,15 +1881,22 @@ function salvarProducaoRapida() {
         return mostrarAlerta("Atenção", "Selecione o produto e informe o rendimento.", "warning");
     }
 
-    // A MÁGICA: Ele puxa do estoque o tipo, código, custo e preço que o produto já tem!
     const prodRef = estoqueAgrupado[padronizarTexto(nomeProduto)];
     if (!prodRef) return mostrarAlerta("Erro", "Produto não encontrado.", "error");
 
-    // Faz o cálculo da data futura
-    const dataHojeCalculo = new Date();
-    dataHojeCalculo.setDate(dataHojeCalculo.getDate() + diasMaceracao);
-    const dataPrev = dataHojeCalculo.toISOString().split('T')[0];
-    const dataInicio = new Date().toISOString().split('T')[0];
+    // CORREÇÃO: Gerando a data cravada no fuso horário do seu aparelho!
+    const dAtual = new Date();
+    const anoI = dAtual.getFullYear();
+    const mesI = String(dAtual.getMonth() + 1).padStart(2, '0');
+    const diaI = String(dAtual.getDate()).padStart(2, '0');
+    const dataInicio = `${anoI}-${mesI}-${diaI}`;
+
+    // Somando os dias de maceração para a Previsão
+    dAtual.setDate(dAtual.getDate() + diasMaceracao);
+    const anoP = dAtual.getFullYear();
+    const mesP = String(dAtual.getMonth() + 1).padStart(2, '0');
+    const diaP = String(dAtual.getDate()).padStart(2, '0');
+    const dataPrev = `${anoP}-${mesP}-${diaP}`;
 
     mostrarLoading("Colocando na Fila...");
     const msgLog = `⏳ Reposição Fila: ${qtdRendimento}x [${prodRef.nome}]. Previsão: ${dataBR(dataPrev)} (${diasMaceracao} dias).`;
