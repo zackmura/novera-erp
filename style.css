@@ -686,3 +686,503 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         font-size: 0.85rem;
     }
 }
+
+/* ========================================================= */
+/* AGRUPAMENTO E LISTA DA FILA DE MACERAÇÃO                  */
+/* ========================================================= */
+
+/* CONSERTO DO BUG: O container principal não pode mais ser grade! Ele volta a ser um bloco normal para as faixas não virarem quadrados. */
+#lista-producao-cards {
+    display: block !important; 
+}
+
+/* Cabeçalhos de Data (A faixa colorida) */
+.separador-data {
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    margin: 25px 0 10px 0;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.div-futuro { background: var(--brand-dark); }
+.div-atrasado { background: #dc2626; }
+.div-hoje { background: #16a34a; }
+
+/* A grade agora fica apenas nos itens, forçando 1 coluna */
+.grid-producao-grupo {
+    display: grid;
+    grid-template-columns: 1fr; 
+    gap: 12px;
+}
+
+.card-producao-list {
+    background: #fafafa;
+    transition: 0.2s;
+}
+.card-producao-list:hover {
+    background: #fff;
+    border-color: var(--primary) !important;
+}
+
+.card-producao-list .prod-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed #e8dde1;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* Modificações exclusivas para PC (Lista Horizontal Estilo Tabela) */
+@media (min-width: 992px) {
+    .fabrica-sticky-header {
+        position: sticky;
+        top: 0px; 
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 10px 0 20px 0;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #f0f2f5;
+    }
+
+    .fabrica-sticky-header .filtro-box {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+
+    .grid-producao-grupo {
+        grid-template-columns: 1fr !important; /* Força 1 coluna garantida no PC */
+    }
+
+    /* Transforma o cartão em uma linha reta */
+    .card-producao-list {
+        display: flex;
+        flex-direction: row !important;
+        justify-content: space-between;
+        align-items: center !important;
+        padding: 12px 25px !important;
+    }
+    
+    /* Alinha o texto do produto lado a lado */
+    .card-producao-list .prod-info-main {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+    }
+
+    /* Trava a largura do nome para as colunas ficarem retinhas */
+    .card-producao-list .prod-info-main h4 {
+        margin: 0 !important;
+        width: 350px; 
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-producao-list .prod-info-main p {
+        margin: 0 !important;
+        min-width: 150px;
+    }
+
+    /* Alinha os botões na direita */
+    .card-producao-list .prod-actions {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+        justify-content: flex-end;
+        gap: 20px;
+    }
+}
+
+/* ========================================================= */
+/* AGRUPAMENTO E LISTA DO HISTÓRICO DE VENDAS                */
+/* ========================================================= */
+
+/* 1. Garante que o container de vendas leia de ponta a ponta */
+#lista-vendas-cadastradas {
+    display: block !important;
+}
+
+/* 2. O ANTÍDOTO: Mata a regra fantasma que forçava as vendas a ficarem lado a lado! */
+#lista-vendas-cadastradas > div {
+    display: block !important;
+    padding: 0 !important;
+}
+
+/* 3. Força as vendas de um mesmo dia a ficarem uma embaixo da outra */
+.grid-vendas-grupo {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+}
+
+/* 4. O Cartão individual */
+.card-venda-list {
+    background: #fafafa;
+    transition: 0.2s;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.card-venda-list:hover {
+    background: #fff;
+    border-color: var(--primary) !important;
+}
+
+.card-venda-list .prod-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed #e8dde1;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+.card-venda-list .v-prod-block {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(0,0,0,0.05);
+}
+
+/* Modificações exclusivas para PC (A "Tabela" Perfeita de Vendas) */
+@media (min-width: 992px) {
+    .card-venda-list {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 25px !important;
+    }
+    
+    .card-venda-list .prod-info-main {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        gap: 20px;
+    }
+
+    .card-venda-list .v-cli-block {
+        width: 280px; 
+        min-width: 280px;
+    }
+    .card-venda-list .v-cli-block h4 {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-venda-list .v-prod-block {
+        flex: 1;
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+        border-left: 2px solid #f0f2f5;
+        padding-left: 20px;
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .card-venda-list .prod-actions {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+        justify-content: flex-end;
+        gap: 20px;
+        min-width: 320px;
+    }
+}
+
+/* ========================================================= */
+/* AGRUPAMENTO E LISTA DE ESTOQUE                            */
+/* ========================================================= */
+
+#lista-estoque-cards {
+    display: block !important;
+}
+
+#lista-estoque-cards > div {
+    display: block !important;
+    padding: 0 !important;
+}
+
+.grid-estoque-grupo {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+}
+
+.card-estoque-list {
+    background: #fafafa;
+    transition: 0.2s;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.card-estoque-list:hover {
+    background: #fff;
+    border-color: var(--primary) !important;
+}
+
+.card-estoque-list .prod-info-main {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.card-estoque-list .prod-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed #e8dde1;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* Modificações exclusivas para PC (Lista Tabela de Estoque) */
+@media (min-width: 992px) {
+    .card-estoque-list {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 25px !important;
+    }
+
+    .card-estoque-list .prod-info-main {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+    .card-estoque-list .e-nome-block {
+        width: 300px;
+        min-width: 300px;
+    }
+    
+    .card-estoque-list .e-nome-block h4 {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-estoque-list .e-locais-block {
+        flex: 1;
+        border-left: 2px solid #f0f2f5;
+        padding-left: 20px;
+        margin-left: 10px;
+    }
+
+    .card-estoque-list .prod-actions {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+        justify-content: flex-end;
+        gap: 10px;
+        min-width: 250px;
+    }
+}
+
+/* ========================================================= */
+/* AGRUPAMENTO E LISTA DE ESSÊNCIAS (RÓTULOS)                */
+/* ========================================================= */
+
+#lista-rotulos-cadastrados {
+    display: block !important;
+}
+
+#lista-rotulos-cadastrados > div {
+    display: block !important;
+    padding: 0 !important;
+}
+
+.grid-essencia-grupo {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+}
+
+.card-essencia-list {
+    background: #fafafa;
+    transition: 0.2s;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 8px;
+    padding: 15px;
+}
+.card-essencia-list:hover {
+    background: #fff;
+    border-color: var(--primary) !important;
+}
+
+.card-essencia-list .prod-info-main {
+    margin-bottom: 10px;
+}
+
+.card-essencia-list .e-forn-block {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(0,0,0,0.05);
+}
+
+.card-essencia-list .prod-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Modificações exclusivas para PC (Tabela do Dicionário) */
+@media (min-width: 992px) {
+    .card-essencia-list {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 25px !important;
+    }
+
+    .card-essencia-list .prod-info-main {
+        flex: 1;
+        margin-bottom: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-essencia-list .e-nome-block {
+        width: 350px;
+        min-width: 350px;
+    }
+    
+    .card-essencia-list .e-nome-block h4 {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-essencia-list .e-forn-block {
+        flex: 1;
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+        border-left: 2px solid #f0f2f5;
+        padding-left: 20px;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-essencia-list .prod-actions {
+        justify-content: flex-end;
+        min-width: 200px;
+    }
+}
+
+/* ========================================================= */
+/* AGRUPAMENTO E LISTA DE GASTOS E COMPRAS                   */
+/* ========================================================= */
+
+#lista-compras-cards, #lista-gastos-cadastrados {
+    display: block !important;
+}
+
+#lista-compras-cards > div, #lista-gastos-cadastrados > div {
+    display: block !important;
+    padding: 0 !important;
+}
+
+.grid-compras-grupo, .grid-gastos-grupo {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+}
+
+.card-compra-list, .card-gasto-list {
+    background: #fafafa;
+    transition: 0.2s;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.card-compra-list:hover, .card-gasto-list:hover {
+    background: #fff;
+    border-color: var(--primary) !important;
+}
+
+/* Celular: Empilha a informação */
+.card-compra-list .prod-info-main, .card-gasto-list .prod-info-main {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.card-compra-list .prod-actions, .card-gasto-list .prod-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed #e8dde1;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* Modificações exclusivas para PC (Tabela do Financeiro) */
+@media (min-width: 992px) {
+    .card-compra-list, .card-gasto-list {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 25px !important;
+    }
+
+    .card-compra-list .prod-info-main, .card-gasto-list .prod-info-main {
+        flex-direction: row;
+        align-items: center;
+        flex: 1;
+        gap: 20px;
+        margin-bottom: 0;
+    }
+
+    .card-compra-list .c-nome-block, .card-gasto-list .g-nome-block {
+        width: 320px;
+        min-width: 320px;
+    }
+
+    .card-compra-list .c-nome-block h4, .card-gasto-list .g-nome-block h4 {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-compra-list .c-detalhe-block, .card-gasto-list .g-detalhe-block {
+        flex: 1;
+        border-left: 2px solid #f0f2f5;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .card-compra-list .prod-actions, .card-gasto-list .prod-actions {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+        justify-content: flex-end;
+        gap: 20px;
+        min-width: 280px;
+    }
+}

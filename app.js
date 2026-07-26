@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "7.8.47";
+const VERSAO_ATUAL_SISTEMA = "7.8.50";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -387,7 +387,112 @@ function renderizarLogs() {
     container.innerHTML = html;
 }
 
-function renderizarRotulos() { const lista = document.getElementById("lista-rotulos-cadastrados"); const resumo = document.getElementById("resumo-essencias"); if (rotulosGlobal.length === 0) { lista.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; if (resumo) resumo.innerHTML = ""; return; } let htmlLista = ""; let countMasc = 0, countFem = 0, countInf = 0, countUni = 0; rotulosGlobal.sort((a, b) => String(b.codigo || "").localeCompare(String(a.codigo || ""))).forEach(r => { let gen = String(r.genero || "").toLowerCase().trim(); let corFundo = "#f3f4f6", corTexto = "#4b5563"; let txtGen = r.genero || "Unissex"; if (gen === "masculino") { corFundo = "#e0f2fe"; corTexto = "#0369a1"; countMasc++; } else if (gen === "feminino") { corFundo = "#fce7f3"; corTexto = "#be185d"; countFem++; } else if (gen === "infantil") { corFundo = "#dcfce7"; corTexto = "#166534"; countInf++; } else { countUni++; txtGen = "Unissex"; } let badgeGenero = `<span style="background:${corFundo}; color:${corTexto}; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px; text-transform:uppercase; font-weight:800; vertical-align: middle;">${txtGen}</span>`; htmlLista += `<div class="rotulo-card"><div class="rotulo-info"><h4>${r.essencia} ${badgeGenero} <span style="font-size:0.7rem; color:#999; font-weight:500;">(${r.marca})</span></h4><p>Cód Forn: <b>${r.codigo_forn || '-'}</b></p></div><div style="display:flex; gap:12px; align-items:center;"><div class="rotulo-badge">${r.codigo}</div><div style="display:flex; gap:5px;"><button class="btn-acao" onclick="abrirModalEditarRotulo(${r.linha})" title="Editar">✏️</button><button class="btn-acao" onclick="prepararExclusaoRegistro('Tabela Rotulo Novera', ${r.linha}, 'Rótulo: ${r.codigo}')">🗑️</button></div></div></div>`; }); lista.innerHTML = htmlLista; if (resumo) { resumo.innerHTML = `<div class="dash-card highlight" style="grid-column: span 2; padding: 15px; margin-bottom: 0; text-align:center;"><h3 style="color:#e8dde1; font-size:0.75rem;">Total no Dicionário</h3><p class="valor" style="font-size: 2rem;">${rotulosGlobal.length}</p></div><div class="dash-card" style="padding: 12px; background:#fff0f6; border: 1px solid #fce7f3; transform:none; cursor:default;"><h3 style="color:#be185d; font-size:0.65rem;">Femininas</h3><p class="valor" style="font-size: 1.4rem; color:#be185d;">${countFem}</p></div><div class="dash-card" style="padding: 12px; background:#f0f9ff; border: 1px solid #e0f2fe; transform:none; cursor:default;"><h3 style="color:#0369a1; font-size:0.65rem;">Masculinas</h3><p class="valor" style="font-size: 1.4rem; color:#0369a1;">${countMasc}</p></div><div class="dash-card" style="padding: 12px; background:#f9fafb; border: 1px solid #e5e7eb; transform:none; cursor:default;"><h3 style="color:#4b5563; font-size:0.65rem;">Unissex</h3><p class="valor" style="font-size: 1.4rem; color:#4b5563;">${countUni}</p></div><div class="dash-card" style="padding: 12px; background:#f0fdf4; border: 1px solid #dcfce7; transform:none; cursor:default;"><h3 style="color:#166534; font-size:0.65rem;">Infantis</h3><p class="valor" style="font-size: 1.4rem; color:#166534;">${countInf}</p></div>`; } }
+function renderizarRotulos() { 
+    const lista = document.getElementById("lista-rotulos-cadastrados"); 
+    const resumo = document.getElementById("resumo-essencias"); 
+    
+    if (rotulosGlobal.length === 0) { 
+        lista.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Dicionário Vazio.</p>"; 
+        if (resumo) resumo.innerHTML = ""; 
+        return; 
+    } 
+    
+    let htmlLista = ""; 
+    let countMasc = 0, countFem = 0, countInf = 0, countUni = 0; 
+    
+    // 1. Criar as "Gavetas" (Agrupamento por Gênero)
+    let gruposRotulos = {
+        "Feminino": { itens: [], count: 0, corFundo: "#be185d" },
+        "Masculino": { itens: [], count: 0, corFundo: "#0369a1" },
+        "Unissex": { itens: [], count: 0, corFundo: "#4b5563" },
+        "Infantil": { itens: [], count: 0, corFundo: "#166534" }
+    };
+
+    // Ordenar pelo Código Novera (Crescente: N001, N002, N003...) usando inteligência alfanumérica
+    rotulosGlobal.sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), undefined, { numeric: true })).forEach(r => { 
+        let genLow = String(r.genero || "").toLowerCase().trim(); 
+        let genKey = "Unissex";
+        
+        let corFundoGen = "#f3f4f6", corTextoGen = "#4b5563"; 
+        
+        if (genLow === "masculino") { 
+            corFundoGen = "#e0f2fe"; corTextoGen = "#0369a1"; countMasc++; genKey = "Masculino";
+        } else if (genLow === "feminino") { 
+            corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; countFem++; genKey = "Feminino";
+        } else if (genLow === "infantil") { 
+            corFundoGen = "#dcfce7"; corTextoGen = "#166534"; countInf++; genKey = "Infantil";
+        } else { 
+            countUni++; genKey = "Unissex";
+        } 
+        
+        gruposRotulos[genKey].count++;
+
+        let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px; text-transform:uppercase; font-weight:800; vertical-align: middle;">${genKey}</span>`; 
+        
+        // 2. Montar a Linha (Cartão de Essência)
+        gruposRotulos[genKey].itens.push(`
+        <div class="rotulo-card card-essencia-list" style="border-left: 5px solid ${corTextoGen};">
+            <div class="prod-info-main">
+                <div class="e-nome-block">
+                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${r.essencia} ${badgeGenero}</h4>
+                    <p style="margin:0; font-size:0.75rem; color:#888; font-weight:600;">Marca: <span style="color:var(--primary);">${r.marca || 'N/A'}</span></p>
+                </div>
+            </div>
+            
+            <div class="e-forn-block">
+                <p style="margin:0; font-size:0.75rem; color:#666;">Cód Fornecedor: <b style="color: var(--brand-dark); font-size: 0.85rem;">${r.codigo_forn || '-'}</b></p>
+            </div>
+
+            <div class="prod-actions">
+                <div class="rotulo-badge" style="font-size: 1.1rem; padding: 6px 12px; margin-right: 10px;">${r.codigo}</div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarRotulo(${r.linha})" title="Editar">✏️</button>
+                    <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Tabela Rotulo Novera', ${r.linha}, 'Rótulo: ${r.codigo}')" title="Excluir">🗑️</button>
+                </div>
+            </div>
+        </div>`); 
+    }); 
+    
+    // 3. Desenhar o HTML agrupado na tela
+    Object.keys(gruposRotulos).forEach(chave => {
+        if(gruposRotulos[chave].count > 0) {
+            htmlLista += `<div class="separador-data" style="background: ${gruposRotulos[chave].corFundo}; margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+                <span>✨ GÊNERO: ${chave.toUpperCase()}</span>
+                <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">${gruposRotulos[chave].count} Cadastradas</span>
+            </div>`;
+            htmlLista += `<div class="grid-essencia-grupo">`;
+            htmlLista += gruposRotulos[chave].itens.join('');
+            htmlLista += `</div>`;
+        }
+    });
+
+    lista.innerHTML = htmlLista; 
+    
+    // Totalizadores Superiores
+    if (resumo) { 
+        resumo.innerHTML = `
+        <div class="dash-card highlight" style="grid-column: span 2; padding: 15px; margin-bottom: 0; text-align:center;">
+            <h3 style="color:#e8dde1; font-size:0.75rem;">Total no Dicionário</h3>
+            <p class="valor" style="font-size: 2rem;">${rotulosGlobal.length}</p>
+        </div>
+        <div class="dash-card" style="padding: 12px; background:#fff0f6; border: 1px solid #fce7f3; transform:none; cursor:default;">
+            <h3 style="color:#be185d; font-size:0.65rem;">Femininas</h3>
+            <p class="valor" style="font-size: 1.4rem; color:#be185d;">${countFem}</p>
+        </div>
+        <div class="dash-card" style="padding: 12px; background:#f0f9ff; border: 1px solid #e0f2fe; transform:none; cursor:default;">
+            <h3 style="color:#0369a1; font-size:0.65rem;">Masculinas</h3>
+            <p class="valor" style="font-size: 1.4rem; color:#0369a1;">${countMasc}</p>
+        </div>
+        <div class="dash-card" style="padding: 12px; background:#f9fafb; border: 1px solid #e5e7eb; transform:none; cursor:default;">
+            <h3 style="color:#4b5563; font-size:0.65rem;">Unissex</h3>
+            <p class="valor" style="font-size: 1.4rem; color:#4b5563;">${countUni}</p>
+        </div>
+        <div class="dash-card" style="padding: 12px; background:#f0fdf4; border: 1px solid #dcfce7; transform:none; cursor:default;">
+            <h3 style="color:#166534; font-size:0.65rem;">Infantis</h3>
+            <p class="valor" style="font-size: 1.4rem; color:#166534;">${countInf}</p>
+        </div>`; 
+    } 
+}
 
 function renderizarOpcoesPrecificacao() { 
     // 1. PREENCHE A CALCULADORA DE NOVOS PRODUTOS (Mantém todos)
@@ -484,104 +589,126 @@ function salvarFilaProducao() {
 }
 
 function renderizarProducao() {
-    const fila = document.getElementById('lista-producao-cards'); 
+    const fila = document.getElementById('lista-producao-cards');
     const resumo = document.getElementById('resumo-producao');
-    
-    let pends = producaoGlobal.filter(p => p.status === 'Em Andamento'); 
-    pends.sort((a, b) => new Date(a.data_previsao) - new Date(b.data_previsao)); 
-    
-    if (pends.length === 0) { 
-        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma maceração / produção na fila.</p>"; 
-        if(resumo) resumo.innerHTML = "";
-        return; 
-    } 
-    
-    // Pegando a data de hoje sem horas para a matemática ficar exata
+    const tBusca = document.getElementById('busca-producao') ? document.getElementById('busca-producao').value.toLowerCase().trim() : '';
+
+    let pends = producaoGlobal.filter(p => p.status === 'Em Andamento');
+
+    if (tBusca) {
+        pends = pends.filter(p => p.nome_produto.toLowerCase().includes(tBusca));
+    }
+
+    if (pends.length === 0) {
+        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma maceração encontrada.</p>";
+        if(resumo && !tBusca) resumo.innerHTML = "";
+        return;
+    }
+
     const hojeObj = new Date();
-    hojeObj.setHours(0, 0, 0, 0); 
-    
-    let totalUnidades = 0, countFem = 0, countMasc = 0, countInf = 0, countUni = 0;
-    let html = ""; 
-    
+    hojeObj.setHours(0, 0, 0, 0);
+
+    let totalUnidades = 0, countFem = 0, countMasc = 0;
+    let grupos = {}; // Objeto para agrupar por Data
+
+    // 1. Enriquecer os dados e Agrupar
     pends.forEach(p => {
         const q = parseFloat(p.qtd_prevista) || 0;
         totalUnidades += q;
-        
+
         const rotuloRef = rotulosGlobal.find(r => r.codigo === p.codigo);
         const gen = rotuloRef && rotuloRef.genero ? String(rotuloRef.genero).toLowerCase().trim() : 'unissex';
-        
+
         if (gen === 'feminino') countFem += q;
         else if (gen === 'masculino') countMasc += q;
-        else if (gen === 'infantil') countInf += q;
-        else countUni += q;
 
-        // MATEMÁTICA 1: Dias Faltantes
-        const [a, m, d] = p.data_previsao.split('-'); 
+        p.genero_calc = gen; // Salva o gênero para ordenar depois
+        p.genero_txt = rotuloRef && rotuloRef.genero ? rotuloRef.genero : 'Unissex';
+
+        // Matemática dos Dias
+        const [a, m, d] = p.data_previsao.split('-');
         const prevObj = new Date(a, m - 1, d);
         const diffTimeFalta = prevObj.getTime() - hojeObj.getTime();
-        const diffDaysFalta = Math.ceil(diffTimeFalta / (1000 * 60 * 60 * 24));
+        p.diffDaysFalta = Math.ceil(diffTimeFalta / (1000 * 60 * 60 * 24));
 
-        // MATEMÁTICA 2: Dias já Macerando (Dias corridos)
         const [iA, iM, iD] = p.data_inicio.split('-');
         const inicioObj = new Date(iA, iM - 1, iD);
         const diffTimeInicio = hojeObj.getTime() - inicioObj.getTime();
-        const diasMacerando = Math.floor(diffTimeInicio / (1000 * 60 * 60 * 24));
-        
-        let textoMacerando = diasMacerando === 0 ? "Iniciado hoje" : `Macerando há ${diasMacerando} dia(s)`;
+        p.diasMacerando = Math.floor(diffTimeInicio / (1000 * 60 * 60 * 24));
 
-        let classBadge = "b-futuro"; 
-        let textoBadge = "";
-        
-        if (diffDaysFalta < 0) { 
-            classBadge = "b-atrasado"; 
-            textoBadge = `Atrasado ${Math.abs(diffDaysFalta)} dia(s)`; 
-        } else if (diffDaysFalta === 0) { 
-            classBadge = "b-hoje"; 
-            textoBadge = "Envasar Hoje!"; 
-        } else {
-            textoBadge = `⏳ Faltam ${diffDaysFalta} dia(s)`;
+        // Agrupar na "Gaveta" certa da Data
+        let dataKey = p.data_previsao;
+        if (!grupos[dataKey]) {
+            grupos[dataKey] = { dataBR: dataBR(p.data_previsao), diffDays: p.diffDaysFalta, itens: [] };
         }
-        
-        const dataDisplay = dataBR(p.data_previsao);
-        const dataInicioDisplay = dataBR(p.data_inicio);
-        
-        let corFundoGen = "#f3f4f6", corTextoGen = "#4b5563";
-        if(gen === "masculino") { corFundoGen = "#e0f2fe"; corTextoGen = "#0369a1"; }
-        else if(gen === "feminino") { corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; }
-        let badgeGenero = rotuloRef && rotuloRef.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px; vertical-align: middle;">${rotuloRef.genero}</span>` : '';
-        
-        // NOVO CARTÃO ESPAÇOSO (Sem cortes no nome e com botões no rodapé)
-        html += `
-        <div class="rotulo-card" style="flex-direction: column; align-items: stretch; gap: 10px; padding: 18px;">
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <h4 style="margin: 0; line-height: 1.4; font-size: 0.95rem; color: var(--brand-dark);">
-                    <span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px; vertical-align: middle;">${p.codigo}</span>
-                    ${p.nome_produto} ${badgeGenero}
-                </h4>
-                
-                <div style="background: #fdf5f7; border: 1px solid #f3d8e2; border-radius: 8px; padding: 10px; margin-top: 5px;">
-                    <p style="color:var(--primary-dark); font-weight:800; font-size:0.75rem; margin: 0 0 6px 0;">
-                        <span class="badge-status ${classBadge}" style="margin-left:0; padding:4px 8px; vertical-align: middle;">${textoBadge}</span>
-                    </p>
-                    <p style="font-size: 0.75rem; color: var(--brand-dark); font-weight: 700; margin: 0;">🧪 ${textoMacerando}</p>
+        grupos[dataKey].itens.push(p);
+    });
+
+    // 2. Ordenar as Gavetas cronologicamente
+    let datasOrdenadas = Object.keys(grupos).sort((a, b) => new Date(a) - new Date(b));
+
+    let html = "";
+
+    // 3. Desenhar o Layout
+    datasOrdenadas.forEach(dataKey => {
+        let grupo = grupos[dataKey];
+
+        // Separador Visual de Data (Cabeçalho do Grupo)
+        let classDivisor = "div-futuro";
+        let textoDivisor = `⏳ Pronto em: ${grupo.dataBR} (Faltam ${grupo.diffDays} dias)`;
+        if (grupo.diffDays < 0) {
+            classDivisor = "div-atrasado"; textoDivisor = `🚨 Atrasado! Era para: ${grupo.dataBR}`;
+        } else if (grupo.diffDays === 0) {
+            classDivisor = "div-hoje"; textoDivisor = `✨ Ficam prontos HOJE! (${grupo.dataBR})`;
+        }
+
+        html += `<div class="separador-data ${classDivisor}">${textoDivisor}</div>`;
+        html += `<div class="grid-producao-grupo">`;
+
+        // Ordenar os itens dentro do dia: Primeiro por Gênero, depois por Nome
+        grupo.itens.sort((a, b) => {
+            if (a.genero_calc !== b.genero_calc) return a.genero_calc.localeCompare(b.genero_calc);
+            return a.nome_produto.localeCompare(b.nome_produto);
+        });
+
+        // Desenhar a Linha de cada Produto
+        grupo.itens.forEach(p => {
+            let textoMacerando = p.diasMacerando === 0 ? "Iniciado hoje" : `Macerando há ${p.diasMacerando} dia(s)`;
+
+            let corFundoGen = "#f3f4f6", corTextoGen = "#4b5563";
+            if(p.genero_calc === "masculino") { corFundoGen = "#e0f2fe"; corTextoGen = "#0369a1"; }
+            else if(p.genero_calc === "feminino") { corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; }
+            let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px; vertical-align: middle;">${p.genero_txt}</span>`;
+
+            html += `
+            <div class="rotulo-card card-producao-list" style="border-left: 5px solid ${corTextoGen}; border-radius: 8px; padding: 15px;">
+                <div class="prod-info-main" style="flex:1;">
+                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">
+                        <span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px; vertical-align: middle;">${p.codigo}</span>
+                        ${p.nome_produto} ${badgeGenero}
+                    </h4>
+                    <p style="font-size: 0.75rem; color: var(--brand-dark); font-weight: 700; margin: 0 0 5px 0;">🧪 ${textoMacerando}</p>
+                    <p style="font-size: 0.65rem; color: #888; margin: 0;">📅 Iniciado em: ${dataBR(p.data_inicio)}</p>
                 </div>
 
-                <p style="font-size: 0.65rem; color: #888; margin: 5px 0 0 0;">📅 Início: ${dataInicioDisplay} | Fim: ${dataDisplay}</p>
-                <p style="font-size: 0.75rem; margin: 0;">Meta de Envase: <b style="color:var(--brand-dark);">${p.qtd_prevista} un</b></p>
-            </div>
-            
-            <div style="display:flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 5px;">
-                <div style="display:flex; gap:6px;">
-                    <button class="btn-acao" onclick="abrirModalEditarProducao(${p.linha})" title="Editar Previsão">✏️</button>
-                    <button class="btn-acao" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>
+                <div class="prod-actions">
+                    <div style="text-align: right; margin-right: 15px;">
+                        <p style="font-size: 0.75rem; margin: 0; color: #888;">Meta de Envase</p>
+                        <p style="margin: 0; color: var(--brand-dark); font-size: 1.2rem; font-weight: 900;">${p.qtd_prevista} un</p>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <button class="btn-acao" style="width: 36px; height: 36px;" onclick="abrirModalEditarProducao(${p.linha})" title="Editar Previsão">✏️</button>
+                        <button class="btn-acao" style="width: 36px; height: 36px;" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>
+                        <button class="btn-salvar" style="margin:0; padding:10px 20px; font-size:0.8rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>
+                    </div>
                 </div>
-                <button class="btn-salvar" style="margin-top:0; padding:10px 15px; font-size:0.75rem; background:#2e7d32; width: auto; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.2);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>
-            </div>
-        </div>`;
-    }); 
-    
+            </div>`;
+        });
+        html += `</div>`; // Fecha grupo
+    });
+
     fila.innerHTML = html;
-    
+
     if (resumo) {
         resumo.innerHTML = `
             <div class="dash-card highlight" style="grid-column: span 2; padding: 15px; margin-bottom: 0; text-align:center;">
@@ -717,7 +844,7 @@ function renderizarEstoque() {
     const dFiltroGenero = document.getElementById('f-e-genero');
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
 
-    // -- NOVO CÁLCULO DE MACERAÇÃO PARA EXIBIR NO ESTOQUE --
+    // Mapeia a produção em andamento
     let totalMacerandoPorProduto = {};
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
@@ -726,7 +853,6 @@ function renderizarEstoque() {
             totalMacerandoPorProduto[nomeP] += (parseFloat(p.qtd_prevista) || 0);
         }
     });
-    // -----------------------------------------------------
 
     let arrEstoque = Object.values(estoqueAgrupado); 
     arrEstoque = arrEstoque.filter(e => { 
@@ -738,6 +864,7 @@ function renderizarEstoque() {
         return passBusca && passLocal && passGenero;
     }); 
     
+    // Ordena os itens (Esgotados no final, depois Ordem Alfabética de Código)
     arrEstoque.sort((a, b) => { 
         let qA = localSelecionado ? (a.locais[localSelecionado] || 0) : a.totalQtd; 
         let qB = localSelecionado ? (b.locais[localSelecionado] || 0) : b.totalQtd; 
@@ -753,13 +880,25 @@ function renderizarEstoque() {
         document.getElementById('est-valor-total').innerText = "R$ 0,00"; 
         return; 
     } 
+
     let html = "", somaItens = 0, somaValor = 0; 
+    let gruposEstoque = {};
+
+    // 1. Agrupar por Categoria (Tipo)
     arrEstoque.forEach(e => { 
         const qtdExibicao = localSelecionado ? (e.locais[localSelecionado] || 0) : e.totalQtd; 
         const precoNum = parseDinheiro(e.preco); 
         somaItens += qtdExibicao; 
         somaValor += (qtdExibicao * precoNum); 
         
+        let tipoKey = (e.tipo || 'Sem Categoria').toUpperCase();
+        if(!gruposEstoque[tipoKey]) {
+            gruposEstoque[tipoKey] = { itens: [], qtdGrupo: 0, valorGrupo: 0 };
+        }
+        
+        gruposEstoque[tipoKey].qtdGrupo += qtdExibicao;
+        gruposEstoque[tipoKey].valorGrupo += (qtdExibicao * precoNum);
+
         let opacidade = qtdExibicao <= 0 ? "opacity: 0.65; filter: grayscale(50%);" : ""; 
         let fotoUrls = e.foto ? e.foto.split(',') : []; 
         let urlPri = fotoUrls[0] || 'logo.png'; 
@@ -772,55 +911,79 @@ function renderizarEstoque() {
         else if(gLow === "infantil") { corFundoGen = "#dcfce7"; corTextoGen = "#166534"; }
         let badgeGenero = e.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${e.genero}</span>` : '';
 
-        // -- NOVO BLOCO DE INTELIGÊNCIA: AVALIAÇÃO DE SAÚDE --
+        // Avaliação de Saúde (Radar)
         let qtdMacerando = totalMacerandoPorProduto[padronizarTexto(e.nome)] || 0;
         let qtdProjetada = qtdExibicao + qtdMacerando;
         
         let corCustoVal = "var(--brand-dark)";
         let htmlSaudeEstoque = "";
         
-        if (qtdProjetada < 5) {
-            corCustoVal = "#991b1b"; // Vermelho
-            htmlSaudeEstoque = `<span class="badge-estoque badge-critico">⚠️ Crítico: Abaixo de 5</span>`;
+        if (qtdProjetada < 5 && qtdExibicao > 0) {
+            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">⚠️ Crítico (< 5)</span>`;
         } else if (qtdExibicao < 5 && qtdMacerando > 0) {
-            corCustoVal = "#a16207"; // Amarelo
-            htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo">⏳ Tem lote vindo!</span>`;
+            corCustoVal = "#a16207"; htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo" style="margin:0;">⏳ Lote Vindo</span>`;
+        } else if (qtdExibicao <= 0) {
+            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">🚫 Esgotado</span>`;
         } else {
-            corCustoVal = "#166534"; // Verde
-            htmlSaudeEstoque = `<span class="badge-estoque badge-saudavel">✔️ Estoque Seguro</span>`;
+            corCustoVal = "#166534"; htmlSaudeEstoque = `<span class="badge-estoque badge-saudavel" style="margin:0;">✔️ Seguro</span>`;
         }
         
-        let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 5px 0 0 0;">Fila de Maceração: +${qtdMacerando} un</p>` : "";
-        // --------------------------------------------------
+        let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
 
+        // Distruibuição Local
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
         for(let loc in e.locais) { 
-            if(e.locais[loc] > 0) { 
-                locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b></span>`; 
-            } 
+            if(e.locais[loc] > 0) { locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b></span>`; } 
         } 
         locaisHtml += `</div>`; 
         if (qtdExibicao <= 0) locaisHtml = ""; 
         
         const nomeEncode = encodeURIComponent(e.nome); 
-        html += `<div class="rotulo-card" style="align-items:flex-start; ${opacidade}">
-            <img src="${urlPri}" onerror="this.src='logo.png';" class="list-img" onclick="abrirModalImagem(this.src)">
-            <div class="rotulo-info" style="flex:1;">
-                <h4>${codigoBadge}${e.nome} ${badgeGenero}</h4>
-                <p style="color:var(--primary); font-weight:700; margin-bottom:2px;">Venda: ${safeFmt(e.preco)}</p>
-                <p style="font-size:0.7rem; color:#888; margin-bottom:0;">Custo Fábrica: ${safeFmt(e.custo)}</p>
-                ${locaisHtml}
-                ${htmlSaudeEstoque}
-            </div>
-            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-                <div class="custo-val" style="color:${corCustoVal};">${qtdExibicao} un</div>
-                ${htmlInfoProducao}
-                <div style="display:flex; gap:5px; margin-top: 5px;">
-                    <button class="btn-acao" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>
+        
+        // Cartão Final
+        gruposEstoque[tipoKey].itens.push(`
+        <div class="rotulo-card card-estoque-list" style="${opacidade}">
+            <div class="prod-info-main">
+                <img src="${urlPri}" onerror="this.src='logo.png';" class="list-img" onclick="abrirModalImagem(this.src)">
+                <div class="e-nome-block">
+                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${codigoBadge}${e.nome} ${badgeGenero}</h4>
+                    <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <p style="margin:0; font-size:0.8rem; color:var(--primary); font-weight:700;">Venda: ${safeFmt(e.preco)}</p>
+                        <p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>
+                    </div>
                 </div>
             </div>
-        </div>`; 
+            
+            <div class="e-locais-block">
+                ${locaisHtml}
+            </div>
+
+            <div class="prod-actions">
+                <div style="text-align: right;">
+                    <div style="display:flex; justify-content: flex-end;">${htmlSaudeEstoque}</div>
+                    <div class="custo-val" style="color:${corCustoVal}; font-size: 1.2rem; margin-top: 3px;">${qtdExibicao} un</div>
+                    ${htmlInfoProducao}
+                </div>
+                <div style="display:flex; align-items:center;">
+                    <button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>
+                </div>
+            </div>
+        </div>`); 
     }); 
+
+    // 2. Desenhar HTML
+    let tiposOrdenados = Object.keys(gruposEstoque).sort();
+    
+    tiposOrdenados.forEach(tipoChave => {
+        html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+                    <span>📦 CATEGORIA: ${tipoChave}</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">ESTOQUE: ${gruposEstoque[tipoChave].qtdGrupo} un | 💰 ${fmt(gruposEstoque[tipoChave].valorGrupo)}</span>
+                 </div>`;
+        html += `<div class="grid-estoque-grupo">`;
+        html += gruposEstoque[tipoChave].itens.join('');
+        html += `</div>`;
+    });
+
     lista.innerHTML = html; 
     document.getElementById('est-total-itens').innerText = somaItens; 
     document.getElementById('est-valor-total').innerText = fmt(somaValor); 
@@ -911,12 +1074,83 @@ async function gerarCatalogoPDFFrontend() {
 }
 
 function renderizarCompras() {
-    const fila = document.getElementById('lista-compras-cards'); const tBusca = document.getElementById('busca-compras').value.toLowerCase().trim(); let pends = comprasGlobal.filter(c => c.status !== 'Comprado'); if (tBusca) { pends = pends.filter(c => (c.item + " " + c.categoria).toLowerCase().includes(tBusca)); } pends.sort((a, b) => new Date(a.dataPrevista) - new Date(b.dataPrevista)); if (comprasGlobal.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma compra planejada.</p>"; return; } if (pends.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo comprado ou não encontrado!</p>"; return; } const hojeIso = new Date().toISOString().split('T')[0]; let html = ""; pends.forEach(c => {
+    const fila = document.getElementById('lista-compras-cards'); 
+    const tBusca = document.getElementById('busca-compras').value.toLowerCase().trim(); 
+    let pends = comprasGlobal.filter(c => c.status !== 'Comprado'); 
+    
+    if (tBusca) { 
+        pends = pends.filter(c => (c.item + " " + c.categoria).toLowerCase().includes(tBusca)); 
+    } 
+    
+    pends.sort((a, b) => new Date(a.dataPrevista) - new Date(b.dataPrevista)); 
+    
+    if (comprasGlobal.length === 0) { 
+        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma compra planejada.</p>"; 
+        return; 
+    } 
+    if (pends.length === 0) { 
+        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo comprado ou não encontrado!</p>"; 
+        return; 
+    } 
+    
+    const hojeIso = new Date().toISOString().split('T')[0]; 
+    let html = ""; 
+    let gruposCompras = {};
+
+    pends.forEach(c => {
+        let cat = c.categoria ? c.categoria.toUpperCase() : "OUTROS / SEM CATEGORIA";
+        if (!gruposCompras[cat]) gruposCompras[cat] = { itens: [], total: 0 };
+
         let classBadge = "b-futuro"; let textoBadge = "No prazo";
-        if (c.dataPrevista < hojeIso) { classBadge = "b-atrasado"; textoBadge = "Atrasado"; } else if (c.dataPrevista === hojeIso) { classBadge = "b-hoje"; textoBadge = "Hoje"; }
+        if (c.dataPrevista < hojeIso) { classBadge = "b-atrasado"; textoBadge = "Atrasado"; } 
+        else if (c.dataPrevista === hojeIso) { classBadge = "b-hoje"; textoBadge = "Hoje"; }
+        
         const valorTotalCompra = parseDinheiro(c.valor_previsto) * (parseInt(c.qtd) || 1);
-        html += `<div class="rotulo-card" style="gap: 12px; align-items: center;"><input type="checkbox" class="chk-item-compra-lote" value="${c.linha}" style="width:22px; height:22px; accent-color:var(--primary-dark); cursor:pointer; margin:0; flex-shrink:0;"><div class="rotulo-info" style="flex:1; min-width:0;"><h4 style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.item} <span class="badge-status ${classBadge}" style="margin-left:5px;">${textoBadge}</span></h4><p style="color:var(--primary); font-weight:800; font-size:0.7rem;">Previsto: ${c.dataDisplay}</p><p><b>${c.qtd}x</b> • Categoria: ${c.categoria}</p><p style="font-size:0.7rem; color:#888; font-weight:700; margin-top:3px;">Unitário: ${safeFmt(c.valor_previsto)} | <span style="color:#A05252;">Total: ${fmt(valorTotalCompra)}</span></p></div><div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end; flex-shrink:0;"><button class="btn-salvar" style="margin-top:0; padding:8px 12px; font-size:0.75rem; background:#2e7d32;" onclick="abrirModalCompra(${c.linha})" title="Efetuar Compra Individual">✔️ Lançar</button><div style="display:flex; gap:4px;"><button class="btn-acao" onclick="abrirModalEditarCompra(${c.linha})" title="Editar Planejamento">✏️</button><button class="btn-acao" onclick="prepararExclusaoRegistro('Compras', ${c.linha}, '${c.item}')" title="Excluir">🗑️</button></div></div></div>`;
-    }); fila.innerHTML = html;
+        gruposCompras[cat].total += valorTotalCompra;
+
+        gruposCompras[cat].itens.push(`
+        <div class="rotulo-card card-compra-list" style="border-left: 5px solid var(--primary-dark); padding: 15px; border-radius: 8px;">
+            <div style="display: flex; align-items: flex-start; gap: 15px; flex: 1;">
+                <input type="checkbox" class="chk-item-compra-lote" value="${c.linha}" style="width:22px; height:22px; accent-color:var(--primary-dark); cursor:pointer; margin-top:2px; flex-shrink:0;">
+                
+                <div class="prod-info-main" style="flex: 1;">
+                    <div class="c-nome-block">
+                        <h4 style="margin: 0 0 3px 0; font-size: 0.95rem; color: var(--brand-dark);">
+                            ${c.item} <span class="badge-status ${classBadge}" style="margin-left:5px;">${textoBadge}</span>
+                        </h4>
+                        <p style="color:var(--primary); font-weight:800; font-size:0.7rem; margin:0;">🗓️ Previsto para: ${c.dataDisplay}</p>
+                    </div>
+                    <div class="c-detalhe-block">
+                        <p style="margin:0; font-size:0.85rem; color: var(--brand-dark);"><b>${c.qtd}x</b> unit. ${safeFmt(c.valor_previsto)}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prod-actions">
+                <div style="text-align: right;">
+                    <p style="font-size:0.7rem; color:#A05252; font-weight:700; margin:0;">Total Estimado</p>
+                    <p style="margin: 2px 0 0 0; color: var(--brand-dark); font-size: 1.1rem; font-weight: 900;">${fmt(valorTotalCompra)}</p>
+                </div>
+                <div style="display:flex; flex-direction:row; gap:6px; align-items:center;">
+                    <button class="btn-salvar" style="margin:0; padding:10px 15px; font-size:0.75rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46,125,50,0.2);" onclick="abrirModalCompra(${c.linha})" title="Efetuar Compra">✔️ LANÇAR</button>
+                    <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarCompra(${c.linha})" title="Editar">✏️</button>
+                    <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Compras', ${c.linha}, '${c.item}')" title="Excluir">🗑️</button>
+                </div>
+            </div>
+        </div>`);
+    }); 
+
+    Object.keys(gruposCompras).sort().forEach(cat => {
+        html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+                    <span>🛒 CATEGORIA: ${cat}</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">PREVISTO: ${fmt(gruposCompras[cat].total)}</span>
+                 </div>`;
+        html += `<div class="grid-compras-grupo">`;
+        html += gruposCompras[cat].itens.join('');
+        html += `</div>`;
+    });
+
+    fila.innerHTML = html;
 }
 
 function salvarCompra() { const data = document.getElementById('c-data').value; const cat = padronizarTexto(document.getElementById('c-categoria').value); const item = padronizarTexto(document.getElementById('c-item').value); const qtd = document.getElementById('c-qtd').value; const val = document.getElementById('c-valor').value; if (!data || !item) return mostrarAlerta("Atenção", "Preencha a Data e o Item.", "warning"); mostrarLoading("Salvando..."); const msgLog = `📝 Planejou comprar ${qtd}x [${item}]`; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_compra", data: data, categoria: cat, item: item, qtd: qtd, valor: fmtPlanilha(parseDinheiro(val)), log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Adicionado", "Item na lista de compras.", "success"); document.getElementById('c-item').value = ""; document.getElementById('c-valor').value = ""; sincronizarDadosUnico(); }); }
@@ -978,7 +1212,81 @@ function salvarGasto() {
         .finally(() => ocultarLoading());
 }
 
-function renderizarGastos() { const fSocio = document.getElementById('f-socio').value.toLowerCase(); const fIni = document.getElementById('f-data-ini').value; const fFim = document.getElementById('f-data-fim').value; const tBusca = document.getElementById('busca-gastos').value.toLowerCase().trim(); let filtrados = gastosGlobal.filter(g => { let passSocio = fSocio === "" || String(g.socio).toLowerCase().includes(fSocio); let passData = true; if (fIni && g.dataIso < fIni) passData = false; if (fFim && g.dataIso > fFim) passData = false; let passBusca = true; if (tBusca) { const txtAll = (g.item + " " + g.local + " " + g.socio).toLowerCase(); if (!txtAll.includes(tBusca)) passBusca = false; } return passSocio && passData && passBusca; }); filtrados.sort((a, b) => new Date(b.dataIso) - new Date(a.dataIso)); let somaTotal = 0, html = ""; if (filtrados.length === 0) { html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; } else { filtrados.forEach(g => { somaTotal += parseDinheiro(g.total); html += `<div class="rotulo-card"><div class="rotulo-info"><h4>${g.item} <span style="font-size:0.7rem; color:var(--primary); font-weight:800;">${g.dataDisplay}</span></h4><p>${g.local} • Sócio: <b>${g.socio || '-'}</b></p><p style="font-size: 0.7rem; color:#888;">Qtd: ${g.qtd}x ${safeFmt(g.valor)}</p></div><div style="display:flex; gap:12px; align-items:center;"><div class="custo-val" style="color:#A05252;">${safeFmt(g.total)}</div><div style="display:flex; gap:5px;"><button class="btn-acao" onclick="abrirModalEditarGasto(${g.linha})">✏️</button><button class="btn-acao" onclick="prepararExclusaoRegistro('Gastos', ${g.linha}, 'Despesa: ${g.item}')">🗑️</button></div></div></div>`; }); } document.getElementById('lista-gastos-cadastrados').innerHTML = html; document.getElementById('g-total-dashboard').innerText = fmt(somaTotal); }
+function renderizarGastos() { 
+    const fSocio = document.getElementById('f-socio').value.toLowerCase(); 
+    const fIni = document.getElementById('f-data-ini').value; 
+    const fFim = document.getElementById('f-data-fim').value; 
+    const tBusca = document.getElementById('busca-gastos').value.toLowerCase().trim(); 
+    
+    let filtrados = gastosGlobal.filter(g => { 
+        let passSocio = fSocio === "" || String(g.socio).toLowerCase().includes(fSocio); 
+        let passData = true; 
+        if (fIni && g.dataIso < fIni) passData = false; 
+        if (fFim && g.dataIso > fFim) passData = false; 
+        let passBusca = true; 
+        if (tBusca) { 
+            const txtAll = (g.item + " " + g.local + " " + g.socio).toLowerCase(); 
+            if (!txtAll.includes(tBusca)) passBusca = false; 
+        } 
+        return passSocio && passData && passBusca; 
+    }); 
+    
+    filtrados.sort((a, b) => new Date(b.dataIso) - new Date(a.dataIso)); 
+    let somaTotal = 0, html = ""; 
+    
+    if (filtrados.length === 0) { 
+        html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; 
+    } else { 
+        let gruposGastos = {};
+
+        filtrados.forEach(g => { 
+            somaTotal += parseDinheiro(g.total); 
+
+            let dataChave = g.dataDisplay || g.dataIso || "Sem Data";
+            if(!gruposGastos[dataChave]) gruposGastos[dataChave] = { itens: [], totalDia: 0 };
+
+            gruposGastos[dataChave].totalDia += parseDinheiro(g.total);
+
+            gruposGastos[dataChave].itens.push(`
+            <div class="rotulo-card card-gasto-list" style="border-left: 5px solid #A05252; border-radius: 8px; padding: 15px;">
+                <div class="prod-info-main" style="flex:1;">
+                    <div class="g-nome-block">
+                        <h4 style="margin: 0 0 3px 0; font-size: 0.95rem; color: var(--brand-dark);">${g.item}</h4>
+                        <p style="font-size:0.7rem; color:#666; margin: 0;">📍 Local: <b>${g.local}</b></p>
+                    </div>
+                    <div class="g-detalhe-block">
+                        <p style="margin:0; font-size:0.85rem; color: var(--brand-dark);"><b>${g.qtd}x</b> unit. ${safeFmt(g.valor)}</p>
+                        <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Sócio/Responsável: ${g.socio || '-'}</p>
+                    </div>
+                </div>
+                <div class="prod-actions">
+                    <div style="text-align: right;">
+                        <p style="font-size:0.7rem; color:#A05252; font-weight:700; margin:0;">Valor Pago</p>
+                        <p style="margin: 2px 0 0 0; color: #A05252; font-size: 1.2rem; font-weight: 900;">${safeFmt(g.total)}</p>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarGasto(${g.linha})" title="Editar">✏️</button>
+                        <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Gastos', ${g.linha}, 'Despesa: ${g.item}')" title="Excluir">🗑️</button>
+                    </div>
+                </div>
+            </div>`); 
+        }); 
+
+        Object.keys(gruposGastos).forEach(data => {
+            html += `<div class="separador-data div-atrasado" style="margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+                        <span>📅 DESPESAS DO DIA: ${data}</span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">💸 GASTO TOTAL: ${fmt(gruposGastos[data].totalDia)}</span>
+                     </div>`;
+            html += `<div class="grid-gastos-grupo">`;
+            html += gruposGastos[data].itens.join('');
+            html += `</div>`;
+        });
+    } 
+    
+    document.getElementById('lista-gastos-cadastrados').innerHTML = html; 
+    document.getElementById('g-total-dashboard').innerText = fmt(somaTotal); 
+}
+
 function abrirModalEditarGasto(linha) { const g = gastosGlobal.find(x => x.linha === linha); if (!g) return; document.getElementById('edit-g-linha').value = g.linha; document.getElementById('edit-g-data').value = g.dataIso; document.getElementById('edit-g-socio').value = g.socio; document.getElementById('edit-g-local').value = g.local; document.getElementById('edit-g-item').value = g.item; document.getElementById('edit-g-qtd').value = g.qtd; document.getElementById('edit-g-valor').value = safeFmt(g.valor); document.getElementById('edit-g-total').value = safeFmt(g.total); document.getElementById('modal-editar-gasto').style.display = 'flex'; }
 function salvarEdicaoGasto() { const linha = document.getElementById('edit-g-linha').value; const gOrig = gastosGlobal.find(x => x.linha == linha); const vTotal = parseDinheiro(document.getElementById('edit-g-total').value); const py = { usuario: usuarioLogado, acao: "atualizar_gasto", linha: linha, data: document.getElementById('edit-g-data').value, local: padronizarTexto(document.getElementById('edit-g-local').value), socio: padronizarTexto(document.getElementById('edit-g-socio').value), item: padronizarTexto(document.getElementById('edit-g-item').value), qtd: document.getElementById('edit-g-qtd').value, valor: parseDinheiro(document.getElementById('edit-g-valor').value), total: vTotal, log_detalhe: `✏️ Editou despesa [${gOrig ? gOrig.item : 'Item'}]: ${gOrig ? safeFmt(gOrig.total) : ''} -> ${fmtPlanilha(vTotal)}` }; document.getElementById('modal-editar-gasto').style.display = 'none'; mostrarLoading("Salvando..."); py.valor = fmtPlanilha(py.valor); py.total = fmtPlanilha(py.total); fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(() => { mostrarAlerta("Atualizado!", "Edição salva.", "success"); sincronizarDadosUnico(); }); }
 
@@ -1196,10 +1504,16 @@ function filtrarVendas() {
         return pD && pM && pS && pSo && pC; 
     });
     
+    // Ordena do mais recente para o mais antigo
     filtradas.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso)); 
     let tVend = 0, tRec = 0, tDev = 0, tLuc = 0, tItens = 0, html = "";
     
-    if (filtradas.length === 0) { html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; } else {
+    if (filtradas.length === 0) { 
+        html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; 
+    } else {
+        // 1. Dicionário para Agrupar e Somar o Dia
+        let gruposVendas = {};
+
         filtradas.forEach(v => {
             const val = parseDinheiro(v.valor_venda); tVend += val; tLuc += parseDinheiro(v.lucro); tItens += parseInt(v.qtd) || 0; 
             
@@ -1208,25 +1522,94 @@ function filtrarVendas() {
             
             if(isP) tRec += val; else if(!isPresente) tDev += val; 
             
-            const btnAcaoExtra = isP ? `<button class="btn-acao" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`; 
-            const textoObservacao = v.observacao ? `<p style="font-size:0.7rem; color:#888; font-style:italic; margin-top:3px; line-height: 1.3;">Obs: ${v.observacao}</p>` : ""; 
+            const btnAcaoExtra = isP ? `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="width:36px; height:36px; background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`; 
+            const textoObservacao = v.observacao ? `<p style="font-size:0.65rem; color:#888; font-style:italic; margin: 0;">Obs: ${v.observacao}</p>` : ""; 
             const nomeHtml = formatarNomeProdutoHtml(v.produto, 'venda'); 
             
-            const txtStatus = isP ? `<p style="font-size:0.7rem; color:#2e7d32; font-weight:800; margin-top:3px;">✔️ Pago em: ${v.dataPgtoDisplay || 'Data não registrada'}</p>` : (isPresente ? `<p style="font-size:0.7rem; color:#7c3aed; font-weight:800; margin-top:3px;">🎁 Bonificação / Presente</p>` : '');
+            const txtStatus = isP ? `<p style="font-size:0.7rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'}</p>` : (isPresente ? `<p style="font-size:0.7rem; color:#7c3aed; font-weight:800; margin:0;">🎁 Presente</p>` : '');
             
-            const txtLucro = isAdmin ? (!isPresente ? `<p style="font-size:0.7rem; color:#b45309; font-weight:700; margin-top:3px;">Lucro: ${safeFmt(v.lucro)} (Markup: ${v.markup})</p>` : `<p style="font-size:0.7rem; color:#888; font-weight:700; margin-top:3px;">Custo Absorvido: ${safeFmt(v.custo_total)}</p>`) : '';
+            const txtLucro = isAdmin ? (!isPresente ? `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0;">Lucro: ${safeFmt(v.lucro)} (Mk: ${v.markup})</p>` : `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`) : '';
             
-            const txtLocal = `<p style="font-size:0.7rem; color:#666; margin-top:2px;">📍 Local: <b>${v.local_estoque}</b></p>`;
+            const txtLocal = `<p style="font-size:0.65rem; color:#666; margin: 2px 0 0 0;">📍 Retirada: <b>${v.local_estoque}</b></p>`;
 
-            const btnApagar = isAdmin ? `<button class="btn-acao" onclick="prepararExclusaoRegistro('Vendas', ${v.linha}, 'Venda de ${v.cliente}')" title="Excluir">🗑️</button>` : '';
-            
-            // INCLUI A ETIQUETA ROXA DO PARCELADO (Se for parcelado, não mostra o botão verde de Pago ali no grid pra não confundir)
+            const btnApagar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Vendas', ${v.linha}, 'Venda de ${v.cliente}')" title="Excluir">🗑️</button>` : '';
+            const btnEditar = `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>`;
+            const btnBaixa = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : '';
+
             let badgeClass = isP ? 'status-pago' : (isPresente ? 'status-presente' : (v.status === 'Parcelado' ? 'status-parcelado' : 'status-pendente'));
+            let corBorda = isP ? "#2e7d32" : (isPresente ? "#7c3aed" : (v.status === 'Parcelado' ? "#4f46e5" : "#b45309"));
 
-            html += `<div class="rotulo-card"><div class="rotulo-info"><h4>${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span></h4><p style="color:var(--primary); font-weight:800; font-size:0.7rem;">${v.dataVendaDisplay || v.dataVendaIso}</p><p><b>${v.qtd}x</b> ${nomeHtml} • Sócio: ${v.socio}</p>${txtLocal}${txtStatus}${txtLucro}${textoObservacao}</div><div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;"><div class="custo-val">${safeFmt(v.valor_venda)}</div><div style="display:flex; gap:5px;">${btnAcaoExtra}${(!isP && !isPresente) ? `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : ''}<button class="btn-acao" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>${btnApagar}</div></div></div>`; 
+            // 2. Definir a Data Mestra
+            let dataKeyIso = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : v.dataVendaIso;
+            let dataDisplay = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : (v.dataVendaDisplay || v.dataVendaIso);
+            
+            if(!dataKeyIso) { dataKeyIso = "Sem Data"; dataDisplay = "Data Não Registrada"; }
+
+            if(!gruposVendas[dataKeyIso]) {
+                gruposVendas[dataKeyIso] = { display: dataDisplay, itens: [], totalDia: 0 };
+            }
+
+            // Soma do dia
+            gruposVendas[dataKeyIso].totalDia += val;
+
+            // 3. Montar a Linha (Cartão)
+            gruposVendas[dataKeyIso].itens.push(`
+            <div class="rotulo-card card-venda-list" style="border-left: 5px solid ${corBorda}; border-radius: 8px; padding: 15px;">
+                
+                <div class="prod-info-main" style="flex:1;">
+                    <div class="v-cli-block">
+                        <h4 style="margin: 0 0 3px 0; font-size: 0.9rem; color: var(--brand-dark);">
+                            ${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span>
+                        </h4>
+                        ${txtLocal}
+                        <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Vendedor: ${v.socio}</p>
+                    </div>
+                    
+                    <div class="v-prod-block">
+                        <div>
+                            <p style="font-size: 0.85rem; font-weight: 700; margin: 0 0 3px 0; color: var(--brand-dark);"><b>${v.qtd}x</b> ${nomeHtml}</p>
+                            ${txtStatus}
+                        </div>
+                        <div class="obs-container">
+                            ${textoObservacao}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="prod-actions">
+                    <div style="text-align: right;">
+                        ${txtLucro}
+                        <p style="margin: 2px 0 0 0; color: var(--brand-dark); font-size: 1.1rem; font-weight: 900;">${safeFmt(v.valor_venda)}</p>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        ${btnAcaoExtra}
+                        ${btnBaixa}
+                        ${btnEditar}
+                        ${btnApagar}
+                    </div>
+                </div>
+
+            </div>`);
+        });
+
+        // 4. Desenhar o HTML na tela
+        let datasOrdenadas = Object.keys(gruposVendas).sort((a, b) => new Date(b) - new Date(a));
+        
+        datasOrdenadas.forEach(dataChave => {
+            html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+                        <span>📅 VENDAS DO DIA: ${gruposVendas[dataChave].display}</span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">💰 TOTAL: ${fmt(gruposVendas[dataChave].totalDia)}</span>
+                     </div>`;
+            html += `<div class="grid-vendas-grupo">`;
+            html += gruposVendas[dataChave].itens.join('');
+            html += `</div>`;
         });
     }
-    document.getElementById('lista-vendas-cadastradas').innerHTML = html; document.getElementById('dash-v-total').innerText = fmt(tVend); document.getElementById('dash-v-receita').innerText = fmt(tRec); document.getElementById('dash-v-receber').innerText = fmt(tDev);
+
+    document.getElementById('lista-vendas-cadastradas').innerHTML = html; 
+    document.getElementById('dash-v-total').innerText = fmt(tVend); 
+    document.getElementById('dash-v-receita').innerText = fmt(tRec); 
+    document.getElementById('dash-v-receber').innerText = fmt(tDev);
     if (document.getElementById('dash-v-lucro')) document.getElementById('dash-v-lucro').innerText = isAdmin ? fmt(tLuc) : "---";
     document.getElementById('dash-v-itens').innerText = tItens;
 }

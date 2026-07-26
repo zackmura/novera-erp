@@ -120,7 +120,7 @@
                     <!-- FIM DO RADAR -->
 
                     <div class="filtro-box" style="background: #fff9e6; border-color: #ffeeba; margin-bottom: 0; box-shadow: none;">
-                        
+
                         <p style="font-size: 0.8rem; color: #b45309; margin-top: 0; margin-bottom: 15px;">Vai fabricar um produto que já existe no estoque? Lance direto na fila de maceração!</p>
                         <div class="input-group" style="text-align: left;">
                             <label style="color: #b45309;">Qual produto será fabricado?</label>
@@ -177,10 +177,25 @@
                 </div>
             </div> <!-- FIM DO WRAPPER DA FÁBRICA -->
 
-            <div class="section-title" style="margin-top: 35px;">⏳ Fila de Maceração / Em Andamento</div>
-            <!-- PAINEL DE RESUMO DA PRODUÇÃO (TOTAIS) -->
-            <div id="resumo-producao" class="dash-grid" style="margin-bottom: 15px; gap: 8px;"></div>
-            <!-- LISTA DE CARDS -->                 
+          <div class="section-title" style="margin-top: 35px;">⏳ Fila de Maceração / Em Andamento</div>
+            
+            <!-- PAINEL FIXO (Totais + Busca) -->
+            <div class="fabrica-sticky-header">
+                <!-- PAINEL DE RESUMO DA PRODUÇÃO -->
+                <div id="resumo-producao" class="dash-grid" style="margin-bottom: 15px; gap: 8px;"></div>
+                
+                <!-- BARRA DE BUSCA -->
+                <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 0; box-shadow: none; border: 1px solid var(--border-color);">
+                    <div class="row" style="margin-bottom: 0;">
+                        <div class="col" style="text-align: left;">
+                            <label>Pesquisar Lote</label>
+                            <input type="text" id="busca-producao" class="search-bar" style="margin: 0; border: none; box-shadow: none; padding-left: 0;" placeholder="🔍 Buscar perfume..." onkeyup="renderizarProducao()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LISTA AGRUPADA POR DATA E GÊNERO -->                 
             <div id="lista-producao-cards"></div>
         </div>
 
