@@ -1277,3 +1277,19 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         padding: 10px !important;
     }
 }
+
+/* ========================================= */
+    /* AJUSTES EXCLUSIVOS DA ABA DE EQUIPE       */
+    /* ========================================= */
+    #tab-usuarios .row {
+        flex-direction: column !important; /* Força os campos a ficarem um embaixo do outro */
+        gap: 12px !important;
+    }
+    #tab-usuarios .col {
+        width: 100% !important;
+    }
+    #tab-usuarios .col input, 
+    #tab-usuarios .col select {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }

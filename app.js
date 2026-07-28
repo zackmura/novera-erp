@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.0.0";
+const VERSAO_ATUAL_SISTEMA = "8.3.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -7,6 +7,7 @@ let KEY_IMGBB = localStorage.getItem('novera_imgbb_key') || "";
 let rotulosGlobal = [], estoqueGlobal = [], gastosGlobal = [], vendasGlobal = [];
 let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
 let logsGlobal = []; 
+let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
 let dadosCarregados = false; 
@@ -173,6 +174,8 @@ function aplicarPermissoes() {
         if (inputSocio) { inputSocio.value = usuarioLogado; inputSocio.readOnly = true; inputSocio.style.background = "#E8DDE1"; inputSocio.style.color = "#7a4a5e"; }
         const inputValorVenda = document.getElementById('v-valor');
         if (inputValorVenda) { inputValorVenda.readOnly = true; inputValorVenda.style.background = "#E8DDE1"; inputValorVenda.style.color = "#7a4a5e"; }
+        const btnEquipe = document.getElementById('btn-menu-equipe');
+        if (btnEquipe) btnEquipe.style.display = isAdmin ? 'block' : 'none';
 
         if (btnAdmin) { btnAdmin.style.display = 'none'; if (btnAdmin.previousElementSibling) btnAdmin.previousElementSibling.style.display = 'none'; }
         if (btnChaves) {
@@ -220,6 +223,9 @@ async function sincronizarDadosUnico() {
             encomendasGlobal = dados.encomendas || []; comprasGlobal = dados.compras || [];
             producaoGlobal = dados.producao || []; // ADICIONE AQUI
             logsGlobal = dados.logs || [];
+
+            usuariosGlobal = dados.usuarios || [];
+            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
 
             if (usuarioCargo !== 'Admin') {
                 vendasGlobal = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
@@ -1504,14 +1510,15 @@ function filtrarVendas() {
         return pD && pM && pS && pSo && pC; 
     });
     
-    // Ordena do mais recente para o mais antigo
     filtradas.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso)); 
+    
+    // Novas variáveis para somar as comissões
     let tVend = 0, tRec = 0, tDev = 0, tLuc = 0, tItens = 0, html = "";
+    let tComPend = 0, tComAcert = 0; 
     
     if (filtradas.length === 0) { 
         html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; 
     } else {
-        // 1. Dicionário para Agrupar e Somar o Dia
         let gruposVendas = {};
 
         filtradas.forEach(v => {
@@ -1519,43 +1526,68 @@ function filtrarVendas() {
             
             const isP = v.status === 'Pago'; 
             const isPresente = v.status === 'Presente';
+            const isAcertado = v.repasse_feito;
+            const vComissao = parseFloat(v.valor_comissao) || 0;
             
-            if(isP) tRec += val; else if(!isPresente) tDev += val; 
-            
-            const btnAcaoExtra = isP ? `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="width:36px; height:36px; background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`; 
+            // Matemática da Comissão (Pendente vs Acertada)
+            if(isP) {
+                tRec += val; 
+                if(isAcertado) tComAcert += vComissao;
+                else tComPend += vComissao;
+            } else if(!isPresente) {
+                tDev += val; 
+                tComPend += vComissao; // Se não pagou ainda, a comissão está pendente
+            } 
+
+            let txtStatus = '';
+            let corBorda = "#b45309";
+            let badgeClass = 'status-pendente';
+
+            if (isP) {
+                if (isAcertado) {
+                    txtStatus = `<p style="font-size:0.75rem; color:#0369a1; font-weight:800; margin:0;">🤝 Acertado / Repassado</p>`;
+                    corBorda = "#0369a1"; badgeClass = "status-pago";
+                } else {
+                    txtStatus = `<p style="font-size:0.75rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'} (Falta Acerto)</p>`;
+                    corBorda = "#2e7d32"; badgeClass = "status-pago";
+                }
+            } else if (isPresente) {
+                txtStatus = `<p style="font-size:0.75rem; color:#7c3aed; font-weight:800; margin:0;">🎁 Presente</p>`;
+                corBorda = "#7c3aed"; badgeClass = "status-presente";
+            } else if (v.status === 'Parcelado') {
+                corBorda = "#4f46e5"; badgeClass = "status-parcelado";
+            }
+
+            const btnAcaoExtra = isP ? `<button class="btn-acao" style="width:36px; height:36px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="width:36px; height:36px; background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`; 
             const textoObservacao = v.observacao ? `<p style="font-size:0.65rem; color:#888; font-style:italic; margin: 0;">Obs: ${v.observacao}</p>` : ""; 
             const nomeHtml = formatarNomeProdutoHtml(v.produto, 'venda'); 
             
-            const txtStatus = isP ? `<p style="font-size:0.7rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'}</p>` : (isPresente ? `<p style="font-size:0.7rem; color:#7c3aed; font-weight:800; margin:0;">🎁 Presente</p>` : '');
-            
-            const txtLucro = isAdmin ? (!isPresente ? `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0;">Lucro: ${safeFmt(v.lucro)} (Mk: ${v.markup})</p>` : `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`) : '';
+            // EXIBIÇÃO INTELIGENTE DO CARTÃO (ADMIN VS VENDEDOR)
+            let txtLucro = '';
+            if (isAdmin) {
+                txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} <br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span></p>` : `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
+            } else {
+                txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#0369a1; font-weight:700; margin:0; line-height: 1.3;">Sua Comissão: <br> <span style="font-size:0.9rem; font-weight:900;">${safeFmt(v.valor_comissao)}</span></p>` : '';
+            }
             
             const txtLocal = `<p style="font-size:0.65rem; color:#666; margin: 2px 0 0 0;">📍 Retirada: <b>${v.local_estoque}</b></p>`;
 
             const btnApagar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Vendas', ${v.linha}, 'Venda de ${v.cliente}')" title="Excluir">🗑️</button>` : '';
             const btnEditar = `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>`;
             const btnBaixa = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : '';
+            
+            const btnAcerto = (isAdmin && isP && !isAcertado) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="acertarCaixaVenda(${v.linha})" title="Confirmar Entrada e Comissão">🤝</button>` : '';
 
-            let badgeClass = isP ? 'status-pago' : (isPresente ? 'status-presente' : (v.status === 'Parcelado' ? 'status-parcelado' : 'status-pendente'));
-            let corBorda = isP ? "#2e7d32" : (isPresente ? "#7c3aed" : (v.status === 'Parcelado' ? "#4f46e5" : "#b45309"));
-
-            // 2. Definir a Data Mestra
             let dataKeyIso = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : v.dataVendaIso;
             let dataDisplay = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : (v.dataVendaDisplay || v.dataVendaIso);
             
             if(!dataKeyIso) { dataKeyIso = "Sem Data"; dataDisplay = "Data Não Registrada"; }
 
-            if(!gruposVendas[dataKeyIso]) {
-                gruposVendas[dataKeyIso] = { display: dataDisplay, itens: [], totalDia: 0 };
-            }
-
-            // Soma do dia
+            if(!gruposVendas[dataKeyIso]) { gruposVendas[dataKeyIso] = { display: dataDisplay, itens: [], totalDia: 0 }; }
             gruposVendas[dataKeyIso].totalDia += val;
 
-            // 3. Montar a Linha (Cartão)
             gruposVendas[dataKeyIso].itens.push(`
             <div class="rotulo-card card-venda-list" style="border-left: 5px solid ${corBorda}; border-radius: 8px; padding: 15px;">
-                
                 <div class="prod-info-main" style="flex:1;">
                     <div class="v-cli-block">
                         <h4 style="margin: 0 0 3px 0; font-size: 0.9rem; color: var(--brand-dark);">
@@ -1564,35 +1596,30 @@ function filtrarVendas() {
                         ${txtLocal}
                         <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Vendedor: ${v.socio}</p>
                     </div>
-                    
                     <div class="v-prod-block">
                         <div>
                             <p style="font-size: 0.85rem; font-weight: 700; margin: 0 0 3px 0; color: var(--brand-dark);"><b>${v.qtd}x</b> ${nomeHtml}</p>
                             ${txtStatus}
                         </div>
-                        <div class="obs-container">
-                            ${textoObservacao}
-                        </div>
+                        <div class="obs-container">${textoObservacao}</div>
                     </div>
                 </div>
-                
                 <div class="prod-actions">
                     <div style="text-align: right;">
                         ${txtLucro}
                         <p style="margin: 2px 0 0 0; color: var(--brand-dark); font-size: 1.1rem; font-weight: 900;">${safeFmt(v.valor_venda)}</p>
                     </div>
                     <div style="display:flex; gap:6px; align-items:center;">
+                        ${btnAcerto}
                         ${btnAcaoExtra}
                         ${btnBaixa}
                         ${btnEditar}
                         ${btnApagar}
                     </div>
                 </div>
-
             </div>`);
         });
 
-        // 4. Desenhar o HTML na tela
         let datasOrdenadas = Object.keys(gruposVendas).sort((a, b) => new Date(b) - new Date(a));
         
         datasOrdenadas.forEach(dataChave => {
@@ -1610,8 +1637,50 @@ function filtrarVendas() {
     document.getElementById('dash-v-total').innerText = fmt(tVend); 
     document.getElementById('dash-v-receita').innerText = fmt(tRec); 
     document.getElementById('dash-v-receber').innerText = fmt(tDev);
-    if (document.getElementById('dash-v-lucro')) document.getElementById('dash-v-lucro').innerText = isAdmin ? fmt(tLuc) : "---";
     document.getElementById('dash-v-itens').innerText = tItens;
+
+    // ========================================================
+    // O SEQUESTRO DO QUADRADINHO "LUCRO PROJETADO"
+    // ========================================================
+    const elLucro = document.getElementById('dash-v-lucro');
+    if (elLucro) {
+        const h3Titulo = elLucro.previousElementSibling; // Pega o <h3> que fica acima do valor
+        
+        if (isAdmin) {
+            h3Titulo.innerText = "LUCRO LÍQUIDO";
+            h3Titulo.style.color = "#888";
+            elLucro.style.color = "var(--brand-dark)";
+            // Mostra o lucro real e embaxo quanto a empresa tá devendo de comissão para a equipe
+            elLucro.innerHTML = `${fmt(tLuc)} <div style="font-size:0.65rem; color:#b45309; margin-top:4px; letter-spacing:0; font-weight:700;">Falta Acertar (Equipe): ${fmt(tComPend)}</div>`;
+        } else {
+            h3Titulo.innerText = "MINHA COMISSÃO";
+            h3Titulo.style.color = "#0369a1"; // Azul forte
+            elLucro.style.color = "#0369a1";
+            // Mostra o total de comissões e avisa o que já foi depositado pra ela
+            elLucro.innerHTML = `${fmt(tComPend + tComAcert)} <div style="font-size:0.65rem; color:#2e7d32; margin-top:4px; letter-spacing:0; font-weight:700;">Já Repassado (Acertado): ${fmt(tComAcert)}</div>`;
+        }
+    }
+}
+
+// ===============================================
+// FUNÇÃO DO BOTÃO "APERTO DE MÃOS" (ACERTO CAIXA)
+// ===============================================
+function acertarCaixaVenda(id) {
+    abrirConfirmacao("Acertar Caixa?", "Você confirma que o valor dessa venda entrou na conta e a comissão do vendedor foi repassada?", "🤝", "#0369a1", "#082f49", "✔️ Confirmar Acerto", () => {
+        mostrarLoading("Acertando e validando...");
+        const msgLog = `🤝 Confirmou acerto de caixa e repasse da venda ID: ${id}`;
+        fetch(API_NOVERA, { 
+            method: "POST", headers: cabecalhoAuth(), 
+            body: JSON.stringify({ usuario: usuarioLogado, acao: "acertar_caixa_venda", linha: id, log_detalhe: msgLog }) 
+        })
+        .then(() => {
+            mostrarAlerta("Acertado!", "Caixa finalizado com sucesso.", "success");
+            sincronizarDadosUnico();
+        }).catch(() => {
+            ocultarLoading();
+            mostrarAlerta("Erro", "Falha de conexão.", "error");
+        });
+    });
 }
 
 async function montarRecibo() {
@@ -1945,6 +2014,9 @@ async function sincronizarDadosSilencioso() {
             comprasGlobal = dados.compras || [];
             producaoGlobal = dados.producao || []; 
             logsGlobal = dados.logs || [];
+            usuariosGlobal = dados.usuarios || [];
+            
+            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
 
             if (usuarioCargo !== 'Admin') {
                 vendasGlobal = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
@@ -2597,4 +2669,132 @@ async function gerarPdfQrCodes() {
         document.body.removeChild(masterContainer);
         ocultarLoading();
     }
+}
+
+// ==========================================
+// MÓDULO: GESTÃO DE EQUIPE (USUÁRIOS)
+// ==========================================
+
+function renderizarUsuarios() {
+    const container = document.getElementById('lista-usuarios-cards');
+    if(!container) return;
+    if(usuariosGlobal.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#999;'>Nenhum usuário encontrado.</p>";
+        return;
+    }
+
+    let html = "";
+    usuariosGlobal.forEach(u => {
+        let isAdmin = u.cargo === 'Admin';
+        let corBorda = isAdmin ? '#0369a1' : '#166534';
+        let badgeCargo = isAdmin ? `<span class="badge-status" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👑 ADMIN</span>` : `<span class="badge-status" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">💼 VENDEDOR</span>`;
+        let taxa = parseFloat(u.comissao) || 0;
+
+        let btnExcluir = u.usuario === usuarioLogado ? '' : `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('usuarios', ${u.id}, 'Usuário: ${u.usuario}')" title="Excluir Usuário">🗑️</button>`;
+
+        html += `
+        <div class="rotulo-card card-producao-list" style="border-left: 5px solid ${corBorda}; padding: 15px; border-radius: 8px;">
+            <div class="prod-info-main" style="flex:1;">
+                <h4 style="margin: 0 0 5px 0; font-size: 1rem; color: var(--brand-dark);">
+                    👤 ${u.usuario} ${badgeCargo}
+                </h4>
+                <p style="font-size:0.75rem; color:#888; margin:0;">ID: ${u.id} | <b style="color:var(--primary-dark);">Comissão: ${taxa}%</b></p>
+            </div>
+            
+            <div class="prod-actions">
+                <div></div> <!-- Esta div vazia empurra os botões pra direita no celular -->
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="btn-acao" style="background:#fef08a; color:#b45309; border-color:#fde047; width:36px; height:36px;" onclick="resetarSenhaUsuario(${u.id})" title="Resetar Senha">🔑</button>
+                    <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararEdicaoUsuario(${u.id})" title="Editar">✏️</button>
+                    ${btnExcluir}
+                </div>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function salvarUsuario() {
+    const id = document.getElementById('u-id').value;
+    const nome = padronizarTexto(document.getElementById('u-nome').value);
+    const cargo = document.getElementById('u-cargo').value;
+    const senha = document.getElementById('u-senha').value;
+    const comissao = parseFloat(document.getElementById('u-comissao').value) || 0;
+
+    if(!nome) return mostrarAlerta("Atenção", "Preencha o nome de usuário.", "warning");
+    if(!id && !senha) return mostrarAlerta("Atenção", "Crie uma senha para o novo usuário.", "warning");
+
+    const acao = id ? "atualizar_usuario" : "salvar_usuario";
+    mostrarLoading("Salvando...");
+    const msgLog = id ? `✏️ Editou usuário: ${nome} (${cargo} - ${comissao}%)` : `👤 Novo membro: ${nome} (${cargo} - ${comissao}%)`;
+
+    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, log_detalhe: msgLog };
+    if(!id) payload.senha_usuario = senha; 
+
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(payload) })
+    .then(r => r.json())
+    .then(res => {
+        if(res.sucesso) {
+            mostrarAlerta("Sucesso!", `Usuário ${id ? 'atualizado' : 'cadastrado'} perfeitamente.`, "success");
+            cancelarEdicaoUsuario();
+            sincronizarDadosUnico();
+        } else { mostrarAlerta("Erro", res.erro || "Falha.", "error"); }
+    }).catch(e => mostrarAlerta("Erro", "Falha de conexão.", "error")).finally(() => ocultarLoading());
+}
+
+function prepararEdicaoUsuario(id) {
+    const u = usuariosGlobal.find(x => x.id == id);
+    if(!u) return;
+    document.getElementById('u-id').value = u.id;
+    document.getElementById('u-nome').value = u.usuario;
+    document.getElementById('u-cargo').value = u.cargo;
+    document.getElementById('u-comissao').value = u.comissao || 0;
+    
+    document.getElementById('div-u-senha').style.display = 'none';
+    document.getElementById('btn-salvar-usuario').innerText = "💾 Salvar Alterações";
+    document.getElementById('btn-cancelar-edicao-usuario').style.display = 'block';
+    
+    document.getElementById('u-nome').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelarEdicaoUsuario() {
+    document.getElementById('u-id').value = "";
+    document.getElementById('u-nome').value = "";
+    document.getElementById('u-cargo').value = "Vendedor";
+    document.getElementById('u-comissao').value = "";
+    document.getElementById('u-senha').value = "";
+    document.getElementById('div-u-senha').style.display = 'block';
+    document.getElementById('btn-salvar-usuario').innerText = "➕ Cadastrar Usuário";
+    document.getElementById('btn-cancelar-edicao-usuario').style.display = 'none';
+}
+
+function resetarSenhaUsuario(id) {
+    const u = usuariosGlobal.find(x => x.id == id);
+    if(!u) return;
+    abrirConfirmacao("Resetar Senha?", `A senha de acesso de ${u.usuario} será resetada para a senha padrão "N2026".`, "🔑", "#b45309", "#78350f", "✔️ Confirmar Reset", () => {
+        mostrarLoading("Resetando Senha...");
+        const msgLog = `🔑 Resetou a senha do usuário: ${u.usuario}`;
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "resetar_senha_usuario", id_usuario: id, log_detalhe: msgLog }) })
+        .then(() => {
+            mostrarAlerta("Senha Resetada!", `A nova senha de ${u.usuario} é N2026`, "success");
+            sincronizarDadosUnico();
+        });
+    });
+}
+
+// Função para o Admin confirmar o Acerto de Contas com o Vendedor
+function acertarCaixaVenda(id) {
+    abrirConfirmacao("Acertar Caixa?", "Você confirma que o valor dessa venda entrou na conta e a comissão do vendedor foi repassada?", "🤝", "#0369a1", "#082f49", "✔️ Confirmar Acerto", () => {
+        mostrarLoading("Acertando e validando...");
+        const msgLog = `🤝 Confirmou acerto de caixa e repasse da venda ID: ${id}`;
+        fetch(API_NOVERA, { 
+            method: "POST", headers: cabecalhoAuth(), 
+            body: JSON.stringify({ usuario: usuarioLogado, acao: "acertar_caixa_venda", linha: id, log_detalhe: msgLog }) 
+        })
+        .then(() => {
+            mostrarAlerta("Acertado!", "Caixa finalizado com sucesso.", "success");
+            sincronizarDadosUnico();
+        });
+    });
 }
