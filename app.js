@@ -1916,11 +1916,115 @@ async function alterarSenha() {
     }
 }
 
+// ==========================================
+// MÓDULO: SINCRONIZAÇÃO FANTASMA (AUTO-SYNC)
+// ==========================================
+async function sincronizarDadosSilencioso() {
+    // 1. Mostra a nuvem girando lá no topo, sem bloquear a tela do usuário
+    const syncEl = document.getElementById("sync-status");
+    if (syncEl) { syncEl.innerText = "🔄"; syncEl.classList.add('spin-anim'); }
+
+    try {
+        const token = localStorage.getItem('novera_token');
+        if (!token) return; // Se não estiver logado, não faz nada
+
+        // 2. Busca os dados fresquinhos do banco
+        const res = await fetch(API_NOVERA + "?acao=listar_tudo&_t=" + new Date().getTime(), {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        
+        if (!res.ok) throw new Error("Status API: " + res.status);
+        const dados = await res.json();
+        
+        if (dados.sucesso) {
+            rotulosGlobal = dados.rotulos || []; 
+            estoqueGlobal = dados.estoque || []; 
+            gastosGlobal = dados.gastos || []; 
+            vendasGlobal = dados.vendas || []; 
+            encomendasGlobal = dados.encomendas || []; 
+            comprasGlobal = dados.compras || [];
+            producaoGlobal = dados.producao || []; 
+            logsGlobal = dados.logs || [];
+
+            if (usuarioCargo !== 'Admin') {
+                vendasGlobal = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+            }
+
+            // Refaz o agrupamento de estoque com os dados novos
+            estoqueAgrupado = {};
+            estoqueGlobal.forEach(e => {
+                let n = padronizarTexto(e.nome);
+                let rotuloBase = rotulosGlobal.find(r => r.codigo === e.codigo);
+                let generoEncontrado = rotuloBase && rotuloBase.genero ? String(rotuloBase.genero).trim() : 'Unissex';
+                if (generoEncontrado === '') generoEncontrado = 'Unissex';
+
+                if (!estoqueAgrupado[n]) {
+                    estoqueAgrupado[n] = { nome: e.nome, tipo: e.tipo, codigo: e.codigo, preco: e.preco, custo: e.custo, foto: e.foto, totalQtd: 0, locais: {}, genero: generoEncontrado };
+                }
+                let lExib = e.local ? e.local.trim() : 'Sede';
+                let q = parseFloat(e.qtd) || 0;
+
+                if (!estoqueAgrupado[n].locais[lExib]) estoqueAgrupado[n].locais[lExib] = 0;
+                estoqueAgrupado[n].locais[lExib] += q;
+                estoqueAgrupado[n].totalQtd += q;
+            });
+
+            // 3. O SEGREDO: Salvar o que o usuário selecionou no PDV para a atualização não desmanchar
+            let pdvProduto = document.getElementById('v-produto') ? document.getElementById('v-produto').value : "";
+            let fabProduto = document.getElementById('pr-produto') ? document.getElementById('pr-produto').value : "";
+
+            // Atualiza as telas de fundo
+            atualizarDatalistsDinamicos(); 
+            renderizarRotulos(); 
+            renderizarOpcoesPrecificacao(); 
+            renderizarEstoque(); 
+            renderizarGastos(); 
+            renderizarVendas(); 
+            renderizarDashboard(); 
+            renderizarEncomendas(); 
+            renderizarCompras(); 
+            renderizarProducao();
+            if(typeof calcularRadarProducao === 'function') calcularRadarProducao();
+            if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
+
+            // 4. Devolve a seleção para a tela de vendas
+            if(pdvProduto && document.getElementById('v-produto')) document.getElementById('v-produto').value = pdvProduto;
+            if(fabProduto && document.getElementById('pr-produto')) document.getElementById('pr-produto').value = fabProduto;
+        }
+    } catch (e) { 
+        console.error("Auto-sync silencioso falhou:", e);
+    } finally {
+        // 5. Para de girar a nuvem e dá um OK verde
+        if (syncEl) { 
+            syncEl.classList.remove('spin-anim'); 
+            syncEl.innerText = "✔️"; 
+            setTimeout(() => { if (syncEl.innerText === "✔️") syncEl.innerText = "☁️"; }, 3000); 
+        }
+    }
+}
+
 window.onload = () => {
     aplicarVersao(); 
-    const selectAno = document.getElementById('d-filtro-ano'); selectAno.innerHTML = '<option value="">Todos</option>'; const anoAtual = new Date().getFullYear(); for (let i = 2024; i <= anoAtual + 1; i++) { selectAno.innerHTML += `<option value="${i}">${i}</option>`; }
-    calcularNovera(); verificarLogin();
-    document.getElementById('cfg-ai-key').value = localStorage.getItem('novera_ai_key') || ''; document.getElementById('cfg-imgbb-key').value = localStorage.getItem('novera_imgbb_key') || ''; document.getElementById('cfg-onionsys-key').value = localStorage.getItem('novera_onionsys_key') || '';
+    const selectAno = document.getElementById('d-filtro-ano'); 
+    selectAno.innerHTML = '<option value="">Todos</option>'; 
+    const anoAtual = new Date().getFullYear(); 
+    for (let i = 2024; i <= anoAtual + 1; i++) { selectAno.innerHTML += `<option value="${i}">${i}</option>`; }
+    
+    calcularNovera(); 
+    verificarLogin();
+    
+    document.getElementById('cfg-ai-key').value = localStorage.getItem('novera_ai_key') || ''; 
+    document.getElementById('cfg-imgbb-key').value = localStorage.getItem('novera_imgbb_key') || ''; 
+    document.getElementById('cfg-onionsys-key').value = localStorage.getItem('novera_onionsys_key') || '';
+
+    // ================= NOVIDADE DA V8.0.0 =================
+    // 1. Atualiza a cada 60 segundos (60000 milissegundos) se o app estiver aberto
+    setInterval(sincronizarDadosSilencioso, 60000); 
+    
+    // 2. Atualiza imediatamente se você minimizou o navegador e voltou para ele
+    document.addEventListener("visibilitychange", () => { 
+        if(document.visibilityState === 'visible') sincronizarDadosSilencioso(); 
+    });
 };
 
 function abrirModalEtiquetaAmostras() {
