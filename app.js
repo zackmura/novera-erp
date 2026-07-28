@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.3.0";
+const VERSAO_ATUAL_SISTEMA = "8.5.1";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -109,7 +109,13 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
 
-    if (usuarioCargo !== 'Admin' && tabId !== 'vendas' && tabId !== 'configuracoes') tabId = 'vendas';
+    // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
+    if (usuarioCargo !== 'Admin') {
+        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios'];
+        if (abasProibidas.includes(tabId)) {
+            tabId = 'vendas'; 
+        }
+    }
 
     const navBtnTarget = document.getElementById('tab-' + tabId);
     if (navBtnTarget) navBtnTarget.classList.add('active');
@@ -159,23 +165,34 @@ function atualizarDatalistsDinamicos() {
 function aplicarPermissoes() {
     const isAdmin = (usuarioCargo === 'Admin');
 
-    document.getElementById('nav-rotulos').style.display = isAdmin ? 'flex' : 'none';
-    document.getElementById('nav-precificar').style.display = isAdmin ? 'flex' : 'none';
-    document.getElementById('nav-estoque').style.display = isAdmin ? 'flex' : 'none';
-    document.getElementById('nav-gastos').style.display = isAdmin ? 'flex' : 'none';
-    document.getElementById('nav-dashboard').style.display = isAdmin ? 'flex' : 'none';
+    // Abas bloqueadas para Vendedores
+    const navRotulos = document.getElementById('nav-rotulos'); if(navRotulos) navRotulos.style.display = isAdmin ? 'flex' : 'none';
+    const navPrecificar = document.getElementById('nav-precificar'); if(navPrecificar) navPrecificar.style.display = isAdmin ? 'flex' : 'none';
+    const navGastos = document.getElementById('nav-gastos'); if(navGastos) navGastos.style.display = isAdmin ? 'flex' : 'none';
 
+    // Abas liberadas para todos (Painel de Desempenho agora fica visível para o Ranking!)
+    const navEstoque = document.getElementById('nav-estoque');
+    if (navEstoque) { navEstoque.style.display = 'flex'; navEstoque.style.pointerEvents = 'auto'; navEstoque.style.cursor = 'pointer'; }
+    
+    const navFabrica = document.getElementById('nav-fabrica');
+    if (navFabrica) { navFabrica.style.display = 'flex'; navFabrica.style.pointerEvents = 'auto'; navFabrica.style.cursor = 'pointer'; }
+    
+    const navDashboard = document.getElementById('nav-dashboard');
+    if (navDashboard) { navDashboard.style.display = 'flex'; navDashboard.style.pointerEvents = 'auto'; navDashboard.style.cursor = 'pointer'; }
+    
     const btnAdmin = document.querySelector('button[onclick="switchTab(\'logs\')"]');
     const btnChaves = document.querySelector('.btn-ai[onclick="salvarConfiguracoesChaves()"]');
 
     if (!isAdmin) {
-        switchTab('vendas');
+        switchTab('vendas'); // Vendedor sempre cai na tela de vendas ao abrir
+        
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.value = usuarioLogado; inputSocio.readOnly = true; inputSocio.style.background = "#E8DDE1"; inputSocio.style.color = "#7a4a5e"; }
         const inputValorVenda = document.getElementById('v-valor');
         if (inputValorVenda) { inputValorVenda.readOnly = true; inputValorVenda.style.background = "#E8DDE1"; inputValorVenda.style.color = "#7a4a5e"; }
+        
         const btnEquipe = document.getElementById('btn-menu-equipe');
-        if (btnEquipe) btnEquipe.style.display = isAdmin ? 'block' : 'none';
+        if (btnEquipe) btnEquipe.style.display = 'none';
 
         if (btnAdmin) { btnAdmin.style.display = 'none'; if (btnAdmin.previousElementSibling) btnAdmin.previousElementSibling.style.display = 'none'; }
         if (btnChaves) {
@@ -190,6 +207,9 @@ function aplicarPermissoes() {
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
         const inputValorVenda = document.getElementById('v-valor');
         if (inputValorVenda) { inputValorVenda.readOnly = false; inputValorVenda.style.background = "#fafafa"; inputValorVenda.style.color = "var(--brand-dark)"; }
+
+        const btnEquipe = document.getElementById('btn-menu-equipe');
+        if (btnEquipe) btnEquipe.style.display = 'block';
 
         if (btnAdmin) { btnAdmin.style.display = 'block'; if (btnAdmin.previousElementSibling) btnAdmin.previousElementSibling.style.display = 'block'; }
         if (btnChaves) {
@@ -394,6 +414,7 @@ function renderizarLogs() {
 }
 
 function renderizarRotulos() { 
+    const isAdmin = (usuarioCargo === 'Admin'); // Porteiro de segurança da função
     const lista = document.getElementById("lista-rotulos-cadastrados"); 
     const resumo = document.getElementById("resumo-essencias"); 
     
@@ -435,6 +456,19 @@ function renderizarRotulos() {
 
         let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px; text-transform:uppercase; font-weight:800; vertical-align: middle;">${genKey}</span>`; 
         
+        // CADEADOS DE SEGURANÇA ========================================
+        let txtForn = isAdmin ? `
+            <div class="e-forn-block">
+                <p style="margin:0; font-size:0.75rem; color:#666;">Cód Fornecedor: <b style="color: var(--brand-dark); font-size: 0.85rem;">${r.codigo_forn || '-'}</b></p>
+            </div>` : '';
+            
+        let divBotoesRotulo = isAdmin ? `
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarRotulo(${r.linha})" title="Editar">✏️</button>
+                <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Tabela Rotulo Novera', ${r.linha}, 'Rótulo: ${r.codigo}')" title="Excluir">🗑️</button>
+            </div>` : '';
+        // ===============================================================
+
         // 2. Montar a Linha (Cartão de Essência)
         gruposRotulos[genKey].itens.push(`
         <div class="rotulo-card card-essencia-list" style="border-left: 5px solid ${corTextoGen};">
@@ -445,16 +479,11 @@ function renderizarRotulos() {
                 </div>
             </div>
             
-            <div class="e-forn-block">
-                <p style="margin:0; font-size:0.75rem; color:#666;">Cód Fornecedor: <b style="color: var(--brand-dark); font-size: 0.85rem;">${r.codigo_forn || '-'}</b></p>
-            </div>
+            ${txtForn}
 
             <div class="prod-actions">
                 <div class="rotulo-badge" style="font-size: 1.1rem; padding: 6px 12px; margin-right: 10px;">${r.codigo}</div>
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarRotulo(${r.linha})" title="Editar">✏️</button>
-                    <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Tabela Rotulo Novera', ${r.linha}, 'Rótulo: ${r.codigo}')" title="Excluir">🗑️</button>
-                </div>
+                ${divBotoesRotulo}
             </div>
         </div>`); 
     }); 
@@ -595,6 +624,7 @@ function salvarFilaProducao() {
 }
 
 function renderizarProducao() {
+    const isAdmin = (usuarioCargo === 'Admin'); // Porteiro da Fábrica
     const fila = document.getElementById('lista-producao-cards');
     const resumo = document.getElementById('resumo-producao');
     const tBusca = document.getElementById('busca-producao') ? document.getElementById('busca-producao').value.toLowerCase().trim() : '';
@@ -615,9 +645,8 @@ function renderizarProducao() {
     hojeObj.setHours(0, 0, 0, 0);
 
     let totalUnidades = 0, countFem = 0, countMasc = 0;
-    let grupos = {}; // Objeto para agrupar por Data
+    let grupos = {}; 
 
-    // 1. Enriquecer os dados e Agrupar
     pends.forEach(p => {
         const q = parseFloat(p.qtd_prevista) || 0;
         totalUnidades += q;
@@ -628,10 +657,9 @@ function renderizarProducao() {
         if (gen === 'feminino') countFem += q;
         else if (gen === 'masculino') countMasc += q;
 
-        p.genero_calc = gen; // Salva o gênero para ordenar depois
+        p.genero_calc = gen; 
         p.genero_txt = rotuloRef && rotuloRef.genero ? rotuloRef.genero : 'Unissex';
 
-        // Matemática dos Dias
         const [a, m, d] = p.data_previsao.split('-');
         const prevObj = new Date(a, m - 1, d);
         const diffTimeFalta = prevObj.getTime() - hojeObj.getTime();
@@ -642,7 +670,6 @@ function renderizarProducao() {
         const diffTimeInicio = hojeObj.getTime() - inicioObj.getTime();
         p.diasMacerando = Math.floor(diffTimeInicio / (1000 * 60 * 60 * 24));
 
-        // Agrupar na "Gaveta" certa da Data
         let dataKey = p.data_previsao;
         if (!grupos[dataKey]) {
             grupos[dataKey] = { dataBR: dataBR(p.data_previsao), diffDays: p.diffDaysFalta, itens: [] };
@@ -650,16 +677,13 @@ function renderizarProducao() {
         grupos[dataKey].itens.push(p);
     });
 
-    // 2. Ordenar as Gavetas cronologicamente
     let datasOrdenadas = Object.keys(grupos).sort((a, b) => new Date(a) - new Date(b));
 
     let html = "";
 
-    // 3. Desenhar o Layout
     datasOrdenadas.forEach(dataKey => {
         let grupo = grupos[dataKey];
 
-        // Separador Visual de Data (Cabeçalho do Grupo)
         let classDivisor = "div-futuro";
         let textoDivisor = `⏳ Pronto em: ${grupo.dataBR} (Faltam ${grupo.diffDays} dias)`;
         if (grupo.diffDays < 0) {
@@ -671,13 +695,11 @@ function renderizarProducao() {
         html += `<div class="separador-data ${classDivisor}">${textoDivisor}</div>`;
         html += `<div class="grid-producao-grupo">`;
 
-        // Ordenar os itens dentro do dia: Primeiro por Gênero, depois por Nome
         grupo.itens.sort((a, b) => {
             if (a.genero_calc !== b.genero_calc) return a.genero_calc.localeCompare(b.genero_calc);
             return a.nome_produto.localeCompare(b.nome_produto);
         });
 
-        // Desenhar a Linha de cada Produto
         grupo.itens.forEach(p => {
             let textoMacerando = p.diasMacerando === 0 ? "Iniciado hoje" : `Macerando há ${p.diasMacerando} dia(s)`;
 
@@ -685,6 +707,11 @@ function renderizarProducao() {
             if(p.genero_calc === "masculino") { corFundoGen = "#e0f2fe"; corTextoGen = "#0369a1"; }
             else if(p.genero_calc === "feminino") { corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; }
             let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px; vertical-align: middle;">${p.genero_txt}</span>`;
+
+            // CADEADOS DE SEGURANÇA AQUI ===============================
+            const btnEditarProd = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px;" onclick="abrirModalEditarProducao(${p.linha})" title="Editar Previsão">✏️</button>` : '';
+            const btnExcluirProd = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px;" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>` : '';
+            const btnFinalizarProd = isAdmin ? `<button class="btn-salvar" style="margin:0; padding:10px 20px; font-size:0.8rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>` : '';
 
             html += `
             <div class="rotulo-card card-producao-list" style="border-left: 5px solid ${corTextoGen}; border-radius: 8px; padding: 15px;">
@@ -703,14 +730,14 @@ function renderizarProducao() {
                         <p style="margin: 0; color: var(--brand-dark); font-size: 1.2rem; font-weight: 900;">${p.qtd_prevista} un</p>
                     </div>
                     <div style="display:flex; gap:6px; align-items:center;">
-                        <button class="btn-acao" style="width: 36px; height: 36px;" onclick="abrirModalEditarProducao(${p.linha})" title="Editar Previsão">✏️</button>
-                        <button class="btn-acao" style="width: 36px; height: 36px;" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>
-                        <button class="btn-salvar" style="margin:0; padding:10px 20px; font-size:0.8rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>
+                        ${btnEditarProd}
+                        ${btnExcluirProd}
+                        ${btnFinalizarProd}
                     </div>
                 </div>
             </div>`;
         });
-        html += `</div>`; // Fecha grupo
+        html += `</div>`; 
     });
 
     fila.innerHTML = html;
@@ -844,13 +871,13 @@ function calcularRadarProducao() {
 }
 
 function renderizarEstoque() { 
+    const isAdmin = (usuarioCargo === 'Admin'); // Porteiro do Estoque
     const tBusca = document.getElementById('busca-estoque').value.toLowerCase().trim(); 
     const dFiltroLocal = document.getElementById('f-e-local'); 
     const localSelecionado = dFiltroLocal ? dFiltroLocal.value.trim() : ""; 
     const dFiltroGenero = document.getElementById('f-e-genero');
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
 
-    // Mapeia a produção em andamento
     let totalMacerandoPorProduto = {};
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
@@ -866,11 +893,9 @@ function renderizarEstoque() {
         let passLocal = !localSelecionado || (e.locais[localSelecionado] !== undefined && e.locais[localSelecionado] > 0);
         let genE = e.genero ? String(e.genero).toLowerCase() : 'unissex';
         let passGenero = !generoSelecionado || genE === String(generoSelecionado).toLowerCase() || (generoSelecionado === 'Unissex' && genE === '');
-        
         return passBusca && passLocal && passGenero;
     }); 
     
-    // Ordena os itens (Esgotados no final, depois Ordem Alfabética de Código)
     arrEstoque.sort((a, b) => { 
         let qA = localSelecionado ? (a.locais[localSelecionado] || 0) : a.totalQtd; 
         let qB = localSelecionado ? (b.locais[localSelecionado] || 0) : b.totalQtd; 
@@ -890,7 +915,6 @@ function renderizarEstoque() {
     let html = "", somaItens = 0, somaValor = 0; 
     let gruposEstoque = {};
 
-    // 1. Agrupar por Categoria (Tipo)
     arrEstoque.forEach(e => { 
         const qtdExibicao = localSelecionado ? (e.locais[localSelecionado] || 0) : e.totalQtd; 
         const precoNum = parseDinheiro(e.preco); 
@@ -898,9 +922,7 @@ function renderizarEstoque() {
         somaValor += (qtdExibicao * precoNum); 
         
         let tipoKey = (e.tipo || 'Sem Categoria').toUpperCase();
-        if(!gruposEstoque[tipoKey]) {
-            gruposEstoque[tipoKey] = { itens: [], qtdGrupo: 0, valorGrupo: 0 };
-        }
+        if(!gruposEstoque[tipoKey]) gruposEstoque[tipoKey] = { itens: [], qtdGrupo: 0, valorGrupo: 0 };
         
         gruposEstoque[tipoKey].qtdGrupo += qtdExibicao;
         gruposEstoque[tipoKey].valorGrupo += (qtdExibicao * precoNum);
@@ -917,7 +939,6 @@ function renderizarEstoque() {
         else if(gLow === "infantil") { corFundoGen = "#dcfce7"; corTextoGen = "#166534"; }
         let badgeGenero = e.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${e.genero}</span>` : '';
 
-        // Avaliação de Saúde (Radar)
         let qtdMacerando = totalMacerandoPorProduto[padronizarTexto(e.nome)] || 0;
         let qtdProjetada = qtdExibicao + qtdMacerando;
         
@@ -936,7 +957,6 @@ function renderizarEstoque() {
         
         let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
 
-        // Distruibuição Local
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
         for(let loc in e.locais) { 
             if(e.locais[loc] > 0) { locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b></span>`; } 
@@ -946,7 +966,10 @@ function renderizarEstoque() {
         
         const nomeEncode = encodeURIComponent(e.nome); 
         
-        // Cartão Final
+        // CADEADOS DE SEGURANÇA AQUI ===============================
+        const txtCusto = isAdmin ? `<p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>` : '';
+        const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
+
         gruposEstoque[tipoKey].itens.push(`
         <div class="rotulo-card card-estoque-list" style="${opacidade}">
             <div class="prod-info-main">
@@ -955,14 +978,12 @@ function renderizarEstoque() {
                     <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${codigoBadge}${e.nome} ${badgeGenero}</h4>
                     <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <p style="margin:0; font-size:0.8rem; color:var(--primary); font-weight:700;">Venda: ${safeFmt(e.preco)}</p>
-                        <p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>
+                        ${txtCusto}
                     </div>
                 </div>
             </div>
             
-            <div class="e-locais-block">
-                ${locaisHtml}
-            </div>
+            <div class="e-locais-block">${locaisHtml}</div>
 
             <div class="prod-actions">
                 <div style="text-align: right;">
@@ -971,28 +992,28 @@ function renderizarEstoque() {
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
-                    <button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>
+                    ${btnEditarEst}
                 </div>
             </div>
         </div>`); 
     }); 
 
-    // 2. Desenhar HTML
     let tiposOrdenados = Object.keys(gruposEstoque).sort();
-    
     tiposOrdenados.forEach(tipoChave => {
+        let tagValor = isAdmin ? ` | 💰 ${fmt(gruposEstoque[tipoChave].valorGrupo)}` : '';
         html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
                     <span>📦 CATEGORIA: ${tipoChave}</span>
-                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">ESTOQUE: ${gruposEstoque[tipoChave].qtdGrupo} un | 💰 ${fmt(gruposEstoque[tipoChave].valorGrupo)}</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">ESTOQUE: ${gruposEstoque[tipoChave].qtdGrupo} un ${tagValor}</span>
                  </div>`;
-        html += `<div class="grid-estoque-grupo">`;
-        html += gruposEstoque[tipoChave].itens.join('');
-        html += `</div>`;
+        html += `<div class="grid-estoque-grupo">${gruposEstoque[tipoChave].itens.join('')}</div>`;
     });
 
     lista.innerHTML = html; 
     document.getElementById('est-total-itens').innerText = somaItens; 
-    document.getElementById('est-valor-total').innerText = fmt(somaValor); 
+    // Esconde o valor total em reais no topo da tela do vendedor
+    if(document.getElementById('est-valor-total')) {
+        document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; 
+    }
 }
 
 function abrirModalEditarEstoque(nomeEncoded) { const nomeDecoded = decodeURIComponent(nomeEncoded); const e = estoqueAgrupado[padronizarTexto(nomeDecoded)]; if (!e) return; document.getElementById('edit-e-nome').value = e.nome; document.getElementById('edit-e-tipo').value = e.tipo; document.getElementById('edit-e-custo').value = safeFmt(e.custo); document.getElementById('edit-e-preco').value = safeFmt(e.preco); document.getElementById('edit-e-codigo').value = e.codigo || ''; let fotos = e.foto ? e.foto.split(',') : []; document.getElementById('edit-e-img-preview').src = fotos[0] || 'logo.png'; document.getElementById('img-original-preview').src = fotos[0] || 'logo.png'; document.getElementById('edit-e-foto-antiga').value = e.foto || ''; document.getElementById('edit-e-foto-nova').value = ''; document.getElementById('ai-preview-box').style.display = 'none'; const container = document.getElementById('edit-e-locais-container'); container.innerHTML = ''; for (let loc in e.locais) { adicionarLinhaLocal(loc, e.locais[loc]); } if (Object.keys(e.locais).length === 0) adicionarLinhaLocal('Sede', 0); document.getElementById('modal-editar-estoque').style.display = 'flex'; }
@@ -1573,7 +1594,7 @@ function filtrarVendas() {
             const txtLocal = `<p style="font-size:0.65rem; color:#666; margin: 2px 0 0 0;">📍 Retirada: <b>${v.local_estoque}</b></p>`;
 
             const btnApagar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Vendas', ${v.linha}, 'Venda de ${v.cliente}')" title="Excluir">🗑️</button>` : '';
-            const btnEditar = `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>`;
+            const btnEditar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>` : '';
             const btnBaixa = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : '';
             
             const btnAcerto = (isAdmin && isP && !isAcertado) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="acertarCaixaVenda(${v.linha})" title="Confirmar Entrada e Comissão">🤝</button>` : '';
@@ -1934,7 +1955,251 @@ function salvarEdicaoVenda() {
         }); 
 }
 
-function renderizarDashboard() { const dMes = document.getElementById('d-filtro-mes'); const dAno = document.getElementById('d-filtro-ano'); if (!dMes.value && !dAno.value) { const h = new Date(); dMes.value = String(h.getMonth() + 1).padStart(2, '0'); dAno.value = String(h.getFullYear()); } const fM = dMes.value; const fA = dAno.value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); const gDash = gastosGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true); let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0, mProd = {}, mCli = {}, mSoc = {}; vDash.forEach(v => { const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; if (v.status === 'Pago') tRec += val; else tPend += val; tLucroTotal += luc; if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); gDash.forEach(g => tGas += parseDinheiro(g.total)); const lReal = tRec - tGas; let estItens = 0, estValor = 0; estoqueGlobal.forEach(e => { let q = parseFloat(e.qtd) || 0; if (q > 0) { estItens += q; estValor += (q * parseDinheiro(e.preco)); } }); const patrimonio = lReal + tPend + estValor; document.getElementById('d-patrimonio').innerText = fmt(patrimonio); document.getElementById('d-lucro-real').innerText = fmt(lReal); document.getElementById('card-lucro-real').classList.toggle('negativo', lReal < 0); document.getElementById('d-receitas').innerText = fmt(tRec); document.getElementById('d-gastos').innerText = fmt(tGas); document.getElementById('d-receber').innerText = fmt(tPend); document.getElementById('d-lucro-projetado').innerText = fmt(tLucroTotal); document.getElementById('d-estoque-itens').innerText = estItens; document.getElementById('d-estoque-valor').innerText = fmt(estValor); let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3); let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3); document.getElementById('d-ranking-produtos').innerHTML = arrProd.length ? arrProd.map((p, i) => `<li class="ranking-item"><span class="ranking-pos">#${i + 1}</span><span class="ranking-name">${p.nome}</span><span class="ranking-val">${p.qtd} un</span></li>`).join('') : "<li style='color:#999;'>Sem dados</li>"; document.getElementById('d-ranking-clientes').innerHTML = arrCli.length ? arrCli.map((c, i) => `<li class="ranking-item"><span class="ranking-pos">#${i + 1}</span><span class="ranking-name">${c.nome}</span><span class="ranking-val">${fmt(c.val)}</span></li>`).join('') : "<li style='color:#999;'>Sem dados</li>"; let hSoc = ""; for (let s in mSoc) { hSoc += `<div class="dash-socios-linha"><span>${s}</span> <strong style="color:var(--primary-dark);">${fmt(mSoc[s])}</strong></div>`; } document.getElementById('d-socios-lucro').innerHTML = hSoc || "<p style='font-size:0.8rem; color:#999; text-align:center;'>Sem lucros.</p>"; if (typeof Chart !== 'undefined') { const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); const ctxSt = document.getElementById('chartStatusVendas').getContext('2d'); if (chartRGBase) chartRGBase.destroy(); chartRGBase = new Chart(ctxRG, { type: 'bar', data: { labels: ['Caixa', 'Gastos'], datasets: [{ label: 'Valor', data: [tRec, tGas], backgroundColor: ['#2e7d32', '#c62828'], borderRadius: 8 }] }, options: { responsive: true, plugins: { legend: { display: false } } } }); if (chartStatusBase) chartStatusBase.destroy(); chartStatusBase = new Chart(ctxSt, { type: 'doughnut', data: { labels: ['Pago', 'Fiado'], datasets: [{ data: [tRec, tPend], backgroundColor: ['#2e7d32', '#f59e0b'], borderWidth: 0 }] }, options: { responsive: true } }); } }
+function renderizarDashboard() {
+    const isAdmin = (usuarioCargo === 'Admin');
+    const container = document.getElementById('dash-dinamico-container');
+    if (!container) return;
+
+    const dMes = document.getElementById('d-filtro-mes');
+    const dAno = document.getElementById('d-filtro-ano');
+    if (!dMes.value && !dAno.value) {
+        const h = new Date();
+        dMes.value = String(h.getMonth() + 1).padStart(2, '0');
+        dAno.value = String(h.getFullYear());
+    }
+    const fM = dMes.value;
+    const fA = dAno.value;
+    let pfx = fA && fM ? `${fA}-${fM}` : fA;
+
+    // Vendas do Mês/Ano escolhido
+    const vDashGlobal = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true);
+
+    // ============================================
+    // RANKING DE VENDEDORES (Todos veem isso!)
+    // ============================================
+    let rankingMap = {};
+    vDashGlobal.forEach(v => {
+        let s = String(v.socio || 'Sem Vendedor').trim();
+        if(!rankingMap[s]) rankingMap[s] = { total: 0, comissaoPend: 0, itens: 0 };
+        rankingMap[s].total += parseDinheiro(v.valor_venda);
+        rankingMap[s].itens += (parseInt(v.qtd) || 1);
+        if (v.status === 'Pago' && !v.repasse_feito) {
+            rankingMap[s].comissaoPend += parseFloat(v.valor_comissao) || 0;
+        }
+    });
+    let rankingArr = Object.keys(rankingMap).map(k => ({ nome: k, ...rankingMap[k] })).sort((a,b) => b.total - a.total);
+
+    let htmlRanking = `<div class="dash-card" style="grid-column: span 2; padding: 15px; border: 1px solid #fde047; box-shadow: 0 4px 15px rgba(253, 224, 71, 0.2);">
+        <h3 style="color:#b45309; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🏆 RANKING DE VENDAS DO MÊS</h3>
+        <div style="display:flex; flex-direction:column; gap:8px;">`;
+    if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda registrada neste mês.</p>`;
+    
+    rankingArr.forEach((r, idx) => {
+        let corMedalha = idx === 0 ? "#fef08a" : (idx === 1 ? "#e2e8f0" : (idx === 2 ? "#fed7aa" : "#f8fafc"));
+        let emoji = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : "🎖️"));
+        let tagAdmin = isAdmin ? `<div style="font-size:0.65rem; color:#991b1b; font-weight:700;">A Repassar: ${fmt(r.comissaoPend)}</div>` : '';
+        let nomeDestaque = r.nome.toLowerCase() === usuarioLogado.toLowerCase() ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px;">VOCÊ</span>` : '';
+        
+        htmlRanking += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:${corMedalha}; padding:10px 15px; border-radius:8px; border: 1px solid rgba(0,0,0,0.05);">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.5rem;">${emoji}</span>
+                <strong style="color:var(--brand-dark); font-size:0.9rem;">${r.nome} ${nomeDestaque}</strong>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-weight:900; color:#b45309; font-size:1rem;">${fmt(r.total)}</div>
+                <div style="font-size:0.65rem; color:#888;">${r.itens} itens vendidos</div>
+                ${tagAdmin}
+            </div>
+        </div>`;
+    });
+    htmlRanking += `</div></div>`;
+
+    // ============================================
+    // VISÃO DO VENDEDOR (Gamificada e Pessoal)
+    // ============================================
+    if (!isAdmin) {
+        let minhasVendas = vDashGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+        let tVend = 0, tItens = 0, comAprovada = 0, comPendente = 0;
+        let mProd = {}, mCli = {};
+
+        minhasVendas.forEach(v => {
+            const val = parseDinheiro(v.valor_venda);
+            const com = parseFloat(v.valor_comissao) || 0;
+            const q = parseInt(v.qtd) || 1;
+            
+            tVend += val; tItens += q;
+            if(v.status === 'Pago' && v.repasse_feito) comAprovada += com;
+            else comPendente += com;
+
+            if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q;
+            if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
+        });
+
+        let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3);
+        let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3);
+
+        let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+        let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+
+        container.innerHTML = `
+            <div class="dashboard-grid">
+                <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
+                    <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">MINHAS VENDAS TOTAIS</h3>
+                    <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVend)}</p>
+                    <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">${tItens} produtos vendidos</p>
+                </div>
+
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
+                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO APROVADA</h3>
+                    <p style="font-size:1.4rem; font-weight:900; color:#2e7d32; margin:0;">${fmt(comAprovada)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Já liberado no caixa</p>
+                </div>
+
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
+                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO PENDENTE</h3>
+                    <p style="font-size:1.4rem; font-weight:900; color:#b45309; margin:0;">${fmt(comPendente)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
+                </div>
+
+                ${htmlRanking}
+
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP PRODUTOS</h3>
+                    ${listaProd}
+                </div>
+
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 MEUS TOP CLIENTES</h3>
+                    ${listaCli}
+                </div>
+            </div>
+        `;
+        return; 
+    }
+
+    // ============================================
+    // VISÃO DO ADMIN (Controle Absoluto)
+    // ============================================
+    const gDashGlobal = gastosGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true);
+    
+    let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0;
+    let mProd = {}, mCli = {}; 
+
+    vDashGlobal.forEach(v => { 
+        const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
+        if (v.status === 'Pago') tRec += val; else tPend += val; 
+        tLucroTotal += luc; 
+        if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; 
+        if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; 
+    }); 
+    
+    gDashGlobal.forEach(g => tGas += parseDinheiro(g.total)); 
+    const lReal = tRec - tGas; 
+    
+    let estItens = 0, estValor = 0; 
+    estoqueGlobal.forEach(e => { let q = parseFloat(e.qtd) || 0; if (q > 0) { estItens += q; estValor += (q * parseDinheiro(e.preco)); } }); 
+    
+    const patrimonio = lReal + tPend + estValor; 
+
+    let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3); 
+    let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3); 
+    
+    let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+    let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+
+    const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
+
+    container.innerHTML = `
+        <div class="dashboard-grid">
+            <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
+                <h3 style="color: #e8dde1; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">👑 PATRIMÔNIO NOVERA</h3>
+                <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
+                <p style="font-size: 0.7rem; color: #e8dde1; margin: 5px 0 0 0; opacity: 0.8;">Caixa + Estoque Físico + A Receber</p>
+            </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucro}; background: #fafafa;">
+                <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
+                <p style="font-size:1.8rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
+                <p style="font-size:0.65rem; color:#888; margin-top:3px;">Entradas Pagas - Gastos Totais da Empresa</p>
+            </div>
+
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#2e7d32; margin:0;" id="d-receitas">${fmt(tRec)}</p>
+            </div>
+            
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #c62828;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">SAÍDAS (GASTOS)</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#c62828; margin:0;" id="d-gastos">${fmt(tGas)}</p>
+            </div>
+
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">A RECEBER (FIADO)</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
+            </div>
+
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #7c3aed;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">LUCRO LÍQUIDO PROJETADO</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#7c3aed; margin:0;" id="d-lucro-projetado">${fmt(tLucroTotal)}</p>
+            </div>
+
+            ${htmlRanking}
+
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
+                <div>
+                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE ATUAL FÍSICO</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
+                </div>
+                <div style="text-align:right;">
+                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">VALOR VAREJO DO ESTOQUE</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
+                </div>
+            </div>
+
+            <div class="dash-card" style="padding:15px;">
+                <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ TOP 3 PRODUTOS</h3>
+                <div id="d-ranking-produtos">${listaProd}</div>
+            </div>
+
+            <div class="dash-card" style="padding:15px;">
+                <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 3 CLIENTES</h3>
+                <div id="d-ranking-clientes">${listaCli}</div>
+            </div>
+
+            <div class="dash-card" style="padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS</h3>
+                <canvas id="chartReceitasGastos" height="200"></canvas>
+            </div>
+            <div class="dash-card" style="padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS</h3>
+                <canvas id="chartStatusVendas" height="200"></canvas>
+            </div>
+            <!-- Divs Ocultas para o botão de copiar o Resumo Funcionar -->
+            <div id="d-patrimonio" style="display:none;">${fmt(patrimonio)}</div>
+        </div>
+    `;
+
+    if (typeof Chart !== 'undefined') { 
+        const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); 
+        const ctxSt = document.getElementById('chartStatusVendas').getContext('2d'); 
+        
+        if (chartRGBase) chartRGBase.destroy(); 
+        chartRGBase = new Chart(ctxRG, { 
+            type: 'bar', 
+            data: { labels: ['Caixa Real', 'Gastos'], datasets: [{ label: 'Valor', data: [tRec, tGas], backgroundColor: ['#15803d', '#b91c1c'], borderRadius: 6 }] }, 
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
+        }); 
+        
+        if (chartStatusBase) chartStatusBase.destroy(); 
+        chartStatusBase = new Chart(ctxSt, { 
+            type: 'doughnut', 
+            data: { labels: ['Pago', 'Fiado'], datasets: [{ data: [tRec, tPend], backgroundColor: ['#15803d', '#f59e0b'], borderWidth: 0 }] }, 
+            options: { responsive: true, maintainAspectRatio: false } 
+        }); 
+    }
+}
+
 function abrirModalRelatorios() { document.getElementById('modal-relatorios').style.display = 'flex'; }
 function exportarExcel() { const dMes = document.getElementById('d-filtro-mes').value; const dAno = document.getElementById('d-filtro-ano').value; let pfx = dAno && dMes ? `${dAno}-${dMes}` : dAno; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); if (vDash.length === 0) return mostrarAlerta("Aviso", "Nenhuma venda neste período.", "warning"); let csvContent = "data:text/csv;charset=utf-8,Data,Cliente,Produto,Socio,Quantidade,Valor,Status,Custo Und,Custo Total,Lucro,Markup,Data Pagamento,Observacao\n"; vDash.forEach(v => { let obsLimpa = v.observacao ? v.observacao.replace(/\n/g, ' ').replace(/"/g, '""') : ''; let row = [v.dataVendaDisplay, `"${v.cliente}"`, `"${v.produto}"`, v.socio, v.qtd, `"${v.valor_venda}"`, v.status, `"${v.custo_und}"`, `"${v.custo_total}"`, `"${v.lucro}"`, `"${v.markup}"`, v.dataPgtoDisplay || "", `"${obsLimpa}"`]; csvContent += row.join(",") + "\n"; }); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Vendas_Novera_${pfx || 'Tudo'}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
 function copiarFechamento() { const dMesSel = document.getElementById('d-filtro-mes'); const dMesText = dMesSel.options[dMesSel.selectedIndex].text; const dAno = document.getElementById('d-filtro-ano').value || 'Todo o Período'; let lReal = document.getElementById('d-lucro-real').innerText; let entradas = document.getElementById('d-receitas').innerText; let saidas = document.getElementById('d-gastos').innerText; let aReceber = document.getElementById('d-receber').innerText; let patrimonio = document.getElementById('d-patrimonio').innerText; let txt = `📊 *FECHAMENTO NOVERA SCENT* 📊\n🗓️ Período: ${dMesText} ${dAno}\n\n👑 *Patrimônio Total:* ${patrimonio}\n\n📈 *Entradas (Pagas):* ${entradas}\n📉 *Saídas (Gastos):* ${saidas}\n⏳ *A Receber (Fiado):* ${aReceber}\n💰 *Caixa Líquido:* ${lReal}\n\n🤝 *Divisão de Lucros Projetada:*\n`; const fM = document.getElementById('d-filtro-mes').value; const fA = document.getElementById('d-filtro-ano').value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); let mSoc = {}; vDash.forEach(v => { const luc = parseDinheiro(v.lucro); if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); let sociosText = ""; for (let s in mSoc) { sociosText += `▪️ ${s}: ${fmt(mSoc[s])}\n`; } txt += sociosText || "Nenhum lucro.\n"; txt += `\n✨ _Bora pra cima!_ 🚀`; navigator.clipboard.writeText(txt).then(() => { mostrarAlerta("Copiado!", "Resumo do fechamento copiado.", "success"); }).catch(err => { mostrarAlerta("Erro", "Falha ao copiar texto.", "error"); }); }
