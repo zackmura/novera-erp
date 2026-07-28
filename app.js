@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.5.1";
+const VERSAO_ATUAL_SISTEMA = "8.5.2";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -170,7 +170,7 @@ function aplicarPermissoes() {
     const navPrecificar = document.getElementById('nav-precificar'); if(navPrecificar) navPrecificar.style.display = isAdmin ? 'flex' : 'none';
     const navGastos = document.getElementById('nav-gastos'); if(navGastos) navGastos.style.display = isAdmin ? 'flex' : 'none';
 
-    // Abas liberadas para todos (Painel de Desempenho agora fica visível para o Ranking!)
+    // Abas liberadas para todos
     const navEstoque = document.getElementById('nav-estoque');
     if (navEstoque) { navEstoque.style.display = 'flex'; navEstoque.style.pointerEvents = 'auto'; navEstoque.style.cursor = 'pointer'; }
     
@@ -182,6 +182,9 @@ function aplicarPermissoes() {
     
     const btnAdmin = document.querySelector('button[onclick="switchTab(\'logs\')"]');
     const btnChaves = document.querySelector('.btn-ai[onclick="salvarConfiguracoesChaves()"]');
+
+    // CÃO DE GUARDA DO PAINEL: Localiza o Botão de Relatório
+    const btnRelatorioPainel = document.querySelector('#tab-dashboard button[onclick="abrirModalRelatorios()"]');
 
     if (!isAdmin) {
         switchTab('vendas'); // Vendedor sempre cai na tela de vendas ao abrir
@@ -202,6 +205,14 @@ function aplicarPermissoes() {
             document.getElementById('cfg-onionsys-key').parentElement.parentElement.style.display = 'none';
             if (btnChaves.previousElementSibling) { btnChaves.previousElementSibling.style.display = 'none'; if (btnChaves.previousElementSibling.previousElementSibling) btnChaves.previousElementSibling.previousElementSibling.style.display = 'none'; }
         }
+
+        // ESCONDE O RELATÓRIO DO VENDEDOR
+        if (btnRelatorioPainel) {
+            btnRelatorioPainel.style.display = 'none'; 
+            if (btnRelatorioPainel.previousElementSibling && btnRelatorioPainel.previousElementSibling.innerText.includes('Administração')) {
+                btnRelatorioPainel.previousElementSibling.style.display = 'none'; // Esconde o Título também
+            }
+        }
     } else {
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -218,6 +229,14 @@ function aplicarPermissoes() {
             document.getElementById('cfg-imgbb-key').parentElement.parentElement.style.display = 'block';
             document.getElementById('cfg-onionsys-key').parentElement.parentElement.style.display = 'block';
             if (btnChaves.previousElementSibling) { btnChaves.previousElementSibling.style.display = 'block'; if (btnChaves.previousElementSibling.previousElementSibling) btnChaves.previousElementSibling.previousElementSibling.style.display = 'block'; }
+        }
+
+        // MOSTRA O RELATÓRIO PARA O ADMIN
+        if (btnRelatorioPainel) {
+            btnRelatorioPainel.style.display = 'block'; 
+            if (btnRelatorioPainel.previousElementSibling && btnRelatorioPainel.previousElementSibling.innerText.includes('Administração')) {
+                btnRelatorioPainel.previousElementSibling.style.display = 'block'; 
+            }
         }
     }
 }
@@ -2169,11 +2188,15 @@ function renderizarDashboard() {
 
             <div class="dash-card" style="padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS</h3>
-                <canvas id="chartReceitasGastos" height="200"></canvas>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartReceitasGastos"></canvas>
+                </div>
             </div>
             <div class="dash-card" style="padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS</h3>
-                <canvas id="chartStatusVendas" height="200"></canvas>
+                <div style="position: relative; height: 220px; width: 100%;">
+                    <canvas id="chartStatusVendas"></canvas>
+                </div>
             </div>
             <!-- Divs Ocultas para o botão de copiar o Resumo Funcionar -->
             <div id="d-patrimonio" style="display:none;">${fmt(patrimonio)}</div>
