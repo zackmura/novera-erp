@@ -476,7 +476,11 @@
                             <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
                         </div>
                         <div class="row">
-                            <div class="col" style="flex: 2;"><label>O que o cliente pediu?</label><input type="text" id="e-item" placeholder="Ex: Vela de Alecrim, Home Spray..."></div>
+                            <!-- O SEGREDO ESTÁ AQUI: Trocamos o input livre por um select -->
+                            <div class="col" style="flex: 2;">
+                                <label>Produto Encomendado</label>
+                                <select id="e-item" style="background:#fff; border-color:var(--border-color);"><option value="">Aguardando catálogo...</option></select>
+                            </div>
                             <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
                         </div>
                         <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>

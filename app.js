@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.6.0";
+const VERSAO_ATUAL_SISTEMA = "8.7.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -673,7 +673,7 @@ function salvarFilaProducao() {
 }
 
 function renderizarProducao() {
-    const isAdmin = (usuarioCargo === 'Admin'); // Porteiro da Fábrica
+    const isAdmin = (usuarioCargo === 'Admin'); 
     const fila = document.getElementById('lista-producao-cards');
     const resumo = document.getElementById('resumo-producao');
     const tBusca = document.getElementById('busca-producao') ? document.getElementById('busca-producao').value.toLowerCase().trim() : '';
@@ -689,6 +689,14 @@ function renderizarProducao() {
         if(resumo && !tBusca) resumo.innerHTML = "";
         return;
     }
+
+    let totalEncomendadoPorProduto = {};
+    encomendasGlobal.forEach(enc => {
+        if (enc.status === 'Pendente' || enc.status === 'Produzido') {
+            let nomeP = padronizarTexto(enc.item);
+            totalEncomendadoPorProduto[nomeP] = (totalEncomendadoPorProduto[nomeP] || 0) + (parseInt(enc.qtd) || 0);
+        }
+    });
 
     const hojeObj = new Date();
     hojeObj.setHours(0, 0, 0, 0);
@@ -757,7 +765,10 @@ function renderizarProducao() {
             else if(p.genero_calc === "feminino") { corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; }
             let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px; vertical-align: middle;">${p.genero_txt}</span>`;
 
-            // CADEADOS DE SEGURANÇA AQUI ===============================
+            // AVISA A FÁBRICA QUE O LOTE JÁ ESTÁ VENDIDO
+            let qtdEncomendada = totalEncomendadoPorProduto[padronizarTexto(p.nome_produto)] || 0;
+            let badgeAlertaFabrica = qtdEncomendada > 0 ? `<div style="margin-top: 5px; background: #fff9e6; color: #b45309; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; border: 1px solid #fde047; display: inline-block;">⚠️ Atenção: ${qtdEncomendada} estão reservados!</div>` : '';
+
             const btnEditarProd = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px;" onclick="abrirModalEditarProducao(${p.linha})" title="Editar Previsão">✏️</button>` : '';
             const btnExcluirProd = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px;" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>` : '';
             const btnFinalizarProd = isAdmin ? `<button class="btn-salvar" style="margin:0; padding:10px 20px; font-size:0.8rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>` : '';
@@ -771,6 +782,7 @@ function renderizarProducao() {
                     </h4>
                     <p style="font-size: 0.75rem; color: var(--brand-dark); font-weight: 700; margin: 0 0 5px 0;">🧪 ${textoMacerando}</p>
                     <p style="font-size: 0.65rem; color: #888; margin: 0;">📅 Iniciado em: ${dataBR(p.data_inicio)}</p>
+                    ${badgeAlertaFabrica}
                 </div>
 
                 <div class="prod-actions">
@@ -872,39 +884,47 @@ function calcularRadarProducao() {
     let htmlItensCriticos = "";
     let encontrouCriticos = false;
 
-    // 1. Precisamos saber quantos estão sendo fabricados de cada produto
     let totalMacerandoPorProduto = {};
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
             let nomePadrao = padronizarTexto(p.nome_produto);
-            if (!totalMacerandoPorProduto[nomePadrao]) totalMacerandoPorProduto[nomePadrao] = 0;
-            totalMacerandoPorProduto[nomePadrao] += (parseFloat(p.qtd_prevista) || 0);
+            totalMacerandoPorProduto[nomePadrao] = (totalMacerandoPorProduto[nomePadrao] || 0) + (parseFloat(p.qtd_prevista) || 0);
         }
     });
 
-    // 2. Varrer o estoque e aplicar a matemática
+    let totalEncomendadoPorProduto = {};
+    encomendasGlobal.forEach(enc => {
+        if (enc.status === 'Pendente' || enc.status === 'Produzido') {
+            let nomeP = padronizarTexto(enc.item);
+            totalEncomendadoPorProduto[nomeP] = (totalEncomendadoPorProduto[nomeP] || 0) + (parseInt(enc.qtd) || 0);
+        }
+    });
+
     for (let key in estoqueAgrupado) {
         let e = estoqueAgrupado[key];
         
-        // FILTRO ESTREITO: APENAS PERFUMES! 
         let tipoLowerCase = String(e.tipo).toLowerCase();
         if(!tipoLowerCase.includes('perfume')) continue;
 
         let qtdPrateleira = e.totalQtd;
         let qtdMacerando = totalMacerandoPorProduto[key] || 0;
-        let estoqueProjetado = qtdPrateleira + qtdMacerando;
+        let qtdReservada = totalEncomendadoPorProduto[key] || 0;
+        
+        // A MATEMÁTICA REAL AQUI
+        let estoqueProjetadoLivre = (qtdPrateleira + qtdMacerando) - qtdReservada;
 
-        // SE O PROJETADO FOR MENOR QUE 5, ENTRA NO RADAR!
-        if (estoqueProjetado < 5) {
+        if (estoqueProjetadoLivre < 5) {
             encontrouCriticos = true;
             
+            let avisoEnc = qtdReservada > 0 ? `<b style="color:#991b1b;">(-${qtdReservada} Reservados)</b>` : '';
+
             htmlItensCriticos += `
             <div class="radar-item">
                 <div>
                     <strong>${e.nome}</strong>
-                    <div class="detalhes">Prateleira: ${qtdPrateleira} | Macerando: ${qtdMacerando} | <b>Projetado: ${estoqueProjetado}</b></div>
+                    <div class="detalhes">Físico: ${qtdPrateleira} | Macerando: ${qtdMacerando} ${avisoEnc}</div>
+                    <div class="detalhes" style="color:#991b1b;"><b>Projetado Livre: ${estoqueProjetadoLivre}</b></div>
                 </div>
-                <!-- O AJUSTE FOI AQUI: Rola até a caixa de produto ficar bem no centro da tela -->
                 <button class="radar-btn" onclick="document.getElementById('pr-produto').value='${e.nome}'; document.getElementById('pr-produto').scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => document.getElementById('pr-qtd').focus(), 400);">🏭 Fabricar</button>
             </div>`;
         }
@@ -920,7 +940,7 @@ function calcularRadarProducao() {
 }
 
 function renderizarEstoque() { 
-    const isAdmin = (usuarioCargo === 'Admin'); // Porteiro do Estoque
+    const isAdmin = (usuarioCargo === 'Admin'); 
     const tBusca = document.getElementById('busca-estoque').value.toLowerCase().trim(); 
     const dFiltroLocal = document.getElementById('f-e-local'); 
     const localSelecionado = dFiltroLocal ? dFiltroLocal.value.trim() : ""; 
@@ -931,8 +951,16 @@ function renderizarEstoque() {
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
             let nomeP = padronizarTexto(p.nome_produto);
-            if (!totalMacerandoPorProduto[nomeP]) totalMacerandoPorProduto[nomeP] = 0;
-            totalMacerandoPorProduto[nomeP] += (parseFloat(p.qtd_prevista) || 0);
+            totalMacerandoPorProduto[nomeP] = (totalMacerandoPorProduto[nomeP] || 0) + (parseFloat(p.qtd_prevista) || 0);
+        }
+    });
+
+    // NOVO: Calcula quantas encomendas pendentes existem de cada produto
+    let totalEncomendadoPorProduto = {};
+    encomendasGlobal.forEach(enc => {
+        if (enc.status === 'Pendente' || enc.status === 'Produzido') {
+            let nomeP = padronizarTexto(enc.item);
+            totalEncomendadoPorProduto[nomeP] = (totalEncomendadoPorProduto[nomeP] || 0) + (parseInt(enc.qtd) || 0);
         }
     });
 
@@ -988,23 +1016,29 @@ function renderizarEstoque() {
         else if(gLow === "infantil") { corFundoGen = "#dcfce7"; corTextoGen = "#166534"; }
         let badgeGenero = e.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${e.genero}</span>` : '';
 
+        // MATEMÁTICA DO ESTOQUE LIVRE
         let qtdMacerando = totalMacerandoPorProduto[padronizarTexto(e.nome)] || 0;
-        let qtdProjetada = qtdExibicao + qtdMacerando;
+        let qtdEncomendada = totalEncomendadoPorProduto[padronizarTexto(e.nome)] || 0;
+        let qtdLivre = qtdExibicao - qtdEncomendada;
+        let qtdProjetada = qtdLivre + qtdMacerando;
         
         let corCustoVal = "var(--brand-dark)";
         let htmlSaudeEstoque = "";
         
-        if (qtdProjetada < 5 && qtdExibicao > 0) {
+        if (qtdProjetada < 5 && qtdLivre > 0) {
             corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">⚠️ Crítico (< 5)</span>`;
-        } else if (qtdExibicao < 5 && qtdMacerando > 0) {
+        } else if (qtdLivre < 5 && qtdMacerando > 0) {
             corCustoVal = "#a16207"; htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo" style="margin:0;">⏳ Lote Vindo</span>`;
-        } else if (qtdExibicao <= 0) {
-            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">🚫 Esgotado</span>`;
+        } else if (qtdLivre <= 0) {
+            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">🚫 Sem Estoque Livre</span>`;
         } else {
             corCustoVal = "#166534"; htmlSaudeEstoque = `<span class="badge-estoque badge-saudavel" style="margin:0;">✔️ Seguro</span>`;
         }
         
         let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
+        
+        // AVISA SOBRE A ENCOMENDA NO ESTOQUE
+        let badgeEncomenda = qtdEncomendada > 0 ? `<div style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:bold; margin-top:8px; border:1px solid #fca5a5; display:inline-block;">📦 ${qtdEncomendada} Reservado(s)</div>` : '';
 
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
         for(let loc in e.locais) { 
@@ -1015,7 +1049,6 @@ function renderizarEstoque() {
         
         const nomeEncode = encodeURIComponent(e.nome); 
         
-        // CADEADOS DE SEGURANÇA AQUI ===============================
         const txtCusto = isAdmin ? `<p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>` : '';
         const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
 
@@ -1029,6 +1062,7 @@ function renderizarEstoque() {
                         <p style="margin:0; font-size:0.8rem; color:var(--primary); font-weight:700;">Venda: ${safeFmt(e.preco)}</p>
                         ${txtCusto}
                     </div>
+                    ${badgeEncomenda}
                 </div>
             </div>
             
@@ -1037,7 +1071,8 @@ function renderizarEstoque() {
             <div class="prod-actions">
                 <div style="text-align: right;">
                     <div style="display:flex; justify-content: flex-end;">${htmlSaudeEstoque}</div>
-                    <div class="custo-val" style="color:${corCustoVal}; font-size: 1.2rem; margin-top: 3px;">${qtdExibicao} un</div>
+                    <div style="font-size:0.7rem; color:#888; margin-top:5px;">Físico Total: ${qtdExibicao}</div>
+                    <div class="custo-val" style="color:${corCustoVal}; font-size: 1.1rem; font-weight:900;">Livre: ${qtdLivre} un</div>
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
@@ -1059,7 +1094,6 @@ function renderizarEstoque() {
 
     lista.innerHTML = html; 
     document.getElementById('est-total-itens').innerText = somaItens; 
-    // Esconde o valor total em reais no topo da tela do vendedor
     if(document.getElementById('est-valor-total')) {
         document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; 
     }
@@ -1548,20 +1582,33 @@ function renderizarVendas() {
     const dlistPagos = [...new Set(vendasGlobal.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('recibo-cliente').innerHTML = '<option value="">Nenhum cliente...</option>' + dlistPagos.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    // AGORA PUXA PENDENTE E PARCELADO
     const dlistPendentes = [...new Set(vendasGlobal.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
-    
-    // ADICIONA A OPÇÃO DE LISTAR TODOS NO TOPO
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
     let htmlVendas = '<option value="">Selecione do Estoque...</option>'; 
-    Object.values(estoqueAgrupado).sort((a, b) => String(b.codigo || "").localeCompare(String(a.codigo || ""))).forEach(e => { if (e.totalQtd > 0) { let exibeCodigo = e.codigo ? e.codigo + ' - ' : ''; htmlVendas += `<option value="${e.nome}">${exibeCodigo}${e.nome} (Total: ${e.totalQtd})</option>`; } }); 
+    let htmlEncomendas = '<option value="">Selecione o Produto...</option>'; // NOVO: Para encomendas (puxa todos, com ou sem estoque)
+
+    Object.values(estoqueAgrupado).sort((a, b) => String(b.codigo || "").localeCompare(String(a.codigo || ""))).forEach(e => { 
+        let exibeCodigo = e.codigo ? e.codigo + ' - ' : ''; 
+        if (e.totalQtd > 0) { 
+            htmlVendas += `<option value="${e.nome}">${exibeCodigo}${e.nome} (Total: ${e.totalQtd})</option>`; 
+        } 
+        // Na encomenda, lista tudo, pois o cliente pode encomendar algo que zerou
+        htmlEncomendas += `<option value="${e.nome}">${exibeCodigo}${e.nome}</option>`;
+    }); 
+    
     const fvClienteSelect = document.getElementById('f-v-cliente'); 
     const fvClienteAtual = fvClienteSelect.value; 
     fvClienteSelect.innerHTML = '<option value="">Todos</option>' + dlist.map(c => `<option value="${c}">${c}</option>`).join(''); 
     fvClienteSelect.value = fvClienteAtual; 
+    
     document.getElementById("v-produto").innerHTML = htmlVendas; 
     document.getElementById("edit-v-produto").innerHTML = htmlVendas; 
+    
+    // Alimenta o novo dropdown de encomendas
+    const elItemEncomenda = document.getElementById("e-item");
+    if(elItemEncomenda) elItemEncomenda.innerHTML = htmlEncomendas;
+
     filtrarVendas(); 
 }
 
