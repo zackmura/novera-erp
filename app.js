@@ -292,9 +292,7 @@ async function sincronizarDadosUnico() {
             usuariosGlobal = dados.usuarios || [];
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
 
-            if (usuarioCargo !== 'Admin') {
-                vendasGlobal = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
-            }
+           
 
             estoqueAgrupado = {};
             estoqueGlobal.forEach(e => {
@@ -1576,24 +1574,27 @@ function salvarVendaCarrinho() {
 }
 
 function renderizarVendas() { 
-    const dlist = [...new Set(vendasGlobal.map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
+    const isAdmin = (usuarioCargo === 'Admin');
+    // Filtra a lista de clientes e devedores para o vendedor ver só os dele
+    const listaVendasPermitidas = isAdmin ? vendasGlobal : vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+
+    const dlist = [...new Set(listaVendasPermitidas.map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('lista-clientes').innerHTML = dlist.map(c => `<option value="${c}">`).join(''); 
     
-    const dlistPagos = [...new Set(vendasGlobal.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
+    const dlistPagos = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('recibo-cliente').innerHTML = '<option value="">Nenhum cliente...</option>' + dlistPagos.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    const dlistPendentes = [...new Set(vendasGlobal.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
+    const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
     let htmlVendas = '<option value="">Selecione do Estoque...</option>'; 
-    let htmlEncomendas = '<option value="">Selecione o Produto...</option>'; // NOVO: Para encomendas (puxa todos, com ou sem estoque)
+    let htmlEncomendas = '<option value="">Selecione o Produto...</option>'; 
 
     Object.values(estoqueAgrupado).sort((a, b) => String(b.codigo || "").localeCompare(String(a.codigo || ""))).forEach(e => { 
         let exibeCodigo = e.codigo ? e.codigo + ' - ' : ''; 
         if (e.totalQtd > 0) { 
             htmlVendas += `<option value="${e.nome}">${exibeCodigo}${e.nome} (Total: ${e.totalQtd})</option>`; 
         } 
-        // Na encomenda, lista tudo, pois o cliente pode encomendar algo que zerou
         htmlEncomendas += `<option value="${e.nome}">${exibeCodigo}${e.nome}</option>`;
     }); 
     
@@ -1605,7 +1606,6 @@ function renderizarVendas() {
     document.getElementById("v-produto").innerHTML = htmlVendas; 
     document.getElementById("edit-v-produto").innerHTML = htmlVendas; 
     
-    // Alimenta o novo dropdown de encomendas
     const elItemEncomenda = document.getElementById("e-item");
     if(elItemEncomenda) elItemEncomenda.innerHTML = htmlEncomendas;
 
@@ -1618,6 +1618,9 @@ function filtrarVendas() {
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
     
     let filtradas = vendasGlobal.filter(v => { 
+        // 🛡️ A TRAVA DE PRIVACIDADE: O Vendedor NÃO vê a lista de vendas dos outros
+        if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return false;
+
         let pD = true, pM = true, pS = true, pSo = true, pC = true; 
         let dataAlvoIso = ""; 
         if (fTipoData === 'venda') { dataAlvoIso = v.dataVendaIso; } else { if (v.dataPgtoDisplay) { const parts = v.dataPgtoDisplay.split('/'); if (parts.length === 3) dataAlvoIso = `${parts[2]}-${parts[1]}-${parts[0]}`; } } 
@@ -1631,7 +1634,6 @@ function filtrarVendas() {
     
     filtradas.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso)); 
     
-    // Novas variáveis para somar as comissões
     let tVend = 0, tRec = 0, tDev = 0, tLuc = 0, tItens = 0, html = "";
     let tComPend = 0, tComAcert = 0; 
     
@@ -1648,14 +1650,13 @@ function filtrarVendas() {
             const isAcertado = v.repasse_feito;
             const vComissao = parseFloat(v.valor_comissao) || 0;
             
-            // Matemática da Comissão (Pendente vs Acertada)
             if(isP) {
                 tRec += val; 
                 if(isAcertado) tComAcert += vComissao;
                 else tComPend += vComissao;
             } else if(!isPresente) {
                 tDev += val; 
-                tComPend += vComissao; // Se não pagou ainda, a comissão está pendente
+                tComPend += vComissao; 
             } 
 
             let txtStatus = '';
@@ -1681,7 +1682,6 @@ function filtrarVendas() {
             const textoObservacao = v.observacao ? `<p style="font-size:0.65rem; color:#888; font-style:italic; margin: 0;">Obs: ${v.observacao}</p>` : ""; 
             const nomeHtml = formatarNomeProdutoHtml(v.produto, 'venda'); 
             
-            // EXIBIÇÃO INTELIGENTE DO CARTÃO (ADMIN VS VENDEDOR)
             let txtLucro = '';
             if (isAdmin) {
                 txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} <br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span></p>` : `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
@@ -1758,24 +1758,19 @@ function filtrarVendas() {
     document.getElementById('dash-v-receber').innerText = fmt(tDev);
     document.getElementById('dash-v-itens').innerText = tItens;
 
-    // ========================================================
-    // O SEQUESTRO DO QUADRADINHO "LUCRO PROJETADO"
-    // ========================================================
     const elLucro = document.getElementById('dash-v-lucro');
     if (elLucro) {
-        const h3Titulo = elLucro.previousElementSibling; // Pega o <h3> que fica acima do valor
+        const h3Titulo = elLucro.previousElementSibling; 
         
         if (isAdmin) {
             h3Titulo.innerText = "LUCRO LÍQUIDO";
             h3Titulo.style.color = "#888";
             elLucro.style.color = "var(--brand-dark)";
-            // Mostra o lucro real e embaxo quanto a empresa tá devendo de comissão para a equipe
             elLucro.innerHTML = `${fmt(tLuc)} <div style="font-size:0.65rem; color:#b45309; margin-top:4px; letter-spacing:0; font-weight:700;">Falta Acertar (Equipe): ${fmt(tComPend)}</div>`;
         } else {
             h3Titulo.innerText = "MINHA COMISSÃO";
-            h3Titulo.style.color = "#0369a1"; // Azul forte
+            h3Titulo.style.color = "#0369a1"; 
             elLucro.style.color = "#0369a1";
-            // Mostra o total de comissões e avisa o que já foi depositado pra ela
             elLucro.innerHTML = `${fmt(tComPend + tComAcert)} <div style="font-size:0.65rem; color:#2e7d32; margin-top:4px; letter-spacing:0; font-weight:700;">Já Repassado (Acertado): ${fmt(tComAcert)}</div>`;
         }
     }
@@ -2073,11 +2068,23 @@ function renderizarDashboard() {
     const vDashGlobal = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true);
 
     // ============================================
-    // RANKING DE VENDEDORES (Todos veem isso!)
+    // RANKING DE VENDEDORES (JUSTO: Apenas Vendedores)
     // ============================================
     let rankingMap = {};
+    
+    // 🛡️ A MÁGICA REFORÇADA: Pega Admins do banco E bloqueia os chefes e fantasmas manualmente!
+    let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
+    
+    // Adicionamos os nomes proibidos de aparecerem no pódio da equipe:
+    nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin');
+
     vDashGlobal.forEach(v => {
-        let s = String(v.socio || 'Sem Vendedor').trim();
+        let s = String(v.socio || '').trim();
+        let sLower = s.toLowerCase();
+        
+        // Se for o Amor, o Fernando, a Natália, ou uma venda "Sem Vendedor", PULA FORA DO RANKING!
+        if (nomesAdmins.includes(sLower) || sLower === 'sem vendedor' || sLower === '') return;
+
         if(!rankingMap[s]) rankingMap[s] = { total: 0, comissaoPend: 0, itens: 0 };
         rankingMap[s].total += parseDinheiro(v.valor_venda);
         rankingMap[s].itens += (parseInt(v.qtd) || 1);
@@ -2085,12 +2092,13 @@ function renderizarDashboard() {
             rankingMap[s].comissaoPend += parseFloat(v.valor_comissao) || 0;
         }
     });
+    
     let rankingArr = Object.keys(rankingMap).map(k => ({ nome: k, ...rankingMap[k] })).sort((a,b) => b.total - a.total);
 
     let htmlRanking = `<div class="dash-card" style="grid-column: span 2; padding: 15px; border: 1px solid #fde047; box-shadow: 0 4px 15px rgba(253, 224, 71, 0.2);">
         <h3 style="color:#b45309; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🏆 RANKING DE VENDAS DO MÊS</h3>
         <div style="display:flex; flex-direction:column; gap:8px;">`;
-    if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda registrada neste mês.</p>`;
+    if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda de equipe registrada neste mês.</p>`;
     
     rankingArr.forEach((r, idx) => {
         let corMedalha = idx === 0 ? "#fef08a" : (idx === 1 ? "#e2e8f0" : (idx === 2 ? "#fed7aa" : "#f8fafc"));
@@ -2385,9 +2393,7 @@ async function sincronizarDadosSilencioso() {
             
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
 
-            if (usuarioCargo !== 'Admin') {
-                vendasGlobal = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
-            }
+           
 
             // Refaz o agrupamento de estoque com os dados novos
             estoqueAgrupado = {};
