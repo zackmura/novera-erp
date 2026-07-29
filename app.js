@@ -1532,7 +1532,9 @@ function salvarVendaCarrinho() {
             renderizarCarrinho();
             sincronizarDadosUnico();
         } else {
-            mostrarAlerta("Erro", resultado.erro || "Falha ao salvar no banco.", "error");
+            // Se o servidor barrou, mostra a mensagem e Sincroniza o estoque na mesma hora!
+            mostrarAlerta("⚠️ Alerta de Estoque", resultado.erro || "Falha ao salvar no banco.", "warning");
+            sincronizarDadosUnico(); 
         }
     })
     .catch(e => mostrarAlerta("Erro", "Falha na conexão.", "error"))
