@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.5.2";
+const VERSAO_ATUAL_SISTEMA = "8.6.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -182,9 +182,11 @@ function aplicarPermissoes() {
     
     const btnAdmin = document.querySelector('button[onclick="switchTab(\'logs\')"]');
     const btnChaves = document.querySelector('.btn-ai[onclick="salvarConfiguracoesChaves()"]');
-
-    // CÃO DE GUARDA DO PAINEL: Localiza o Botão de Relatório
     const btnRelatorioPainel = document.querySelector('#tab-dashboard button[onclick="abrirModalRelatorios()"]');
+    
+    // --- BOTÕES E SELECTS ESPECÍFICOS DE VENDAS ---
+    const btnSubEncomendas = document.getElementById('btn-sub-encomendas');
+    const selectStatusVenda = document.getElementById('v-status');
 
     if (!isAdmin) {
         switchTab('vendas'); // Vendedor sempre cai na tela de vendas ao abrir
@@ -206,13 +208,25 @@ function aplicarPermissoes() {
             if (btnChaves.previousElementSibling) { btnChaves.previousElementSibling.style.display = 'none'; if (btnChaves.previousElementSibling.previousElementSibling) btnChaves.previousElementSibling.previousElementSibling.style.display = 'none'; }
         }
 
-        // ESCONDE O RELATÓRIO DO VENDEDOR
+        // ESCONDE O RELATÓRIO DO PAINEL
         if (btnRelatorioPainel) {
             btnRelatorioPainel.style.display = 'none'; 
             if (btnRelatorioPainel.previousElementSibling && btnRelatorioPainel.previousElementSibling.innerText.includes('Administração')) {
-                btnRelatorioPainel.previousElementSibling.style.display = 'none'; // Esconde o Título também
+                btnRelatorioPainel.previousElementSibling.style.display = 'none'; 
             }
         }
+        
+        // ESCONDE A ABA DE ENCOMENDAS
+        if (btnSubEncomendas) btnSubEncomendas.style.display = 'none';
+        
+        // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
+        if (selectStatusVenda) {
+            selectStatusVenda.innerHTML = `
+                <option value="Pendente">Pendente</option>
+                <option value="Pago">Pago</option>
+            `;
+        }
+
     } else {
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -231,12 +245,24 @@ function aplicarPermissoes() {
             if (btnChaves.previousElementSibling) { btnChaves.previousElementSibling.style.display = 'block'; if (btnChaves.previousElementSibling.previousElementSibling) btnChaves.previousElementSibling.previousElementSibling.style.display = 'block'; }
         }
 
-        // MOSTRA O RELATÓRIO PARA O ADMIN
         if (btnRelatorioPainel) {
             btnRelatorioPainel.style.display = 'block'; 
             if (btnRelatorioPainel.previousElementSibling && btnRelatorioPainel.previousElementSibling.innerText.includes('Administração')) {
                 btnRelatorioPainel.previousElementSibling.style.display = 'block'; 
             }
+        }
+        
+        // LIBERA A ABA DE ENCOMENDAS PARA OS CHEFES
+        if (btnSubEncomendas) btnSubEncomendas.style.display = 'block';
+        
+        // LIBERA TODAS AS OPÇÕES DE STATUS DE VENDA
+        if (selectStatusVenda) {
+            selectStatusVenda.innerHTML = `
+                <option value="Pendente">Pendente</option>
+                <option value="Pago">Pago</option>
+                <option value="Parcelado">⏳ Parcelado</option>
+                <option value="Presente">🎁 Presente / Bonificação</option>
+            `;
         }
     }
 }
@@ -314,6 +340,10 @@ function iniciarSessaoLocal(usuario, cargo, token) {
     document.getElementById('cfg-user').value = usuario;
     aplicarPermissoes();
     verificarNovidades();
+    
+    // A MÁGICA ACONTECE AQUI: Chama o verificador de primeira viagem!
+    verificarTutorialUsuario(); 
+    
     if (!dadosCarregados) sincronizarDadosUnico();
 }
 
@@ -2362,6 +2392,36 @@ async function sincronizarDadosSilencioso() {
         }
     }
 }
+
+// ==========================================
+// MÓDULO: ONBOARDING / TUTORIAL INTELIGENTE
+// ==========================================
+function verificarTutorialUsuario() {
+    // 1. Personaliza o título com o nome da pessoa!
+    const tituloEl = document.getElementById('titulo-tutorial-nome');
+    if (tituloEl) tituloEl.innerText = `Olá, ${usuarioLogado}!`;
+
+    // 2. Se for o Admin, não precisa ficar pulando o tutorial na tela dele
+    if (usuarioCargo === 'Admin') return; 
+
+    // 3. Verifica na memória do celular se essa pessoa já leu o manual
+    const jaViu = localStorage.getItem('novera_tutorial_visto_' + usuarioLogado);
+    
+    if (!jaViu) {
+        // Se ela nunca viu, dá 1 segundo de respiro depois do login e joga o manual na tela
+        setTimeout(() => {
+            document.getElementById('modal-tutorial').style.display = 'flex';
+        }, 1000); 
+    }
+}
+
+function fecharTutorialUsuario() {
+    // Grava na memória que a pessoa já leu para não encher o saco dela de novo
+    localStorage.setItem('novera_tutorial_visto_' + usuarioLogado, 'sim');
+    // E fecha a tela
+    document.getElementById('modal-tutorial').style.display = 'none';
+}
+
 
 window.onload = () => {
     aplicarVersao(); 
