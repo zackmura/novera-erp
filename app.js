@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.7.0";
+const VERSAO_ATUAL_SISTEMA = "8.7.1";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -187,6 +187,7 @@ function aplicarPermissoes() {
     // --- BOTÕES E SELECTS ESPECÍFICOS DE VENDAS ---
     const btnSubEncomendas = document.getElementById('btn-sub-encomendas');
     const selectStatusVenda = document.getElementById('v-status');
+    const btnSubSeparacao = document.getElementById('btn-sub-separacao'); // 🛡️ AGORA ESTÁ NO LUGAR CERTO!
 
     if (!isAdmin) {
         switchTab('vendas'); // Vendedor sempre cai na tela de vendas ao abrir
@@ -216,8 +217,9 @@ function aplicarPermissoes() {
             }
         }
         
-        // ESCONDE A ABA DE ENCOMENDAS
+        // ESCONDE AS ABAS EXCLUSIVAS DA DIRETORIA
         if (btnSubEncomendas) btnSubEncomendas.style.display = 'none';
+        if (btnSubSeparacao) btnSubSeparacao.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -228,6 +230,8 @@ function aplicarPermissoes() {
         }
 
     } else {
+        switchTab('dashboard'); // 👑 O Chefe sempre cai no Painel ao abrir o app!
+
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
         const inputValorVenda = document.getElementById('v-valor');
@@ -252,8 +256,9 @@ function aplicarPermissoes() {
             }
         }
         
-        // LIBERA A ABA DE ENCOMENDAS PARA OS CHEFES
+        // LIBERA AS ABAS EXCLUSIVAS PARA OS CHEFES
         if (btnSubEncomendas) btnSubEncomendas.style.display = 'block';
+        if (btnSubSeparacao) btnSubSeparacao.style.display = 'block';
         
         // LIBERA TODAS AS OPÇÕES DE STATUS DE VENDA
         if (selectStatusVenda) {
@@ -1617,8 +1622,12 @@ function filtrarVendas() {
     const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda'; 
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
     
+    // 🛡️ LISTA DE CHEFES (Para não cobrar acerto de comissão deles)
+    let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
+    nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin', 'sem vendedor', '');
+
     let filtradas = vendasGlobal.filter(v => { 
-        // 🛡️ A TRAVA DE PRIVACIDADE: O Vendedor NÃO vê a lista de vendas dos outros
+        // A TRAVA DE PRIVACIDADE: O Vendedor NÃO vê a lista de vendas dos outros
         if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return false;
 
         let pD = true, pM = true, pS = true, pSo = true, pC = true; 
@@ -1650,26 +1659,40 @@ function filtrarVendas() {
             const isAcertado = v.repasse_feito;
             const vComissao = parseFloat(v.valor_comissao) || 0;
             
+            // VERIFICA SE A VENDA FOI FEITA POR UM DOS CHEFES
+            const isSocioAdmin = nomesAdmins.includes(String(v.socio || '').toLowerCase().trim());
+            
             if(isP) {
                 tRec += val; 
-                if(isAcertado) tComAcert += vComissao;
-                else tComPend += vComissao;
+                if(isAcertado) { tComAcert += vComissao; }
+                else if (!isSocioAdmin) { tComPend += vComissao; } // Só soma pendência se não for admin
             } else if(!isPresente) {
                 tDev += val; 
-                tComPend += vComissao; 
+                if (!isSocioAdmin) tComPend += vComissao; 
             } 
 
             let txtStatus = '';
             let corBorda = "#b45309";
             let badgeClass = 'status-pendente';
+            let btnAcerto = '';
 
             if (isP) {
-                if (isAcertado) {
-                    txtStatus = `<p style="font-size:0.75rem; color:#0369a1; font-weight:800; margin:0;">🤝 Acertado / Repassado</p>`;
-                    corBorda = "#0369a1"; badgeClass = "status-pago";
-                } else {
-                    txtStatus = `<p style="font-size:0.75rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'} (Falta Acerto)</p>`;
+                if (isSocioAdmin) {
+                    // SE O CHEFE VENDEU: Apenas mostra que tá Pago e limpa os alertas!
+                    txtStatus = `<p style="font-size:0.75rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'}</p>`;
                     corBorda = "#2e7d32"; badgeClass = "status-pago";
+                } else {
+                    // SE O VENDEDOR VENDEU: Processo normal de comissão
+                    if (isAcertado) {
+                        txtStatus = `<p style="font-size:0.75rem; color:#0369a1; font-weight:800; margin:0;">🤝 Acertado / Repassado</p>`;
+                        corBorda = "#0369a1"; badgeClass = "status-pago";
+                    } else {
+                        txtStatus = `<p style="font-size:0.75rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'} (Falta Acerto)</p>`;
+                        corBorda = "#2e7d32"; badgeClass = "status-pago";
+                        if (isAdmin) {
+                            btnAcerto = `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="acertarCaixaVenda(${v.linha})" title="Confirmar Entrada e Comissão">🤝</button>`;
+                        }
+                    }
                 }
             } else if (isPresente) {
                 txtStatus = `<p style="font-size:0.75rem; color:#7c3aed; font-weight:800; margin:0;">🎁 Presente</p>`;
@@ -1684,7 +1707,13 @@ function filtrarVendas() {
             
             let txtLucro = '';
             if (isAdmin) {
-                txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} <br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span></p>` : `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
+                if (!isPresente) {
+                    // Esconde a palavra "Comissão" se o vendedor for você ou a Natália
+                    let txtComissaoVisual = isSocioAdmin ? '' : `<br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span>`;
+                    txtLucro = `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} ${txtComissaoVisual}</p>`;
+                } else {
+                    txtLucro = `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
+                }
             } else {
                 txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#0369a1; font-weight:700; margin:0; line-height: 1.3;">Sua Comissão: <br> <span style="font-size:0.9rem; font-weight:900;">${safeFmt(v.valor_comissao)}</span></p>` : '';
             }
@@ -1695,8 +1724,6 @@ function filtrarVendas() {
             const btnEditar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>` : '';
             const btnBaixa = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : '';
             
-            const btnAcerto = (isAdmin && isP && !isAcertado) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="acertarCaixaVenda(${v.linha})" title="Confirmar Entrada e Comissão">🤝</button>` : '';
-
             let dataKeyIso = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : v.dataVendaIso;
             let dataDisplay = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : (v.dataVendaDisplay || v.dataVendaIso);
             
@@ -2068,22 +2095,24 @@ function renderizarDashboard() {
     const vDashGlobal = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true);
 
     // ============================================
-    // RANKING DE VENDEDORES (JUSTO: Apenas Vendedores)
+    // RANKING DE VENDEDORES (Inteligente)
     // ============================================
     let rankingMap = {};
     
-    // 🛡️ A MÁGICA REFORÇADA: Pega Admins do banco E bloqueia os chefes e fantasmas manualmente!
+    // Pega Admins do banco E bloqueia os chefes e fantasmas manualmente!
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
-    
-    // Adicionamos os nomes proibidos de aparecerem no pódio da equipe:
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin');
 
     vDashGlobal.forEach(v => {
         let s = String(v.socio || '').trim();
         let sLower = s.toLowerCase();
         
-        // Se for o Amor, o Fernando, a Natália, ou uma venda "Sem Vendedor", PULA FORA DO RANKING!
-        if (nomesAdmins.includes(sLower) || sLower === 'sem vendedor' || sLower === '') return;
+        // 🛡️ A MÁGICA CORRIGIDA AQUI: 
+        // Se a pessoa olhando NÃO for Admin, e o vendedor for um chefe, pula!
+        if (!isAdmin && nomesAdmins.includes(sLower)) return;
+        
+        // O "Sem Vendedor" a gente pula sempre para não poluir o gráfico
+        if (sLower === 'sem vendedor' || sLower === '') return;
 
         if(!rankingMap[s]) rankingMap[s] = { total: 0, comissaoPend: 0, itens: 0 };
         rankingMap[s].total += parseDinheiro(v.valor_venda);
@@ -2114,7 +2143,7 @@ function renderizarDashboard() {
             </div>
             <div style="text-align:right;">
                 <div style="font-weight:900; color:#b45309; font-size:1rem;">${fmt(r.total)}</div>
-                <div style="font-size:0.65rem; color:#888;">${r.itens} itens vendidos</div>
+                <div style="font-size:0.65rem; color:#888;">${r.itens} vendidos</div>
                 ${tagAdmin}
             </div>
         </div>`;
@@ -2477,6 +2506,125 @@ function fecharTutorialUsuario() {
     document.getElementById('modal-tutorial').style.display = 'none';
 }
 
+// ==========================================
+// MÓDULO: MAPA DE SEPARAÇÃO EM NUVEM (LOGÍSTICA)
+// ==========================================
+
+// ☁️ FUNÇÃO: Salva na NUVEM em tempo real!
+function toggleSeparacaoItem(linhaVenda, isChecked) {
+    // 1. Atualiza na memória local na mesma hora para não piscar a tela
+    let vendaEncontrada = vendasGlobal.find(v => v.linha === linhaVenda);
+    if (vendaEncontrada) vendaEncontrada.separado = isChecked;
+
+    // 2. Manda para a nuvem silenciosamente
+    fetch(API_NOVERA, {
+        method: 'POST',
+        headers: cabecalhoAuth(),
+        body: JSON.stringify({ acao: 'alternar_separacao', linha: linhaVenda, status: isChecked })
+    }).catch(e => console.error("Erro ao salvar separação na nuvem", e));
+}
+
+function abrirMapaSeparacao(modo = 'pendentes') {
+    const isAdmin = (usuarioCargo === 'Admin');
+    if (!isAdmin) return; 
+
+    let tituloFiltro = "";
+    const hoje = new Date();
+    const dIsoHoje = hoje.toISOString().split('T')[0];
+    
+    // 🛡️ A NOVA MÁGICA: Lista VIP de Vendedores
+    // O sistema só vai listar vendas se o nome bater exatamente com quem tem cargo de 'Vendedor' no cadastro!
+    let nomesVendedoresOficiais = usuariosGlobal.filter(u => u.cargo === 'Vendedor').map(u => String(u.usuario).toLowerCase().trim());
+
+    // Pega as vendas individuais aplicando o filtro inteligente
+    let vendasSeparacao = vendasGlobal.filter(v => {
+        let pLocal = (v.local_estoque === 'Sede' || !v.local_estoque);
+        
+        let nomeNaVenda = String(v.socio || '').toLowerCase().trim();
+        let pEquipe = nomesVendedoresOficiais.includes(nomeNaVenda); // SÓ PASSA SE FOR UM VENDEDOR OFICIAL
+        
+        let pModo = false;
+        if (modo === 'pendentes') {
+            pModo = !v.separado; // 🧹 Limpeza automática: se tiver marcado no banco, não aparece aqui!
+            tituloFiltro = "Fila Geral de Pendentes";
+        } else if (modo === 'hoje') {
+            pModo = (v.dataVendaIso === dIsoHoje);
+            tituloFiltro = "Vendas de Hoje";
+        } else if (modo === 'ontem') {
+            let ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
+            let dIsoOntem = ontem.toISOString().split('T')[0];
+            pModo = (v.dataVendaIso === dIsoOntem);
+            tituloFiltro = "Vendas de Ontem";
+        }
+        
+        return pLocal && pEquipe && pModo;
+    });
+
+    const divConteudo = document.getElementById('conteudo-separacao');
+    
+    if (vendasSeparacao.length === 0) {
+        divConteudo.innerHTML = `<div style="text-align:center; padding: 30px 10px; color:#64748b;">
+            <span style="font-size:3rem; display:block; margin-bottom:10px;">🎉</span>
+            <b>Tudo pronto!</b><br>Nenhum item encontrado na: <b>${tituloFiltro}</b>.
+        </div>`;
+        document.getElementById('modal-separacao').style.display = 'flex';
+        return;
+    }
+
+    // Agrupa por vendedor, mas mantendo CADA PEDIDO INDIVIDUAL
+    let mapaVendedores = {};
+    vendasSeparacao.forEach(v => {
+        let vendedor = String(v.socio).trim();
+        if (!mapaVendedores[vendedor]) mapaVendedores[vendedor] = [];
+        mapaVendedores[vendedor].push(v);
+    });
+
+    let html = `<h4 style="margin:0 0 15px 0; color:#0369a1; text-align:center; font-weight:900;">${tituloFiltro}</h4>`;
+    
+    for (let vend in mapaVendedores) {
+        html += `<div style="margin-bottom: 15px; border: 1px solid #bae6fd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                    <div style="background: #e0f2fe; padding: 10px 15px; font-weight: 900; color: #0369a1; border-bottom: 1px solid #bae6fd; display:flex; justify-content:space-between; align-items:center;">
+                        <span>👤 Sacola: ${vend}</span>
+                        <span style="font-size:0.7rem; background:#fff; padding:3px 8px; border-radius:12px;">${mapaVendedores[vend].length} itens</span>
+                    </div>
+                    <div style="padding: 12px 15px; background: #fff;">`;
+        
+        // Ordena para os mais antigos aparecerem primeiro
+        mapaVendedores[vend].sort((a,b) => new Date(a.dataVendaIso) - new Date(b.dataVendaIso));
+
+        mapaVendedores[vend].forEach(v => {
+            // Verifica o status REAL salvo na Nuvem
+            let isChecked = v.separado ? true : false;
+            let checkAttr = isChecked ? 'checked' : '';
+            let opacity = isChecked ? '0.4' : '1';
+            let lineThrough = isChecked ? 'line-through' : 'none';
+            
+            // Se estiver na Fila de Pendentes, mostra a Data em vermelho pra você saber se está atrasado!
+            let badgeData = modo === 'pendentes' ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 5px; border-radius:4px; font-size:0.6rem; margin-left:5px;">${v.dataVendaDisplay}</span>` : '';
+            let obsHtml = v.observacao ? `<br><span style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${v.observacao}</span>` : '';
+
+            // Agora o checkbox bate direto no ID do banco de dados (v.linha)
+            html += `<label style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; opacity: ${opacity}; text-decoration: ${lineThrough};">
+                        <input type="checkbox" ${checkAttr} style="width: 22px; height: 22px; accent-color: #0ea5e9; cursor:pointer; flex-shrink: 0;" 
+                        onchange="
+                            this.parentElement.style.opacity = this.checked ? '0.4' : '1'; 
+                            this.parentElement.style.textDecoration = this.checked ? 'line-through' : 'none';
+                            toggleSeparacaoItem(${v.linha}, this.checked);
+                        ">
+                        <div style="font-size: 0.95rem; color: var(--brand-dark); line-height: 1.3;">
+                            <b style="color:#b45309; font-size:1.1rem;">${v.qtd}x</b> ${v.produto} ${badgeData}
+                            <br><span style="font-size:0.75rem; color:#64748b;">(Cli: ${v.cliente})</span>
+                            ${obsHtml}
+                        </div>
+                     </label>`;
+        });
+        html += `   </div>
+                 </div>`;
+    }
+
+    divConteudo.innerHTML = html;
+    document.getElementById('modal-separacao').style.display = 'flex';
+}
 
 window.onload = () => {
     aplicarVersao(); 

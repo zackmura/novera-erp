@@ -357,10 +357,12 @@
         </div>
 
         <div id="tab-vendas" class="tab-content active">
-            <div class="sub-nav-container">
+           <div class="sub-nav-container">
                 <button id="btn-sub-registro" class="sub-nav-btn active" onclick="toggleVendasTab('registro')">🛒 PDV Rápido</button>
                 <button id="btn-sub-encomendas" class="sub-nav-btn" onclick="toggleVendasTab('encomendas')">📦 Encomendas</button>
                 <button id="btn-sub-lotes" class="sub-nav-btn" onclick="toggleVendasTab('lotes')">📄 Docs & Lotes</button>
+                <!-- NOVO BOTÃO: MAPA DE SEPARAÇÃO (SÓ ADMIN) -->
+                <button id="btn-sub-separacao" class="sub-nav-btn" onclick="abrirMapaSeparacao()" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-weight: bold;">🛍️ Separar Pedidos</button>
             </div>
 
             <!-- SUB-ABA 1: PDV RÁPIDO -->
@@ -476,11 +478,7 @@
                             <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
                         </div>
                         <div class="row">
-                            <!-- O SEGREDO ESTÁ AQUI: Trocamos o input livre por um select -->
-                            <div class="col" style="flex: 2;">
-                                <label>Produto Encomendado</label>
-                                <select id="e-item" style="background:#fff; border-color:var(--border-color);"><option value="">Aguardando catálogo...</option></select>
-                            </div>
+                            <div class="col" style="flex: 2;"><label>O que o cliente pediu?</label><input type="text" id="e-item" placeholder="Ex: Vela de Alecrim, Home Spray..."></div>
                             <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
                         </div>
                         <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
@@ -688,7 +686,10 @@
         <h3 class="modal-title-alert" id="modal-doc-titulo" style="margin-bottom: 10px;">Nome no Documento</h3>
         <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Como deseja que o nome do cliente apareça?</p>
         <div class="input-group" style="text-align: left;"><input type="text" id="modal-doc-nome-input" placeholder="Nome do Cliente"></div>
-        <div style="display: flex; gap: 10px;"><button class="btn-modal-cancel" id="btn-modal-doc-cancelar">Cancelar</button><button class="btn-modal-confirm" id="btn-modal-doc-confirmar">Continuar</button></div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-modal-cancel" id="btn-modal-doc-cancelar" style="flex: 1;">Cancelar</button>
+            <button class="btn-modal-confirm" id="btn-modal-doc-confirmar" style="flex: 1; background: var(--primary-dark); color: white; box-shadow: 0 4px 10px rgba(150, 97, 120, 0.3); border: none;">Continuar</button>
+        </div>
     </div>
 </div>
 
@@ -1009,24 +1010,28 @@
     </div>
 </div>
 
-<div id="modal-novidades" class="modal-overlay-alert" style="z-index: 10006;">
-    <div class="modal-box-alert" style="width: 95%; max-width: 450px; padding: 30px 20px; text-align: left; background: #fff; border-radius: 20px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 3rem;">🚀</span>
-            <h3 style="color: var(--primary-dark); margin: 10px 0 5px; font-family: 'Playfair Display', serif; font-size: 1.5rem;">A Nova Era Novera Scent</h3>
-           <p id="texto-versao-modal" style="color: #888; font-size: 0.8rem; margin: 0;"></p>
+<!-- MODAL MAPA DE SEPARAÇÃO (LOGÍSTICA) -->
+<div id="modal-separacao" class="modal-overlay-alert" style="z-index: 10005; display: none;">
+    <div class="modal-box-alert" style="width: 95%; max-width: 500px; padding: 0; text-align: left; background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+        
+        <div style="background: #0369a1; color: #fff; padding: 20px; text-align: center; position: relative;">
+            <button onclick="document.getElementById('modal-separacao').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.2); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #fff; cursor: pointer;">×</button>
+            <h3 style="margin: 0; font-family: 'Playfair Display', serif; font-size: 1.3rem;">🛍️ Mapa de Separação (Sede)</h3>
+            <p style="margin: 5px 0 0; font-size: 0.8rem; opacity: 0.9;">Produtos vendidos pela equipe para você entregar</p>
         </div>
         
-        <div style="background: #fdf5f7; border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; max-height: 50vh; overflow-y: auto; margin-bottom: 20px; font-size: 0.85rem; line-height: 1.5; color: var(--brand-dark);">
-            <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 10px;">
-                <li><b>💎 Design Premium (PC & Mobile):</b> Visual totalmente reformulado! No computador, o sistema agora exibe dados em linhas elegantes (estilo Tabela de ERP). No celular, os cartões foram compactados para máxima leitura. Tudo agrupado inteligentemente por Datas e Categorias com somatórias automáticas nas faixas!</li>
-                <li><b>👥 Gestão de Equipe:</b> Uma nova área exclusiva para os Administradores! Cadastre Vendedores, defina cargos, crie acessos únicos e resete senhas perdidas com apenas um clique.</li>
-                <li><b>🤝 Acerto de Caixa e Comissões:</b> Fim da matemática no papel. Defina a % de comissão do vendedor e o sistema calcula o lucro líquido real. O vendedor acompanha a comissão ao vivo e o Admin usa o novo botão (🤝) para confirmar o repasse e "fechar o caixa" com segurança.</li>
-                <li><b>☁️ Sincronização Fantasma:</b> Adeus furo de estoque! O Novera agora se atualiza silenciosamente em segundo plano a cada 60 segundos ou sempre que você acender a tela do celular. O fluxo de trabalho da equipe nunca mais ficará desatualizado.</li>
-            </ul>
+       <div style="padding: 15px; background: #f0f9ff; border-bottom: 1px solid #bae6fd; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn-salvar" style="flex:1; margin:0; font-size:0.75rem; padding:8px; background:#b91c1c; color:#fff; border:none; box-shadow:none;" onclick="abrirMapaSeparacao('pendentes')">🔴 Só Pendentes</button>
+            <button class="btn-salvar" style="flex:1; margin:0; font-size:0.75rem; padding:8px; background:#fff; color:#0369a1; border:1px solid #bae6fd; box-shadow:none;" onclick="abrirMapaSeparacao('ontem')">📅 Ontem</button>
+            <button class="btn-salvar" style="flex:1; margin:0; font-size:0.75rem; padding:8px; background:#0369a1; color:#fff; border:none; box-shadow:none;" onclick="abrirMapaSeparacao('hoje')">📍 Hoje</button>
         </div>
         
-        <button class="btn-salvar" style="margin: 0; width: 100%; font-size: 0.9rem;" onclick="fecharModalNovidades()">Incrível, vamos lá!</button>
+        <div id="conteudo-separacao" style="padding: 20px; max-height: 55vh; overflow-y: auto; font-size: 0.9rem; color: #333;">
+            <!-- O Checklist será preenchido aqui pelo JavaScript -->
+        </div>
+        
+        
+        
     </div>
 </div>
 
@@ -1085,6 +1090,27 @@
             <button class="btn-salvar" style="margin: 0; width: 100%; box-shadow: 0 4px 10px rgba(150, 97, 120, 0.2);" onclick="fecharTutorialUsuario()">Entendi, vamos vender! 🚀</button>
         </div>
 
+    </div>
+</div>
+
+<div id="modal-novidades" class="modal-overlay-alert" style="z-index: 10006;">
+    <div class="modal-box-alert" style="width: 95%; max-width: 450px; padding: 30px 20px; text-align: left; background: #fff; border-radius: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span style="font-size: 3rem;">🚀</span>
+            <h3 style="color: var(--primary-dark); margin: 10px 0 5px; font-family: 'Playfair Display', serif; font-size: 1.5rem;">A Nova Era Novera Scent</h3>
+           <p id="texto-versao-modal" style="color: #888; font-size: 0.8rem; margin: 0;"></p>
+        </div>
+        
+        <div style="background: #fdf5f7; border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; max-height: 50vh; overflow-y: auto; margin-bottom: 20px; font-size: 0.85rem; line-height: 1.5; color: var(--brand-dark);">
+            <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 10px;">
+                <li><b>💎 Design Premium (PC & Mobile):</b> Visual totalmente reformulado! No computador, o sistema agora exibe dados em linhas elegantes (estilo Tabela de ERP). No celular, os cartões foram compactados para máxima leitura. Tudo agrupado inteligentemente por Datas e Categorias com somatórias automáticas nas faixas!</li>
+                <li><b>👥 Gestão de Equipe:</b> Uma nova área exclusiva para os Administradores! Cadastre Vendedores, defina cargos, crie acessos únicos e resete senhas perdidas com apenas um clique.</li>
+                <li><b>🤝 Acerto de Caixa e Comissões:</b> Fim da matemática no papel. Defina a % de comissão do vendedor e o sistema calcula o lucro líquido real. O vendedor acompanha a comissão ao vivo e o Admin usa o novo botão (🤝) para confirmar o repasse e "fechar o caixa" com segurança.</li>
+                <li><b>☁️ Sincronização Fantasma:</b> Adeus furo de estoque! O Novera agora se atualiza silenciosamente em segundo plano a cada 60 segundos ou sempre que você acender a tela do celular. O fluxo de trabalho da equipe nunca mais ficará desatualizado.</li>
+            </ul>
+        </div>
+        
+        <button class="btn-salvar" style="margin: 0; width: 100%; font-size: 0.9rem;" onclick="fecharModalNovidades()">Incrível, vamos lá!</button>
     </div>
 </div>
     
