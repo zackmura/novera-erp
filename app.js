@@ -675,6 +675,9 @@ function salvarFilaProducao() {
     });
 }
 
+// ==========================================
+// FUNÇÃO QUE DESENHA A FÁBRICA / MACERAÇÃO
+// ==========================================
 function renderizarProducao() {
     const isAdmin = (usuarioCargo === 'Admin'); 
     const fila = document.getElementById('lista-producao-cards');
@@ -683,8 +686,16 @@ function renderizarProducao() {
 
     let pends = producaoGlobal.filter(p => p.status === 'Em Andamento');
 
+    // 🔍 BUSCA INTELIGENTE: Procura por Nome, Código Inteiro (N007) ou Código Curto (007)
     if (tBusca) {
-        pends = pends.filter(p => p.nome_produto.toLowerCase().includes(tBusca));
+        pends = pends.filter(p => {
+            let matchNome = p.nome_produto.toLowerCase().includes(tBusca);
+            let matchCodigo = p.codigo && String(p.codigo).toLowerCase().includes(tBusca);
+            // Mágica: Tira a letra "N" do código para o sistema achar se você digitar só os números
+            let matchCodigoLimpo = p.codigo && String(p.codigo).toLowerCase().replace('n', '').includes(tBusca);
+            
+            return matchNome || matchCodigo || matchCodigoLimpo;
+        });
     }
 
     if (pends.length === 0) {
@@ -732,9 +743,11 @@ function renderizarProducao() {
 
         let dataKey = p.data_previsao;
         if (!grupos[dataKey]) {
-            grupos[dataKey] = { dataBR: dataBR(p.data_previsao), diffDays: p.diffDaysFalta, itens: [] };
+            // CRIAMOS A VARIÁVEL "totalGrupo" para somar os frascos dessa data!
+            grupos[dataKey] = { dataBR: dataBR(p.data_previsao), diffDays: p.diffDaysFalta, itens: [], totalGrupo: 0 };
         }
         grupos[dataKey].itens.push(p);
+        grupos[dataKey].totalGrupo += q; // Soma as unidades neste grupo
     });
 
     let datasOrdenadas = Object.keys(grupos).sort((a, b) => new Date(a) - new Date(b));
@@ -752,7 +765,11 @@ function renderizarProducao() {
             classDivisor = "div-hoje"; textoDivisor = `✨ Ficam prontos HOJE! (${grupo.dataBR})`;
         }
 
-        html += `<div class="separador-data ${classDivisor}">${textoDivisor}</div>`;
+        // 📦 O CABEÇALHO AGORA EXIBE A SOMA DO LOTE (Lado a lado com a data)
+        html += `<div class="separador-data ${classDivisor}" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+                    <span>${textoDivisor}</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">📦 Meta do Lote: <b>${grupo.totalGrupo} un</b></span>
+                 </div>`;
         html += `<div class="grid-producao-grupo">`;
 
         grupo.itens.sort((a, b) => {
