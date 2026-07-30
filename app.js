@@ -3430,3 +3430,31 @@ function salvarParametrosSistema() {
     .catch(() => mostrarAlerta('Erro', 'Falha na conexão.', 'error'))
     .finally(() => ocultarLoading());
 }
+
+
+// ==========================================
+// CONTROLE DAS SUB-ABAS DA FÁBRICA
+// ==========================================
+function toggleFabricaTab(aba) {
+    // 1. Apaga a cor de ativo de todos os botões
+    document.getElementById('btn-sub-fab-receita').classList.remove('active');
+    document.getElementById('btn-sub-fab-lancar').classList.remove('active');
+    document.getElementById('btn-sub-fab-fila').classList.remove('active');
+    
+    // 2. Esconde todas as telas
+    document.getElementById('fabrica-receita-view').style.display = 'none';
+    document.getElementById('fabrica-lancar-view').style.display = 'none';
+    document.getElementById('fabrica-fila-view').style.display = 'none';
+    
+    // 3. Mostra só a tela que foi clicada e acende o botão
+    if (aba === 'receita') {
+        document.getElementById('btn-sub-fab-receita').classList.add('active');
+        document.getElementById('fabrica-receita-view').style.display = 'block';
+    } else if (aba === 'lancar') {
+        document.getElementById('btn-sub-fab-lancar').classList.add('active');
+        document.getElementById('fabrica-lancar-view').style.display = 'block';
+    } else if (aba === 'fila') {
+        document.getElementById('btn-sub-fab-fila').classList.add('active');
+        document.getElementById('fabrica-fila-view').style.display = 'block';
+    }
+}

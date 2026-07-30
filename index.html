@@ -88,59 +88,23 @@
             <div id="lista-rotulos-cadastrados"></div>
         </div>
 
-        <div id="tab-precificar" class="tab-content">
+     <div id="tab-precificar" class="tab-content">
             
-            <!-- ENVOLVEMOS OS FORMULÁRIOS DA FÁBRICA EM COLUNAS PARA O DESKTOP -->
-            <div class="fabrica-form-wrapper">
-                
-            <!-- COLUNA 1: REPOSIÇÃO RÁPIDA -->
-                <div class="fabrica-col-left">
-                    <div class="section-title" style="margin-top: 0; color: #b45309; border-left-color: #b45309;">⚡ Refazer Lote (Reposição)</div>
-                    
-                    <!-- 🚨 NOVO: RADAR DE ESTOQUE CRÍTICO 🚨 -->
-                    <div id="radar-producao-box" style="background: #fee2e2; border: 1px solid #fca5a5; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.1);">
-                        <div style="color: #991b1b; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                            🚨 ALERTA: Abaixo do Mínimo (5 un)
-                        </div>
-                        <p style="font-size: 0.75rem; color: #7f1d1d; margin-top: 0; margin-bottom: 15px;">Estes produtos estão em risco de falta, mesmo contando os que já estão na fila de maceração:</p>
-                        
-                        <div id="lista-radar-itens" style="display: flex; flex-direction: column; gap: 8px;">
-                            
-                            <!-- ISSO AQUI É SÓ UM EXEMPLO VISUAL! (O JS VAI APAGAR ISSO DEPOIS E CRIAR OS REAIS) -->
-                            <div class="radar-item">
-                                <div>
-                                    <strong>Perfume Scandal 40ml</strong>
-                                    <div class="detalhes">Prateleira: 2 | Macerando: 1 | <b>Total: 3</b></div>
-                                </div>
-                                <button class="radar-btn">Fabricar</button>
-                            </div>
-                            
-                        </div>
-                    </div>
-                    <!-- FIM DO RADAR -->
+            <!-- MENU SUPERIOR DA FÁBRICA (3 ABAS) -->
+            <div class="sub-nav-container">
+                <button id="btn-sub-fab-receita" class="sub-nav-btn active" onclick="toggleFabricaTab('receita')">🧪 Nova Receita</button>
+                <button id="btn-sub-fab-lancar" class="sub-nav-btn" onclick="toggleFabricaTab('lancar')">⚡ Lançar Produção</button>
+                <button id="btn-sub-fab-fila" class="sub-nav-btn" onclick="toggleFabricaTab('fila')">⏳ Fila Maceração</button>
+            </div>
 
-                    <div class="filtro-box" style="background: #fff9e6; border-color: #ffeeba; margin-bottom: 0; box-shadow: none;">
-
-                        <p style="font-size: 0.8rem; color: #b45309; margin-top: 0; margin-bottom: 15px;">Vai fabricar um produto que já existe no estoque? Lance direto na fila de maceração!</p>
-                        <div class="input-group" style="text-align: left;">
-                            <label style="color: #b45309;">Qual produto será fabricado?</label>
-                            <select id="pr-produto" style="border-color: #fde047; background: #fff;"><option value="">Aguardando estoque...</option></select>
-                        </div>
-                        <div class="row">
-                            <div class="col"><label style="color: #b45309;">Rendimento (Un)</label><input type="number" id="pr-qtd" value="10" min="1" style="border-color: #fde047; background: #fff;"></div>
-                            <div class="col"><label style="color: #b45309;">Dias de Maceração</label><input type="number" id="pr-dias" value="15" min="0" style="border-color: #fde047; background: #fff;"></div>
-                        </div>
-                        <button class="btn-salvar" style="margin-top: 5px; background: #b45309; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarProducaoRapida()">⏳ ENVIAR PARA MACERAÇÃO</button>
-                    </div>
-                </div>
-
-                <!-- COLUNA 2: CALCULADORA E CONTROLE -->
-                <div class="fabrica-col-right">
+            <!-- SUB-ABA 1: NOVA RECEITA E CÁLCULOS -->
+            <div id="fabrica-receita-view">
+                <div style="max-width: 800px; margin: 0 auto;">
                     <div class="section-title" style="margin-top: 0;">🧪 Criar Nova Receita (Cálculos)</div>
                     <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Use este painel apenas para criar um produto inédito ou recalcular custos.</p>
                     <div class="row">
                         <div class="col"><label>Essência Base</label><select id="n-produto"><option value="">Aguardando dados...</option></select></div>
-                        <div class="col"><label>Tipo do Produto Final</label><input type="text" id="n-tipo-final" list="lista-tipos-finais" placeholder="Ex: Home Spray"><datalist id="lista-tipos-finais"><option value="Home Spray"></option><option value="Perfume"></option><option value="Vela"></option><option value="Creme"></option></datalist></div>
+                        <div class="col"><label>Tipo do Produto Final</label><input type="text" id="n-tipo-final" list="lista-tipos-finais" placeholder="Ex: Home Spray"><datalist id="lista-tipos-finais"></datalist></div>
                     </div>
                     <div class="row">
                         <div class="col"><label>Custo Frag. (R$)</label><input type="number" id="n-custo-frag" value="20.69" step="0.01" oninput="calcularNovera()"></div>
@@ -175,28 +139,56 @@
                         </div>
                     </div>
                 </div>
-            </div> <!-- FIM DO WRAPPER DA FÁBRICA -->
+            </div>
 
-          <div class="section-title" style="margin-top: 35px;">⏳ Fila de Maceração / Em Andamento</div>
-            
-            <!-- PAINEL FIXO (Totais + Busca) -->
-            <div class="fabrica-sticky-header">
-                <!-- PAINEL DE RESUMO DA PRODUÇÃO -->
-                <div id="resumo-producao" class="dash-grid" style="margin-bottom: 15px; gap: 8px;"></div>
-                
-                <!-- BARRA DE BUSCA -->
-                <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 0; box-shadow: none; border: 1px solid var(--border-color);">
-                    <div class="row" style="margin-bottom: 0;">
-                        <div class="col" style="text-align: left;">
-                            <label>Pesquisar Lote</label>
-                            <input type="text" id="busca-producao" class="search-bar" style="margin: 0; border: none; box-shadow: none; padding-left: 0;" placeholder="🔍 Buscar perfume..." onkeyup="renderizarProducao()">
+            <!-- SUB-ABA 2: LANÇAR PRODUÇÃO (REPOSIÇÃO RÁPIDA) -->
+            <div id="fabrica-lancar-view" style="display: none;">
+                <div style="max-width: 800px; margin: 0 auto;">
+                    <div class="section-title" style="margin-top: 0; color: #b45309; border-left-color: #b45309;">⚡ Refazer Lote (Reposição)</div>
+                    
+                    <div id="radar-producao-box" style="background: #fee2e2; border: 1px solid #fca5a5; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.1);">
+                        <div style="color: #991b1b; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                            🚨 ALERTA: Abaixo do Mínimo
                         </div>
+                        <p style="font-size: 0.75rem; color: #7f1d1d; margin-top: 0; margin-bottom: 15px;">Estes produtos estão em risco de falta, mesmo contando os que já estão na fila de maceração:</p>
+                        <div id="lista-radar-itens" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                    </div>
+
+                    <div class="filtro-box" style="background: #fff9e6; border-color: #ffeeba; margin-bottom: 0; box-shadow: none;">
+                        <p style="font-size: 0.8rem; color: #b45309; margin-top: 0; margin-bottom: 15px;">Vai fabricar um produto que já existe no estoque? Lance direto na fila de maceração!</p>
+                        <div class="input-group" style="text-align: left;">
+                            <label style="color: #b45309;">Qual produto será fabricado?</label>
+                            <select id="pr-produto" style="border-color: #fde047; background: #fff;"><option value="">Aguardando estoque...</option></select>
+                        </div>
+                        <div class="row">
+                            <div class="col"><label style="color: #b45309;">Rendimento (Un)</label><input type="number" id="pr-qtd" value="10" min="1" style="border-color: #fde047; background: #fff;"></div>
+                            <div class="col"><label style="color: #b45309;">Dias de Maceração</label><input type="number" id="pr-dias" value="15" min="0" style="border-color: #fde047; background: #fff;"></div>
+                        </div>
+                        <button class="btn-salvar" style="margin-top: 5px; background: #b45309; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarProducaoRapida()">⏳ ENVIAR PARA MACERAÇÃO</button>
                     </div>
                 </div>
             </div>
 
-            <!-- LISTA AGRUPADA POR DATA E GÊNERO -->                 
-            <div id="lista-producao-cards"></div>
+            <!-- SUB-ABA 3: FILA DE MACERAÇÃO -->
+            <div id="fabrica-fila-view" style="display: none;">
+                <div class="section-title" style="margin-top: 0;">⏳ Fila de Maceração / Em Andamento</div>
+                
+                <div class="fabrica-sticky-header">
+                    <div id="resumo-producao" class="dash-grid" style="margin-bottom: 15px; gap: 8px;"></div>
+                    
+                    <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 0; box-shadow: none; border: 1px solid var(--border-color);">
+                        <div class="row" style="margin-bottom: 0;">
+                            <div class="col" style="text-align: left;">
+                                <label>Pesquisar Lote</label>
+                                <input type="text" id="busca-producao" class="search-bar" style="margin: 0; border: none; box-shadow: none; padding-left: 0;" placeholder="🔍 Buscar perfume, código..." onkeyup="renderizarProducao()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="lista-producao-cards"></div>
+            </div>
+
         </div>
 
         <div id="tab-estoque" class="tab-content">
