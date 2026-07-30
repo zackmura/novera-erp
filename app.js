@@ -14,6 +14,7 @@ let dadosCarregados = false;
 
 let chartRGBase = null, chartStatusBase = null;
 let estoqueAgrupado = {};
+let configuracoesGlobais = {};
 
 // ==========================================
 // FUNÇÃO DO CRACHÁ (Segurança JWT)
@@ -293,11 +294,11 @@ async function sincronizarDadosUnico() {
             encomendasGlobal = dados.encomendas || []; comprasGlobal = dados.compras || [];
             producaoGlobal = dados.producao || []; // ADICIONE AQUI
             logsGlobal = dados.logs || [];
-
             usuariosGlobal = dados.usuarios || [];
-            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
+            configuracoesGlobais = dados.configuracoes || {};
+            aplicarConfiguracoesDinamicas();
 
-           
+            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();          
 
             estoqueAgrupado = {};
             estoqueGlobal.forEach(e => {
@@ -903,8 +904,8 @@ function calcularRadarProducao() {
 
     let htmlItensCriticos = "";
     let encontrouCriticos = false;
-
     let totalMacerandoPorProduto = {};
+
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
             let nomePadrao = padronizarTexto(p.nome_produto);
@@ -920,9 +921,11 @@ function calcularRadarProducao() {
         }
     });
 
+    // 🎛️ Variável Dinâmica de Segurança
+    let minEstoqueGlob = parseInt(configuracoesGlobais.estoque_minimo) || 5;
+
     for (let key in estoqueAgrupado) {
         let e = estoqueAgrupado[key];
-        
         let tipoLowerCase = String(e.tipo).toLowerCase();
         if(!tipoLowerCase.includes('perfume')) continue;
 
@@ -930,12 +933,11 @@ function calcularRadarProducao() {
         let qtdMacerando = totalMacerandoPorProduto[key] || 0;
         let qtdReservada = totalEncomendadoPorProduto[key] || 0;
         
-        // A MATEMÁTICA REAL AQUI
         let estoqueProjetadoLivre = (qtdPrateleira + qtdMacerando) - qtdReservada;
 
-        if (estoqueProjetadoLivre < 5) {
+        // 🎛️ Aqui ele escuta o seu comando da nuvem!
+        if (estoqueProjetadoLivre < minEstoqueGlob) {
             encontrouCriticos = true;
-            
             let avisoEnc = qtdReservada > 0 ? `<b style="color:#991b1b;">(-${qtdReservada} Reservados)</b>` : '';
 
             htmlItensCriticos += `
@@ -952,6 +954,9 @@ function calcularRadarProducao() {
 
     if (encontrouCriticos) {
         listaRadar.innerHTML = htmlItensCriticos;
+        // Atualiza a frase vermelha no HTML para mostrar qual é o mínimo atual!
+        const boxTitulo = radarBox.querySelector('div');
+        if(boxTitulo) boxTitulo.innerHTML = `🚨 ALERTA: Abaixo do Mínimo (${minEstoqueGlob} un)`;
         radarBox.style.display = 'block';
     } else {
         radarBox.style.display = 'none';
@@ -975,7 +980,6 @@ function renderizarEstoque() {
         }
     });
 
-    // NOVO: Calcula quantas encomendas pendentes existem de cada produto
     let totalEncomendadoPorProduto = {};
     encomendasGlobal.forEach(enc => {
         if (enc.status === 'Pendente' || enc.status === 'Produzido') {
@@ -1011,6 +1015,9 @@ function renderizarEstoque() {
 
     let html = "", somaItens = 0, somaValor = 0; 
     let gruposEstoque = {};
+    
+    // 🎛️ O MÍNIMO DE ESTOQUE AGORA VEM DA NUVEM (Variável Dinâmica)
+    let minEstoqueGlob = parseInt(configuracoesGlobais.estoque_minimo) || 5;
 
     arrEstoque.forEach(e => { 
         const qtdExibicao = localSelecionado ? (e.locais[localSelecionado] || 0) : e.totalQtd; 
@@ -1036,7 +1043,6 @@ function renderizarEstoque() {
         else if(gLow === "infantil") { corFundoGen = "#dcfce7"; corTextoGen = "#166534"; }
         let badgeGenero = e.genero ? `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${e.genero}</span>` : '';
 
-        // MATEMÁTICA DO ESTOQUE LIVRE
         let qtdMacerando = totalMacerandoPorProduto[padronizarTexto(e.nome)] || 0;
         let qtdEncomendada = totalEncomendadoPorProduto[padronizarTexto(e.nome)] || 0;
         let qtdLivre = qtdExibicao - qtdEncomendada;
@@ -1045,9 +1051,10 @@ function renderizarEstoque() {
         let corCustoVal = "var(--brand-dark)";
         let htmlSaudeEstoque = "";
         
-        if (qtdProjetada < 5 && qtdLivre > 0) {
-            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">⚠️ Crítico (< 5)</span>`;
-        } else if (qtdLivre < 5 && qtdMacerando > 0) {
+        // 🎛️ A regra se adapta ao que você salvar lá na aba de Configurações
+        if (qtdProjetada < minEstoqueGlob && qtdLivre > 0) {
+            corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">⚠️ Crítico (< ${minEstoqueGlob})</span>`;
+        } else if (qtdLivre < minEstoqueGlob && qtdMacerando > 0) {
             corCustoVal = "#a16207"; htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo" style="margin:0;">⏳ Lote Vindo</span>`;
         } else if (qtdLivre <= 0) {
             corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">🚫 Sem Estoque Livre</span>`;
@@ -1056,8 +1063,6 @@ function renderizarEstoque() {
         }
         
         let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
-        
-        // AVISA SOBRE A ENCOMENDA NO ESTOQUE
         let badgeEncomenda = qtdEncomendada > 0 ? `<div style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:bold; margin-top:8px; border:1px solid #fca5a5; display:inline-block;">📦 ${qtdEncomendada} Reservado(s)</div>` : '';
 
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
@@ -1068,7 +1073,6 @@ function renderizarEstoque() {
         if (qtdExibicao <= 0) locaisHtml = ""; 
         
         const nomeEncode = encodeURIComponent(e.nome); 
-        
         const txtCusto = isAdmin ? `<p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>` : '';
         const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
 
@@ -1114,10 +1118,9 @@ function renderizarEstoque() {
 
     lista.innerHTML = html; 
     document.getElementById('est-total-itens').innerText = somaItens; 
-    if(document.getElementById('est-valor-total')) {
-        document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; 
-    }
+    if(document.getElementById('est-valor-total')) { document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; }
 }
+
 
 function abrirModalEditarEstoque(nomeEncoded) { const nomeDecoded = decodeURIComponent(nomeEncoded); const e = estoqueAgrupado[padronizarTexto(nomeDecoded)]; if (!e) return; document.getElementById('edit-e-nome').value = e.nome; document.getElementById('edit-e-tipo').value = e.tipo; document.getElementById('edit-e-custo').value = safeFmt(e.custo); document.getElementById('edit-e-preco').value = safeFmt(e.preco); document.getElementById('edit-e-codigo').value = e.codigo || ''; let fotos = e.foto ? e.foto.split(',') : []; document.getElementById('edit-e-img-preview').src = fotos[0] || 'logo.png'; document.getElementById('img-original-preview').src = fotos[0] || 'logo.png'; document.getElementById('edit-e-foto-antiga').value = e.foto || ''; document.getElementById('edit-e-foto-nova').value = ''; document.getElementById('ai-preview-box').style.display = 'none'; const container = document.getElementById('edit-e-locais-container'); container.innerHTML = ''; for (let loc in e.locais) { adicionarLinhaLocal(loc, e.locais[loc]); } if (Object.keys(e.locais).length === 0) adicionarLinhaLocal('Sede', 0); document.getElementById('modal-editar-estoque').style.display = 'flex'; }
 function adicionarLinhaLocal(loc = '', qtd = 0) { const div = document.createElement('div'); div.className = 'row edit-local-row'; div.style.marginBottom = '5px'; div.innerHTML = `<div class="col"><input type="text" class="edit-l-nome" value="${loc}" list="lista-locais-estoque" placeholder="Ex: Sede, Casa..."></div><div class="col" style="flex:0.4"><input type="number" class="edit-l-qtd" value="${qtd}" min="0"></div><button class="btn-acao" style="margin-top:2px; height: 46px; background:#fff0f6; border-color:#fce7f3; color:#be185d;" onclick="this.parentElement.remove()" title="Remover Local">🗑️</button>`; document.getElementById('edit-e-locais-container').appendChild(div); }
@@ -2436,9 +2439,10 @@ async function sincronizarDadosSilencioso() {
             producaoGlobal = dados.producao || []; 
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
+            configuracoesGlobais = dados.configuracoes || {};
+            aplicarConfiguracoesDinamicas();
             
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
-
            
 
             // Refaz o agrupamento de estoque com os dados novos
@@ -3365,4 +3369,64 @@ function acertarCaixaVenda(id) {
             sincronizarDadosUnico();
         });
     });
+}
+
+// ==========================================
+// 🎛️ MÓDULO: PARÂMETROS GLOBAIS (ADMIN)
+// ==========================================
+function aplicarConfiguracoesDinamicas() {
+    // 1. Preenche a sua tela de Configurações
+    if(document.getElementById('cfg-estoque-min')) document.getElementById('cfg-estoque-min').value = configuracoesGlobais.estoque_minimo || 5;
+    if(document.getElementById('cfg-tipos-prod')) document.getElementById('cfg-tipos-prod').value = configuracoesGlobais.tipos_produto || '';
+    if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
+    if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
+
+    // 2. Transforma o seu texto em listas HTML
+    const arrTipos = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
+    if(document.getElementById('lista-tipos-finais')) document.getElementById('lista-tipos-finais').innerHTML = arrTipos.map(t => `<option value="${t}">`).join('');
+
+    const arrCat = (configuracoesGlobais.categorias_compras || '').split(',').map(s => s.trim()).filter(s => s);
+    if(document.getElementById('lista-categorias-compras')) document.getElementById('lista-categorias-compras').innerHTML = arrCat.map(c => `<option value="${c}">`).join('');
+
+    const arrLocais = (configuracoesGlobais.locais_estoque || '').split(',').map(s => s.trim()).filter(s => s);
+    
+    // Injeta os locais nos seletores do sistema todo
+    let optionsLocais = '<option value="">Aguardando...</option>' + arrLocais.map(l => `<option value="${l}">${l}</option>`).join('');
+    
+    // 3. Opcional: injetar nas tags Datalist
+    if(document.getElementById('lista-locais')) document.getElementById('lista-locais').innerHTML = arrLocais.map(l => `<option value="${l}">`).join('');
+    if(document.getElementById('lista-locais-estoque')) document.getElementById('lista-locais-estoque').innerHTML = arrLocais.map(l => `<option value="${l}">`).join('');
+}
+
+function salvarParametrosSistema() {
+    const estMin = document.getElementById('cfg-estoque-min').value;
+    const tipos = document.getElementById('cfg-tipos-prod').value;
+    const cats = document.getElementById('cfg-cat-compras').value;
+    const locais = document.getElementById('cfg-locais').value;
+
+    mostrarLoading();
+    fetch(API_NOVERA, {
+        method: 'POST', 
+        headers: cabecalhoAuth(),
+        body: JSON.stringify({ 
+            acao: 'salvar_configuracoes', 
+            configs: { 
+                estoque_minimo: estMin, 
+                tipos_produto: tipos, 
+                categorias_compras: cats, 
+                locais_estoque: locais 
+            } 
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if(res.sucesso) { 
+            mostrarAlerta('Salvo', 'Parâmetros Globais atualizados!', 'success'); 
+            sincronizarDadosUnico(); // Recarrega os dados pra espalhar no sistema
+        } else { 
+            mostrarAlerta('Erro', 'Falha ao salvar as configurações.', 'error'); 
+        }
+    })
+    .catch(() => mostrarAlerta('Erro', 'Falha na conexão.', 'error'))
+    .finally(() => ocultarLoading());
 }
