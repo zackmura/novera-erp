@@ -470,7 +470,12 @@
                             <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
                         </div>
                         <div class="row">
-                            <div class="col" style="flex: 2;"><label>O que o cliente pediu?</label><input type="text" id="e-item" placeholder="Ex: Vela de Alecrim, Home Spray..."></div>
+                          <div class="col" style="flex: 2;">
+                                <label>O que o cliente pediu?</label>
+                                <select id="e-item" style="width: 100%; border-color: #ccc; background: #fff;">
+                                    <option value="">Aguardando estoque...</option>
+                                </select>
+                            </div>
                             <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
                         </div>
                         <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
@@ -551,13 +556,10 @@
             <div class="section-title" style="margin-top: 10px;">👋 Precisa de Ajuda?</div>
             <button class="btn-salvar" style="background: #fdf5f7; color: #966178; border: 1px solid #f3d8e2; box-shadow: none; margin-top:0; width:100%; margin-bottom: 20px;" onclick="document.getElementById('modal-tutorial').style.display='flex'">📖 Abrir Guia Rápido do Sistema</button>
 
-            <div class="section-title" style="margin-top: 10px; color: #b45309; border-left-color: #b45309;">🎛️ Parâmetros do Sistema</div>
-            <p style="font-size:0.65rem; color:#888; margin-top:0px;">Valores globais de alertas e opções. Altere e salve.</p>
-            <div class="input-group" style="margin-top:15px;"><label>Estoque Mínimo (Dispara Alertas WhatsApp)</label><input type="number" id="cfg-estoque-min" placeholder="Ex: 5"></div>
-            <div class="input-group"><label>Tipos de Produtos (Separados por vírgula)</label><input type="text" id="cfg-tipos-prod" placeholder="Perfume, Vela..."></div>
-            <div class="input-group"><label>Categorias de Compras (Separados por vírgula)</label><input type="text" id="cfg-cat-compras" placeholder="Frascos, Essências..."></div>
-            <div class="input-group"><label>Locais de Estoque Padrões (Separados por vírgula)</label><input type="text" id="cfg-locais" placeholder="Sede, Carro..."></div>
-            <button class="btn-salvar" style="background: #b45309; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarParametrosSistema()">💾 Salvar Parâmetros Globais</button>
+            <!-- BOTÃO DE PARÂMETROS RESTRITO A ADMINS -->
+            <button id="btn-abrir-parametros" class="btn-salvar" style="display: none; background: #fff; color: #b45309; border: 2px solid #b45309; box-shadow: none; margin-top: 15px; margin-bottom: 10px;" onclick="abrirModalParametros()">
+                🎛️ Parâmetros Globais do Sistema
+            </button>
 
             <div class="section-title" style="margin-top: 10px; color: #1e40af; border-left-color: #1e40af;">🛡️ Administração</div>
             <button class="btn-salvar" id="btn-menu-equipe" style="background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; box-shadow: none; margin-top:0; width:100%; margin-bottom: 15px;" onclick="switchTab('usuarios')">👥 Gerenciar Equipe</button>
@@ -1113,6 +1115,45 @@
         <button class="btn-salvar" style="margin: 0; width: 100%; font-size: 0.9rem;" onclick="fecharModalNovidades()">Incrível, vamos lá!</button>
     </div>
 </div>
+
+
+<!-- ========================================== -->
+    <!-- MODAL RESTRITO: PARÂMETROS GLOBAIS         -->
+    <!-- ========================================== -->
+    <div id="modal-parametros" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.75); z-index: 999999; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; backdrop-filter: blur(3px);">
+        
+        <div style="background-color: #ffffff; border-radius: 16px; width: 100%; max-width: 450px; padding: 25px; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto;">
+            
+            <!-- Botão Fechar -->
+            <button onclick="fecharModalParametros()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #999; line-height: 1;">&times;</button>
+            
+            <div style="margin-top: 0; color: #b45309; border-left: 4px solid #b45309; padding-left: 10px; font-size: 1.2rem; font-weight: 900; margin-bottom: 5px;">🎛️ Parâmetros Globais</div>
+            <p style="font-size:0.75rem; color:#888; margin-top:0px; margin-bottom:20px;">Acesso restrito à Diretoria. Altere as regras globais do sistema Novera Scent.</p>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="color:var(--brand-dark); font-weight:800; font-size: 0.8rem; display: block; margin-bottom: 5px;">Estoque Mínimo (Alerta no Telegram)</label>
+                <input type="number" id="cfg-estoque-min" placeholder="Ex: 5" style="width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #fde047; outline: none; font-weight: bold; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Tipos de Produtos Finais (Separados por vírgula)</label>
+                <input type="text" id="cfg-tipos-prod" placeholder="Ex: Perfume, Vela..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Categorias de Compras (Separados por vírgula)</label>
+                <input type="text" id="cfg-cat-compras" placeholder="Ex: Frascos, Essências..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Locais de Estoque Padrões (Separados por vírgula)</label>
+                <input type="text" id="cfg-locais" placeholder="Ex: Sede, Carro..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            
+            <button style="background: #b45309; width: 100%; padding: 12px; border: none; color: white; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarParametrosSistema()">💾 Salvar e Aplicar</button>
+        </div>
+    </div>
+
     
 <script src="app.js"></script>
 </body>

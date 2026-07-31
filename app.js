@@ -3375,13 +3375,17 @@ function acertarCaixaVenda(id) {
 // 🎛️ MÓDULO: PARÂMETROS GLOBAIS (ADMIN)
 // ==========================================
 function aplicarConfiguracoesDinamicas() {
-    // 1. Preenche a sua tela de Configurações
+    // 🔒 TRAVA DE SEGURANÇA: Mostra o botão do painel APENAS se o crachá for de Admin
+    const btnParams = document.getElementById('btn-abrir-parametros');
+    if(btnParams) {
+        btnParams.style.display = (usuarioCargo === 'Admin') ? 'block' : 'none';
+    }
+
     if(document.getElementById('cfg-estoque-min')) document.getElementById('cfg-estoque-min').value = configuracoesGlobais.estoque_minimo || 5;
     if(document.getElementById('cfg-tipos-prod')) document.getElementById('cfg-tipos-prod').value = configuracoesGlobais.tipos_produto || '';
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
 
-    // 2. Transforma o seu texto em listas HTML
     const arrTipos = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
     if(document.getElementById('lista-tipos-finais')) document.getElementById('lista-tipos-finais').innerHTML = arrTipos.map(t => `<option value="${t}">`).join('');
 
@@ -3389,15 +3393,13 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('lista-categorias-compras')) document.getElementById('lista-categorias-compras').innerHTML = arrCat.map(c => `<option value="${c}">`).join('');
 
     const arrLocais = (configuracoesGlobais.locais_estoque || '').split(',').map(s => s.trim()).filter(s => s);
-    
-    // Injeta os locais nos seletores do sistema todo
     let optionsLocais = '<option value="">Aguardando...</option>' + arrLocais.map(l => `<option value="${l}">${l}</option>`).join('');
     
-    // 3. Opcional: injetar nas tags Datalist
     if(document.getElementById('lista-locais')) document.getElementById('lista-locais').innerHTML = arrLocais.map(l => `<option value="${l}">`).join('');
     if(document.getElementById('lista-locais-estoque')) document.getElementById('lista-locais-estoque').innerHTML = arrLocais.map(l => `<option value="${l}">`).join('');
 }
 
+// ATUALIZAÇÃO DA FUNÇÃO DE SALVAR (Agora ela fecha o modal sozinha!)
 function salvarParametrosSistema() {
     const estMin = document.getElementById('cfg-estoque-min').value;
     const tipos = document.getElementById('cfg-tipos-prod').value;
@@ -3422,7 +3424,8 @@ function salvarParametrosSistema() {
     .then(res => {
         if(res.sucesso) { 
             mostrarAlerta('Salvo', 'Parâmetros Globais atualizados!', 'success'); 
-            sincronizarDadosUnico(); // Recarrega os dados pra espalhar no sistema
+            fecharModalParametros(); // <--- MÁGICA: Fecha a telinha ao salvar
+            sincronizarDadosUnico(); 
         } else { 
             mostrarAlerta('Erro', 'Falha ao salvar as configurações.', 'error'); 
         }
@@ -3431,6 +3434,18 @@ function salvarParametrosSistema() {
     .finally(() => ocultarLoading());
 }
 
+function abrirModalParametros() {
+    if (usuarioCargo !== 'Admin') {
+        mostrarAlerta('Acesso Negado', 'Apenas administradores podem mexer no motor do sistema.', 'error');
+        return;
+    }
+    // O segredo está na palavra 'flex' abaixo para ele centralizar na tela toda!
+    document.getElementById('modal-parametros').style.display = 'flex';
+}
+
+function fecharModalParametros() {
+    document.getElementById('modal-parametros').style.display = 'none';
+}
 
 // ==========================================
 // CONTROLE DAS SUB-ABAS DA FÁBRICA
