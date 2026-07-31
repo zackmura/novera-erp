@@ -121,7 +121,10 @@ function switchTab(tabId) {
     const navBtnTarget = document.getElementById('tab-' + tabId);
     if (navBtnTarget) navBtnTarget.classList.add('active');
 
-    if (tabId !== 'configuracoes' && tabId !== 'dashboard') { const navBtn = document.getElementById('nav-' + tabId); if (navBtn) navBtn.classList.add('active'); }
+    // 👇 AQUI ESTAVA O ERRO! Removi a trava que proibia o Painel de acender a cor
+    const navBtn = document.getElementById('nav-' + tabId); 
+    if (navBtn) navBtn.classList.add('active'); 
+
     if (tabId === 'dashboard') { setTimeout(() => { renderizarDashboard(); }, 50); }
     if (tabId === 'logs') { renderizarLogs(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
@@ -2100,6 +2103,7 @@ function renderizarDashboard() {
     const container = document.getElementById('dash-dinamico-container');
     if (!container) return;
 
+    // 1. CARREGA OS FILTROS DE TEMPO
     const dMes = document.getElementById('d-filtro-mes');
     const dAno = document.getElementById('d-filtro-ano');
     if (!dMes.value && !dAno.value) {
@@ -2111,12 +2115,33 @@ function renderizarDashboard() {
     const fA = dAno.value;
     let pfx = fA && fM ? `${fA}-${fM}` : fA;
 
-    // Vendas do Mês/Ano escolhido
-    const vDashGlobal = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true);
+    // 2. CARREGA O FILTRO DE VENDEDOR (Slicer BI)
+    const boxFiltroSocio = document.getElementById('box-filtro-socio-dash');
+    const selSocio = document.getElementById('d-filtro-socio');
+    
+    if (isAdmin) {
+        if(boxFiltroSocio) boxFiltroSocio.style.display = 'flex';
+        // Preenche a caixinha de vendedores dinamicamente se estiver vazia
+        if (selSocio && selSocio.options.length <= 1 && vendasGlobal.length > 0) {
+            let sociosSet = new Set();
+            vendasGlobal.forEach(v => { if(v.socio) sociosSet.add(String(v.socio).trim()); });
+            let fAtual = selSocio.value;
+            selSocio.innerHTML = '<option value="">Equipe Toda</option>' + [...sociosSet].sort().map(s => `<option value="${s}">${s}</option>`).join('');
+            selSocio.value = fAtual;
+        }
+    } else {
+        if(boxFiltroSocio) boxFiltroSocio.style.display = 'none';
+    }
 
-    // ============================================
-    // RANKING DE VENDEDORES (Inteligente)
-    // ============================================
+    const fSocioDash = (selSocio && isAdmin) ? selSocio.value.toLowerCase().trim() : "";
+
+    // 3. APLICA OS FILTROS NO BANCO DE DADOS LOCAL
+    const vDashGlobal = vendasGlobal.filter(v => {
+        let passTempo = pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true;
+        let passSocio = fSocioDash ? (String(v.socio || '').toLowerCase().trim() === fSocioDash) : true;
+        return passTempo && passSocio;
+    });
+
     let rankingMap = {};
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin');
@@ -2124,7 +2149,6 @@ function renderizarDashboard() {
     vDashGlobal.forEach(v => {
         let s = String(v.socio || '').trim();
         let sLower = s.toLowerCase();
-        
         if (!isAdmin && nomesAdmins.includes(sLower)) return;
         if (sLower === 'sem vendedor' || sLower === '') return;
 
@@ -2141,7 +2165,7 @@ function renderizarDashboard() {
     let htmlRanking = `<div class="dash-card" style="grid-column: span 2; padding: 15px; border: 1px solid #fde047; box-shadow: 0 4px 15px rgba(253, 224, 71, 0.2);">
         <h3 style="color:#b45309; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🏆 RANKING DE VENDAS DO MÊS</h3>
         <div style="display:flex; flex-direction:column; gap:8px;">`;
-    if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda de equipe registrada neste mês.</p>`;
+    if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda registrada.</p>`;
     
     rankingArr.forEach((r, idx) => {
         let corMedalha = idx === 0 ? "#fef08a" : (idx === 1 ? "#e2e8f0" : (idx === 2 ? "#fed7aa" : "#f8fafc"));
@@ -2164,29 +2188,21 @@ function renderizarDashboard() {
     });
     htmlRanking += `</div></div>`;
 
-    // ============================================
-    // VISÃO DO VENDEDOR (Gamificada e Pessoal)
-    // ============================================
     if (!isAdmin) {
         let minhasVendas = vDashGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
         let tVend = 0, tItens = 0, comAprovada = 0, comPendente = 0;
         let mProd = {}, mCli = {};
 
         minhasVendas.forEach(v => {
-            const val = parseDinheiro(v.valor_venda);
-            const com = parseFloat(v.valor_comissao) || 0;
-            const q = parseInt(v.qtd) || 1;
-            
+            const val = parseDinheiro(v.valor_venda); const com = parseFloat(v.valor_comissao) || 0; const q = parseInt(v.qtd) || 1;
             tVend += val; tItens += q;
-            if(v.status === 'Pago' && v.repasse_feito) comAprovada += com;
-            else comPendente += com;
-
+            if(v.status === 'Pago' && v.repasse_feito) comAprovada += com; else comPendente += com;
             if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q;
             if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
         });
 
-        let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3);
-        let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3);
+        let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
+        let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5);
 
         let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
         let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
@@ -2198,49 +2214,47 @@ function renderizarDashboard() {
                     <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVend)}</p>
                     <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">${tItens} produtos vendidos</p>
                 </div>
-
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
                     <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO APROVADA</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#2e7d32; margin:0;">${fmt(comAprovada)}</p>
-                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Já liberado no caixa</p>
                 </div>
-
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
                     <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO PENDENTE</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#b45309; margin:0;">${fmt(comPendente)}</p>
-                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
-
                 ${htmlRanking}
-
                 <div class="dash-card" style="padding:15px;">
-                    <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP PRODUTOS</h3>
+                    <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP 5 PRODUTOS</h3>
                     ${listaProd}
                 </div>
-
                 <div class="dash-card" style="padding:15px;">
-                    <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 MEUS TOP CLIENTES</h3>
+                    <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 MEUS TOP 5 CLIENTES</h3>
                     ${listaCli}
                 </div>
-            </div>
-        `;
+            </div>`;
         return; 
     }
 
     // ============================================
-    // VISÃO DO ADMIN (Mesa de Guerra / War Room)
+    // VISÃO DO ADMIN (War Room / MESA DE DIRETORIA)
     // ============================================
-    const gDashGlobal = gastosGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true);
+    
+    // Filtra gastos respeitando Data e também o Sócio, se houver filtro aplicado
+    const gDashGlobal = gastosGlobal.filter(g => {
+        let passTempo = pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true;
+        let passSocio = fSocioDash ? (String(g.socio || '').toLowerCase().trim() === fSocioDash) : true;
+        return passTempo && passSocio;
+    });
     
     let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0, tVendasTotais = 0, qtdVendasReais = 0;
     let mProd = {}, mCli = {}; 
+    let pedidosIdSet = new Set(); 
 
-    // 📊 Inteligência de Gráficos (Data Prep)
     let faturamentoPorDia = {};
     let mixProdutos = {};
+    let mixProdutosDetalhes = {}; 
     let devedoresGlobais = {};
 
-    // Mapeia todas as dívidas globais (independente do mês) para o Radar de Cobrança
     vendasGlobal.forEach(v => {
         if (v.status === 'Pendente' || v.status === 'Parcelado') {
             let clienteLimpo = String(v.cliente).trim();
@@ -2249,27 +2263,23 @@ function renderizarDashboard() {
         }
     });
 
-    // Mapeia os dados do mês atual
     vDashGlobal.forEach(v => { 
         const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
         if (v.status === 'Pago') tRec += val; else tPend += val; 
-        
         tLucroTotal += luc; 
         tVendasTotais += val;
 
         if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; 
         if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; 
 
-        // Ignora presentes para o Ticket Médio e Gráficos
         if (v.status !== 'Presente') {
+            pedidosIdSet.add(v.dataVendaIso + v.cliente);
             qtdVendasReais++;
             
-            // Faturamento Diário
             let dia = v.dataVendaIso ? v.dataVendaIso.split('-')[2] : '00';
             if(!faturamentoPorDia[dia]) faturamentoPorDia[dia] = 0;
             faturamentoPorDia[dia] += val;
 
-            // Mix de Produtos
             let prodRef = estoqueAgrupado[padronizarTexto(v.produto)];
             let catMix = "Outros";
             if (prodRef) {
@@ -2278,87 +2288,84 @@ function renderizarDashboard() {
                 if (tipoLimpo.toLowerCase().includes("perfume")) catMix = `Perfume ${genLimpo}`;
                 else catMix = tipoLimpo;
             }
-            if(!mixProdutos[catMix]) mixProdutos[catMix] = 0;
+            if(!mixProdutos[catMix]) { mixProdutos[catMix] = 0; mixProdutosDetalhes[catMix] = []; }
             mixProdutos[catMix] += val;
+            mixProdutosDetalhes[catMix].push(v);
         }
     }); 
     
     gDashGlobal.forEach(g => tGas += parseDinheiro(g.total)); 
     const lReal = tRec - tGas; 
-    
     let estItens = 0, estValor = 0; 
     estoqueGlobal.forEach(e => { let q = parseFloat(e.qtd) || 0; if (q > 0) { estItens += q; estValor += (q * parseDinheiro(e.preco)); } }); 
     
     const patrimonio = lReal + tPend + estValor; 
-    const ticketMedio = qtdVendasReais > 0 ? (tVendasTotais / qtdVendasReais) : 0;
+    const ticketMedio = pedidosIdSet.size > 0 ? (tVendasTotais / pedidosIdSet.size) : 0;
 
-    // Processamento Final para os Listões e Radar
-    let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3); 
-    let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3); 
-    let topDevedores = Object.keys(devedoresGlobais).map(k => ({ nome: k, divida: devedoresGlobais[k] })).sort((a, b) => b.divida - a.divida).slice(0, 3);
+    let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5); 
+    let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5); 
+    let topDevedores = Object.keys(devedoresGlobais).map(k => ({ nome: k, divida: devedoresGlobais[k] })).sort((a, b) => b.divida - a.divida).slice(0, 5);
     
     let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
     let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
-    let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #fca5a5; padding:8px 0;"><span style="font-size:0.85rem; color:#7f1d1d; font-weight:700;">#${i+1} ${d.nome}</span><strong style="color:#b91c1c; font-size:0.9rem;">${fmt(d.divida)}</strong></div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado pendente! 🎉</p>";
+    
+    let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `
+        <div onclick="switchTab('vendas'); toggleVendasTab('lotes'); document.getElementById('cobranca-cliente').value = '${d.nome}'; prepararCobranca();" 
+             style="display:flex; justify-content:space-between; border-bottom:1px dashed #fca5a5; padding:8px 5px; cursor:pointer; border-radius:4px;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='transparent'">
+            <span style="font-size:0.85rem; color:#7f1d1d; font-weight:700;">#${i+1} 🔗 ${d.nome}</span>
+            <strong style="color:#b91c1c; font-size:0.9rem;">${fmt(d.divida)}</strong>
+        </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado pendente! 🎉</p>";
 
     const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
 
     container.innerHTML = `
         <div class="dashboard-grid">
-            
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
                 <h3 style="color: #e8dde1; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">👑 PATRIMÔNIO NOVERA</h3>
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
                 <p style="font-size: 0.7rem; color: #e8dde1; margin: 5px 0 0 0; opacity: 0.8;">Caixa + Estoque Físico + A Receber</p>
             </div>
-
             <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucro}; background: #fafafa;">
                 <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
                 <p style="font-size:1.8rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
                 <p style="font-size:0.65rem; color:#888; margin-top:3px;">Entradas Pagas - Gastos Totais da Empresa</p>
             </div>
-
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
                 <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
                 <p style="font-size:1.2rem; font-weight:900; color:#2e7d32; margin:0;" id="d-receitas">${fmt(tRec)}</p>
             </div>
-            
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #c62828;">
                 <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">SAÍDAS (GASTOS)</h3>
                 <p style="font-size:1.2rem; font-weight:900; color:#c62828; margin:0;" id="d-gastos">${fmt(tGas)}</p>
             </div>
-
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
                 <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">A RECEBER (FIADO)</h3>
                 <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
             </div>
-
-            <!-- NOVO: TICKET MÉDIO -->
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #0284c7; background: #f0f9ff;">
-                <h3 style="color:#0369a1; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO (POR PEDIDO)</h3>
+                <h3 style="color:#0369a1; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO</h3>
                 <p style="font-size:1.2rem; font-weight:900; color:#0284c7; margin:0;">${fmt(ticketMedio)}</p>
+                <p style="font-size:0.6rem; color:#0284c7; margin-top:3px; opacity:0.8;">Baseado em ${pedidosIdSet.size} pedidos</p>
             </div>
 
             ${htmlRanking}
 
-            <!-- GRÁFICO NOVO: LINHA DE TEMPO -->
             <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO</h3>
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO 👆</h3>
+                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos do gráfico para ver detalhes)</p>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartFatDiario"></canvas>
                 </div>
             </div>
 
-            <!-- GRÁFICO NOVO: FORÇA DE VENDAS E MIX -->
             <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🏅 FORÇA DE VENDAS</h3>
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🏅 FORÇA DE VENDAS 👆</h3>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartForcaVendas"></canvas>
                 </div>
             </div>
-            
             <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🍩 MIX DE PRODUTOS</h3>
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🍩 MIX DE PRODUTOS 👆</h3>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartMixProd"></canvas>
                 </div>
@@ -2366,7 +2373,7 @@ function renderizarDashboard() {
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
                 <div>
-                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE ATUAL FÍSICO</h3>
+                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE FÍSICO</h3>
                     <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
                 </div>
                 <div style="text-align:right;">
@@ -2375,31 +2382,29 @@ function renderizarDashboard() {
                 </div>
             </div>
 
-            <!-- NOVO: RADAR DE COBRANÇA (TOP DEVEDORES) -->
             <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fef2f2; border:1px solid #fecaca;">
-                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 RADAR DA COBRANÇA (MAIORES DEVEDORES GLOBAIS)</h3>
+                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 TOP 5 DEVEDORES GLOBAIS 👆</h3>
+                <p style="font-size:0.6rem; color:#b91c1c; margin-top:-5px; margin-bottom:10px;">(Clique no nome para ir cobrar)</p>
                 <div style="margin-bottom: 15px;">${listaDevedores}</div>
-                <button class="btn-acao" style="width:100%; height:40px; background:#fee2e2; color:#b91c1c; border-color:#fca5a5; font-weight:bold;" onclick="switchTab('vendas'); toggleVendasTab('lotes');">Ir para Lote de Cobranças ➡️</button>
             </div>
 
             <div class="dash-card" style="padding:15px;">
-                <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ TOP 3 PRODUTOS</h3>
+                <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ TOP 5 PRODUTOS</h3>
                 <div id="d-ranking-produtos">${listaProd}</div>
             </div>
-
             <div class="dash-card" style="padding:15px;">
-                <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 3 CLIENTES</h3>
+                <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 5 CLIENTES</h3>
                 <div id="d-ranking-clientes">${listaCli}</div>
             </div>
 
             <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS</h3>
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS 👆</h3>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartReceitasGastos"></canvas>
                 </div>
             </div>
             <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS</h3>
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS 👆</h3>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartStatusVendas"></canvas>
                 </div>
@@ -2410,64 +2415,130 @@ function renderizarDashboard() {
         </div>
     `;
 
-    // 🎨 RENDERIZAÇÃO DOS GRÁFICOS (Chart.js)
+    // 🎨 RENDERIZAÇÃO DOS GRÁFICOS INTERATIVOS (Chart.js)
     if (typeof Chart !== 'undefined') { 
-        
-        // 1. Limpeza Segura (Destrói os gráficos antigos para evitar sobreposição)
         if (window.gFatDiario) window.gFatDiario.destroy();
         if (window.gForcaVendas) window.gForcaVendas.destroy();
         if (window.gMixProd) window.gMixProd.destroy();
         if (window.gReceitasGastos) window.gReceitasGastos.destroy();
         if (window.gStatusVendas) window.gStatusVendas.destroy();
         
-        // 2. Gráfico: Linha do Tempo Faturamento
+        // Função Mágica de DRILL-DOWN (Aceita Vendas ou Gastos!)
+        const exibirDetalhesGrafico = (titulo, arrayDados, tipoModal = 'vendas') => {
+            let html = arrayDados.map(item => {
+                if(tipoModal === 'vendas') {
+                    return `
+                    <div style="border-bottom:1px dashed #e5e7eb; padding:10px 0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <b style="color:var(--brand-dark);">${item.qtd}x ${item.produto}</b>
+                            <b style="color:#15803d;">${safeFmt(item.valor_venda)}</b>
+                        </div>
+                        <div style="font-size:0.7rem; color:#64748b;">👤 Cli: ${item.cliente} | 👔 Vend: ${item.socio} | 📊 ${item.status}</div>
+                    </div>`;
+                } else {
+                    return `
+                    <div style="border-bottom:1px dashed #e5e7eb; padding:10px 0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <b style="color:var(--brand-dark);">${item.item}</b>
+                            <b style="color:#b91c1c;">${safeFmt(item.total)}</b>
+                        </div>
+                        <div style="font-size:0.7rem; color:#64748b;">📍 Loc: ${item.local} | 👤 Por: ${item.socio} | 📅 ${item.dataDisplay || item.dataIso}</div>
+                    </div>`;
+                }
+            }).join('');
+            document.getElementById('titulo-detalhes-chart').innerText = titulo;
+            document.getElementById('conteudo-detalhes-chart').innerHTML = html || '<p>Sem dados registrados.</p>';
+            document.getElementById('modal-detalhes-chart').style.display = 'flex';
+        };
+
         const ctxFat = document.getElementById('chartFatDiario').getContext('2d');
         let diasOrdenados = Object.keys(faturamentoPorDia).sort();
         let valoresDiarios = diasOrdenados.map(d => faturamentoPorDia[d]);
         window.gFatDiario = new Chart(ctxFat, {
             type: 'line',
-            data: { 
-                labels: diasOrdenados.map(d => `Dia ${d}`), 
-                datasets: [{ label: 'Faturamento', data: valoresDiarios, borderColor: '#0369a1', backgroundColor: 'rgba(3, 105, 161, 0.2)', fill: true, tension: 0.4 }] 
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            data: { labels: diasOrdenados.map(d => `Dia ${d}`), datasets: [{ label: 'Faturamento', data: valoresDiarios, borderColor: '#0369a1', backgroundColor: 'rgba(3, 105, 161, 0.2)', fill: true, tension: 0.4 }] },
+            options: { 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        const diaSelect = diasOrdenados[activeEls[0].index];
+                        let venDoDia = vDashGlobal.filter(v => v.dataVendaIso && v.dataVendaIso.split('-')[2] == diaSelect && v.status !== 'Presente');
+                        exibirDetalhesGrafico(`Faturamento do Dia ${diaSelect}`, venDoDia, 'vendas');
+                    }
+                }
+            }
         });
 
-        // 3. Gráfico: Força de Vendas (Barras)
         const ctxForca = document.getElementById('chartForcaVendas').getContext('2d');
         window.gForcaVendas = new Chart(ctxForca, {
             type: 'bar',
-            data: { 
-                labels: rankingArr.map(r => r.nome), 
-                datasets: [{ label: 'Total Vendido', data: rankingArr.map(r => r.total), backgroundColor: '#b45309', borderRadius: 4 }] 
-            },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            data: { labels: rankingArr.map(r => r.nome), datasets: [{ label: 'Total Vendido', data: rankingArr.map(r => r.total), backgroundColor: '#b45309', borderRadius: 4 }] },
+            options: { 
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        const vendedorSel = rankingArr[activeEls[0].index].nome;
+                        let venVend = vDashGlobal.filter(v => String(v.socio).trim() === vendedorSel && v.status !== 'Presente');
+                        exibirDetalhesGrafico(`Vendas: ${vendedorSel}`, venVend, 'vendas');
+                    }
+                }
+            }
         });
 
-        // 4. Gráfico: Mix de Produtos (Rosca)
         const ctxMix = document.getElementById('chartMixProd').getContext('2d');
+        const chavesMix = Object.keys(mixProdutos);
         window.gMixProd = new Chart(ctxMix, {
             type: 'doughnut',
-            data: { 
-                labels: Object.keys(mixProdutos), 
-                datasets: [{ data: Object.values(mixProdutos), backgroundColor: ['#be185d', '#0369a1', '#166534', '#b45309', '#7c3aed', '#4b5563', '#1e40af'], borderWidth: 0 }] 
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 9 } } } } }
+            data: { labels: chavesMix, datasets: [{ data: Object.values(mixProdutos), backgroundColor: ['#be185d', '#0369a1', '#166534', '#b45309', '#7c3aed', '#4b5563', '#1e40af'], borderWidth: 0 }] },
+            options: { 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 9 } } } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        const catSel = chavesMix[activeEls[0].index];
+                        exibirDetalhesGrafico(`Saídas de ${catSel}`, mixProdutosDetalhes[catSel], 'vendas');
+                    }
+                }
+            }
         });
 
-        // 5. Gráficos Antigos (Caixa x Gasto e Status Pago x Fiado)
+        // 🖱️ A NOVA MÁGICA DE CLIQUES NOS GRÁFICOS ANTIGOS!
         const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); 
         window.gReceitasGastos = new Chart(ctxRG, { 
             type: 'bar', 
             data: { labels: ['Caixa Real', 'Gastos'], datasets: [{ label: 'Valor', data: [tRec, tGas], backgroundColor: ['#15803d', '#b91c1c'], borderRadius: 6 }] }, 
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
+            options: { 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        if(activeEls[0].index === 0) {
+                            let vPagas = vDashGlobal.filter(v => v.status === 'Pago');
+                            exibirDetalhesGrafico(`Entradas Reais (Pagas)`, vPagas, 'vendas');
+                        } else {
+                            exibirDetalhesGrafico(`Histórico de Gastos`, gDashGlobal, 'gastos');
+                        }
+                    }
+                }
+            } 
         }); 
         
         const ctxSt = document.getElementById('chartStatusVendas').getContext('2d'); 
         window.gStatusVendas = new Chart(ctxSt, { 
             type: 'doughnut', 
             data: { labels: ['Pago', 'Fiado'], datasets: [{ data: [tRec, tPend], backgroundColor: ['#15803d', '#f59e0b'], borderWidth: 0 }] }, 
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } 
+            options: { 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        if(activeEls[0].index === 0) {
+                            let vPagas = vDashGlobal.filter(v => v.status === 'Pago');
+                            exibirDetalhesGrafico(`Pedidos Pagos`, vPagas, 'vendas');
+                        } else {
+                            let vFiado = vDashGlobal.filter(v => v.status === 'Pendente' || v.status === 'Parcelado');
+                            exibirDetalhesGrafico(`Pedidos no Fiado`, vFiado, 'vendas');
+                        }
+                    }
+                }
+            } 
         }); 
     }
 }

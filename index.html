@@ -520,11 +520,20 @@
             <datalist id="lista-clientes"></datalist><datalist id="lista-socios-dinamica"></datalist>
         </div>
 
-        <!-- ABA: DASHBOARD / PAINEL -->
+      <!-- ABA: DASHBOARD / PAINEL -->
         <div id="tab-dashboard" class="tab-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                 <div class="section-title" style="margin: 0;">📊 Painel de Desempenho</div>
-                <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    
+                    <!-- NOVO FILTRO DE VENDEDOR (SÓ PARA ADMIN) -->
+                    <div style="display:flex; flex-direction:column; display:none;" id="box-filtro-socio-dash">
+                        <label style="font-size: 0.6rem; color: #888; font-weight:700;">VENDEDOR</label>
+                        <select id="d-filtro-socio" class="filtro-box" style="padding: 5px 10px; font-size: 0.8rem; margin:0; border-color: #0369a1; color: #0369a1; font-weight: bold;" onchange="renderizarDashboard()">
+                            <option value="">Equipe Toda</option>
+                        </select>
+                    </div>
+
                     <div style="display:flex; flex-direction:column;">
                         <label style="font-size: 0.6rem; color: #888; font-weight:700;">MÊS</label>
                         <select id="d-filtro-mes" class="filtro-box" style="padding: 5px 10px; font-size: 0.8rem; margin:0;" onchange="renderizarDashboard()">
@@ -1094,6 +1103,19 @@
 
     </div>
 </div>
+
+<!-- MODAL DE DETALHES DOS GRÁFICOS (BI) -->
+<div id="modal-detalhes-chart" class="modal-overlay-alert" style="z-index: 10006; display: none;">
+    <div class="modal-box-alert" style="width: 95%; max-width: 500px; padding: 0; text-align: left; background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+        <div style="background: var(--primary-dark); color: #fff; padding: 20px; text-align: center; position: relative;">
+            <button onclick="document.getElementById('modal-detalhes-chart').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.2); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #fff; cursor: pointer;">×</button>
+            <h3 id="titulo-detalhes-chart" style="margin: 0; font-family: 'Playfair Display', serif; font-size: 1.2rem;">Detalhes</h3>
+        </div>
+        <div id="conteudo-detalhes-chart" style="padding: 20px; max-height: 60vh; overflow-y: auto; font-size: 0.85rem; color: var(--brand-dark);">
+        </div>
+    </div>
+</div>
+
 
 <div id="modal-novidades" class="modal-overlay-alert" style="z-index: 10006;">
     <div class="modal-box-alert" style="width: 95%; max-width: 450px; padding: 30px 20px; text-align: left; background: #fff; border-radius: 20px;">
