@@ -2118,8 +2118,6 @@ function renderizarDashboard() {
     // RANKING DE VENDEDORES (Inteligente)
     // ============================================
     let rankingMap = {};
-    
-    // Pega Admins do banco E bloqueia os chefes e fantasmas manualmente!
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin');
 
@@ -2127,11 +2125,7 @@ function renderizarDashboard() {
         let s = String(v.socio || '').trim();
         let sLower = s.toLowerCase();
         
-        // 🛡️ A MÁGICA CORRIGIDA AQUI: 
-        // Se a pessoa olhando NÃO for Admin, e o vendedor for um chefe, pula!
         if (!isAdmin && nomesAdmins.includes(sLower)) return;
-        
-        // O "Sem Vendedor" a gente pula sempre para não poluir o gráfico
         if (sLower === 'sem vendedor' || sLower === '') return;
 
         if(!rankingMap[s]) rankingMap[s] = { total: 0, comissaoPend: 0, itens: 0 };
@@ -2234,19 +2228,59 @@ function renderizarDashboard() {
     }
 
     // ============================================
-    // VISÃO DO ADMIN (Controle Absoluto)
+    // VISÃO DO ADMIN (Mesa de Guerra / War Room)
     // ============================================
     const gDashGlobal = gastosGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true);
     
-    let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0;
+    let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0, tVendasTotais = 0, qtdVendasReais = 0;
     let mProd = {}, mCli = {}; 
 
+    // 📊 Inteligência de Gráficos (Data Prep)
+    let faturamentoPorDia = {};
+    let mixProdutos = {};
+    let devedoresGlobais = {};
+
+    // Mapeia todas as dívidas globais (independente do mês) para o Radar de Cobrança
+    vendasGlobal.forEach(v => {
+        if (v.status === 'Pendente' || v.status === 'Parcelado') {
+            let clienteLimpo = String(v.cliente).trim();
+            if (!devedoresGlobais[clienteLimpo]) devedoresGlobais[clienteLimpo] = 0;
+            devedoresGlobais[clienteLimpo] += parseDinheiro(v.valor_venda);
+        }
+    });
+
+    // Mapeia os dados do mês atual
     vDashGlobal.forEach(v => { 
         const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
         if (v.status === 'Pago') tRec += val; else tPend += val; 
+        
         tLucroTotal += luc; 
+        tVendasTotais += val;
+
         if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; 
         if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; 
+
+        // Ignora presentes para o Ticket Médio e Gráficos
+        if (v.status !== 'Presente') {
+            qtdVendasReais++;
+            
+            // Faturamento Diário
+            let dia = v.dataVendaIso ? v.dataVendaIso.split('-')[2] : '00';
+            if(!faturamentoPorDia[dia]) faturamentoPorDia[dia] = 0;
+            faturamentoPorDia[dia] += val;
+
+            // Mix de Produtos
+            let prodRef = estoqueAgrupado[padronizarTexto(v.produto)];
+            let catMix = "Outros";
+            if (prodRef) {
+                let tipoLimpo = String(prodRef.tipo).trim();
+                let genLimpo = String(prodRef.genero).trim();
+                if (tipoLimpo.toLowerCase().includes("perfume")) catMix = `Perfume ${genLimpo}`;
+                else catMix = tipoLimpo;
+            }
+            if(!mixProdutos[catMix]) mixProdutos[catMix] = 0;
+            mixProdutos[catMix] += val;
+        }
     }); 
     
     gDashGlobal.forEach(g => tGas += parseDinheiro(g.total)); 
@@ -2256,17 +2290,22 @@ function renderizarDashboard() {
     estoqueGlobal.forEach(e => { let q = parseFloat(e.qtd) || 0; if (q > 0) { estItens += q; estValor += (q * parseDinheiro(e.preco)); } }); 
     
     const patrimonio = lReal + tPend + estValor; 
+    const ticketMedio = qtdVendasReais > 0 ? (tVendasTotais / qtdVendasReais) : 0;
 
+    // Processamento Final para os Listões e Radar
     let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 3); 
     let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 3); 
+    let topDevedores = Object.keys(devedoresGlobais).map(k => ({ nome: k, divida: devedoresGlobais[k] })).sort((a, b) => b.divida - a.divida).slice(0, 3);
     
     let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
     let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+    let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #fca5a5; padding:8px 0;"><span style="font-size:0.85rem; color:#7f1d1d; font-weight:700;">#${i+1} ${d.nome}</span><strong style="color:#b91c1c; font-size:0.9rem;">${fmt(d.divida)}</strong></div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado pendente! 🎉</p>";
 
     const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
 
     container.innerHTML = `
         <div class="dashboard-grid">
+            
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
                 <h3 style="color: #e8dde1; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">👑 PATRIMÔNIO NOVERA</h3>
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
@@ -2294,12 +2333,36 @@ function renderizarDashboard() {
                 <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
             </div>
 
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #7c3aed;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">LUCRO LÍQUIDO PROJETADO</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#7c3aed; margin:0;" id="d-lucro-projetado">${fmt(tLucroTotal)}</p>
+            <!-- NOVO: TICKET MÉDIO -->
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #0284c7; background: #f0f9ff;">
+                <h3 style="color:#0369a1; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO (POR PEDIDO)</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#0284c7; margin:0;">${fmt(ticketMedio)}</p>
             </div>
 
             ${htmlRanking}
+
+            <!-- GRÁFICO NOVO: LINHA DE TEMPO -->
+            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO</h3>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="chartFatDiario"></canvas>
+                </div>
+            </div>
+
+            <!-- GRÁFICO NOVO: FORÇA DE VENDAS E MIX -->
+            <div class="dash-card" style="padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🏅 FORÇA DE VENDAS</h3>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="chartForcaVendas"></canvas>
+                </div>
+            </div>
+            
+            <div class="dash-card" style="padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🍩 MIX DE PRODUTOS</h3>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="chartMixProd"></canvas>
+                </div>
+            </div>
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
                 <div>
@@ -2310,6 +2373,13 @@ function renderizarDashboard() {
                     <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">VALOR VAREJO DO ESTOQUE</h3>
                     <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
                 </div>
+            </div>
+
+            <!-- NOVO: RADAR DE COBRANÇA (TOP DEVEDORES) -->
+            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fef2f2; border:1px solid #fecaca;">
+                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 RADAR DA COBRANÇA (MAIORES DEVEDORES GLOBAIS)</h3>
+                <div style="margin-bottom: 15px;">${listaDevedores}</div>
+                <button class="btn-acao" style="width:100%; height:40px; background:#fee2e2; color:#b91c1c; border-color:#fca5a5; font-weight:bold;" onclick="switchTab('vendas'); toggleVendasTab('lotes');">Ir para Lote de Cobranças ➡️</button>
             </div>
 
             <div class="dash-card" style="padding:15px;">
@@ -2324,37 +2394,80 @@ function renderizarDashboard() {
 
             <div class="dash-card" style="padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS</h3>
-                <div style="position: relative; height: 220px; width: 100%;">
+                <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartReceitasGastos"></canvas>
                 </div>
             </div>
             <div class="dash-card" style="padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS</h3>
-                <div style="position: relative; height: 220px; width: 100%;">
+                <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartStatusVendas"></canvas>
                 </div>
             </div>
-            <!-- Divs Ocultas para o botão de copiar o Resumo Funcionar -->
+            
             <div id="d-patrimonio" style="display:none;">${fmt(patrimonio)}</div>
+            <div id="d-lucro-projetado" style="display:none;">${fmt(tLucroTotal)}</div>
         </div>
     `;
 
+    // 🎨 RENDERIZAÇÃO DOS GRÁFICOS (Chart.js)
     if (typeof Chart !== 'undefined') { 
-        const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); 
-        const ctxSt = document.getElementById('chartStatusVendas').getContext('2d'); 
         
-        if (chartRGBase) chartRGBase.destroy(); 
-        chartRGBase = new Chart(ctxRG, { 
+        // 1. Limpeza Segura (Destrói os gráficos antigos para evitar sobreposição)
+        if (window.gFatDiario) window.gFatDiario.destroy();
+        if (window.gForcaVendas) window.gForcaVendas.destroy();
+        if (window.gMixProd) window.gMixProd.destroy();
+        if (window.gReceitasGastos) window.gReceitasGastos.destroy();
+        if (window.gStatusVendas) window.gStatusVendas.destroy();
+        
+        // 2. Gráfico: Linha do Tempo Faturamento
+        const ctxFat = document.getElementById('chartFatDiario').getContext('2d');
+        let diasOrdenados = Object.keys(faturamentoPorDia).sort();
+        let valoresDiarios = diasOrdenados.map(d => faturamentoPorDia[d]);
+        window.gFatDiario = new Chart(ctxFat, {
+            type: 'line',
+            data: { 
+                labels: diasOrdenados.map(d => `Dia ${d}`), 
+                datasets: [{ label: 'Faturamento', data: valoresDiarios, borderColor: '#0369a1', backgroundColor: 'rgba(3, 105, 161, 0.2)', fill: true, tension: 0.4 }] 
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        // 3. Gráfico: Força de Vendas (Barras)
+        const ctxForca = document.getElementById('chartForcaVendas').getContext('2d');
+        window.gForcaVendas = new Chart(ctxForca, {
+            type: 'bar',
+            data: { 
+                labels: rankingArr.map(r => r.nome), 
+                datasets: [{ label: 'Total Vendido', data: rankingArr.map(r => r.total), backgroundColor: '#b45309', borderRadius: 4 }] 
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        // 4. Gráfico: Mix de Produtos (Rosca)
+        const ctxMix = document.getElementById('chartMixProd').getContext('2d');
+        window.gMixProd = new Chart(ctxMix, {
+            type: 'doughnut',
+            data: { 
+                labels: Object.keys(mixProdutos), 
+                datasets: [{ data: Object.values(mixProdutos), backgroundColor: ['#be185d', '#0369a1', '#166534', '#b45309', '#7c3aed', '#4b5563', '#1e40af'], borderWidth: 0 }] 
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 9 } } } } }
+        });
+
+        // 5. Gráficos Antigos (Caixa x Gasto e Status Pago x Fiado)
+        const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); 
+        window.gReceitasGastos = new Chart(ctxRG, { 
             type: 'bar', 
             data: { labels: ['Caixa Real', 'Gastos'], datasets: [{ label: 'Valor', data: [tRec, tGas], backgroundColor: ['#15803d', '#b91c1c'], borderRadius: 6 }] }, 
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
         }); 
         
-        if (chartStatusBase) chartStatusBase.destroy(); 
-        chartStatusBase = new Chart(ctxSt, { 
+        const ctxSt = document.getElementById('chartStatusVendas').getContext('2d'); 
+        window.gStatusVendas = new Chart(ctxSt, { 
             type: 'doughnut', 
             data: { labels: ['Pago', 'Fiado'], datasets: [{ data: [tRec, tPend], backgroundColor: ['#15803d', '#f59e0b'], borderWidth: 0 }] }, 
-            options: { responsive: true, maintainAspectRatio: false } 
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } 
         }); 
     }
 }
