@@ -2389,10 +2389,12 @@ function renderizarDashboard() {
     let pedidosIdSet = new Set(); 
 
     let faturamentoPorDia = {};
+    let recebimentosPorDia = {}; // 📈 A MATRIZ DO NOVO GRÁFICO
     let mixProdutos = {};
     let mixProdutosDetalhes = {}; 
     let devedoresFiltrados = {}; 
 
+    // Mapeia todas as vendas para gerar o Faturamento de Vendas (o que saiu no mês)
     vDashGlobal.forEach(v => { 
         const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
         if (v.status === 'Pago') tRec += val; else tPend += val; 
@@ -2429,6 +2431,23 @@ function renderizarDashboard() {
             mixProdutosDetalhes[catMix].push(v);
         }
     }); 
+
+    // ⭐ INTELIGÊNCIA: Mapeia os RECEBIMENTOS REAIS (Caixa que entrou este mês, mesmo de vendas antigas)
+    vSocioGlobal.forEach(v => {
+        if (v.status === 'Pago' && v.dataPgtoDisplay) {
+            let parts = v.dataPgtoDisplay.split('/');
+            if (parts.length === 3) {
+                let dDia = parts[0];
+                let dMes = parts[1];
+                let dAno = parts[2];
+                // Se a data de pagamento cair no mês/ano do filtro atual:
+                if (dMes === fM && dAno === fA) {
+                    if (!recebimentosPorDia[dDia]) recebimentosPorDia[dDia] = 0;
+                    recebimentosPorDia[dDia] += parseDinheiro(v.valor_venda);
+                }
+            }
+        }
+    });
     
     gDashGlobal.forEach(g => tGas += parseDinheiro(g.total)); 
     const lReal = tRec - tGas; 
@@ -2468,7 +2487,6 @@ function renderizarDashboard() {
     });
     gSocioGlobal.forEach(g => { let val = parseDinheiro(g.total); if(g.dataIso && g.dataIso.startsWith(pfx)) cGas += val; if(g.dataIso && g.dataIso.startsWith(pfxPrev)) pGas += val; });
 
-    // CÁLCULO DA GAMIFICAÇÃO ADMIN
     let crescimentoAdminIcon = '➖'; let crescimentoAdminTxt = 'Igual ao período anterior';
     if (pVen > 0) {
         let perc = ((tVendasTotais - pVen) / pVen) * 100;
@@ -2519,7 +2537,6 @@ function renderizarDashboard() {
                 </div>
             </div>
 
-            <!-- ⭐ NOVO CARTÃO DE VENDAS TOTAIS ADMIN AQUI -->
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
                 <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">TOTAL VENDIDO NO PERÍODO</h3>
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVendasTotais)}</p>
@@ -2565,9 +2582,18 @@ function renderizarDashboard() {
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO 👆</h3>
-                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos para detalhes)</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Vendas realizadas no dia, pago ou fiado)</p>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartFatDiario"></canvas>
+                </div>
+            </div>
+
+            <!-- ⭐ NOVO: GRÁFICO DE RECEBIMENTOS DIÁRIOS -->
+            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📉 CURVA DE RECEBIMENTOS DIÁRIOS 👆</h3>
+                <p style="font-size:0.6rem; color:#15803d; font-weight:bold; margin-top:-5px; margin-bottom:10px;">(Dinheiro que efetivamente entrou no Caixa a cada dia)</p>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="chartRecDiario"></canvas>
                 </div>
             </div>
 
@@ -2619,6 +2645,7 @@ function renderizarDashboard() {
 
     if (typeof Chart !== 'undefined') { 
         if (window.gFatDiario) window.gFatDiario.destroy();
+        if (window.gRecDiario) window.gRecDiario.destroy(); // Novo Destroy
         if (window.gForcaVendas) window.gForcaVendas.destroy();
         if (window.gMixProd) window.gMixProd.destroy();
         if (window.gReceitasGastos) window.gReceitasGastos.destroy();
@@ -2698,6 +2725,25 @@ function renderizarDashboard() {
             }
         });
 
+        // ⭐ O NOVO GRÁFICO DE RECEBIMENTOS
+        const ctxRec = document.getElementById('chartRecDiario').getContext('2d');
+        let diasRecOrd = Object.keys(recebimentosPorDia).sort();
+        let valRecDiarios = diasRecOrd.map(d => recebimentosPorDia[d]);
+        window.gRecDiario = new Chart(ctxRec, {
+            type: 'line',
+            data: { labels: diasRecOrd.map(d => `Dia ${d}`), datasets: [{ label: 'Recebido', data: valRecDiarios, borderColor: '#15803d', backgroundColor: 'rgba(21, 128, 61, 0.2)', fill: true, tension: 0.4 }] },
+            options: { 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } },
+                onClick: (e, activeEls) => {
+                    if(activeEls.length > 0) {
+                        const diaSelect = diasRecOrd[activeEls[0].index];
+                        let recDoDia = vSocioGlobal.filter(v => v.status === 'Pago' && v.dataPgtoDisplay && v.dataPgtoDisplay.startsWith(`${diaSelect}/${fM}/${fA}`));
+                        exibirDetalhesGrafico(`Recebimentos do Dia ${diaSelect}`, recDoDia, 'vendas');
+                    }
+                }
+            }
+        });
+
         const ctxForca = document.getElementById('chartForcaVendas').getContext('2d');
         window.gForcaVendas = new Chart(ctxForca, {
             type: 'bar',
@@ -2757,7 +2803,7 @@ function renderizarDashboard() {
                 responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
                 onClick: (e, activeEls) => {
                     if(activeEls.length > 0) {
-                        if(activeEls[0].index === 0) {
+                        if(activeEls[0].index === 0) { 
                             let vPagas = vDashGlobal.filter(v => v.status === 'Pago');
                             exibirDetalhesGrafico(`Pedidos Pagos`, vPagas, 'vendas');
                         } else { 
