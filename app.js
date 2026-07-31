@@ -2121,7 +2121,6 @@ function renderizarDashboard() {
     
     if (isAdmin) {
         if(boxFiltroSocio) boxFiltroSocio.style.display = 'flex';
-        // Preenche a caixinha de vendedores dinamicamente se estiver vazia
         if (selSocio && selSocio.options.length <= 1 && vendasGlobal.length > 0) {
             let sociosSet = new Set();
             vendasGlobal.forEach(v => { if(v.socio) sociosSet.add(String(v.socio).trim()); });
@@ -2135,12 +2134,11 @@ function renderizarDashboard() {
 
     const fSocioDash = (selSocio && isAdmin) ? selSocio.value.toLowerCase().trim() : "";
 
-    // 3. APLICA OS FILTROS NO BANCO DE DADOS LOCAL
-    const vDashGlobal = vendasGlobal.filter(v => {
-        let passTempo = pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true;
-        let passSocio = fSocioDash ? (String(v.socio || '').toLowerCase().trim() === fSocioDash) : true;
-        return passTempo && passSocio;
-    });
+    // 3. BASE DE DADOS COM FILTRO DE SÓCIO APLICADO
+    const vSocioGlobal = vendasGlobal.filter(v => fSocioDash ? (String(v.socio || '').toLowerCase().trim() === fSocioDash) : true);
+    const gSocioGlobal = gastosGlobal.filter(g => fSocioDash ? (String(g.socio || '').toLowerCase().trim() === fSocioDash) : true);
+
+    const vDashGlobal = vSocioGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true);
 
     let rankingMap = {};
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
@@ -2163,7 +2161,7 @@ function renderizarDashboard() {
     let rankingArr = Object.keys(rankingMap).map(k => ({ nome: k, ...rankingMap[k] })).sort((a,b) => b.total - a.total);
 
     let htmlRanking = `<div class="dash-card" style="grid-column: span 2; padding: 15px; border: 1px solid #fde047; box-shadow: 0 4px 15px rgba(253, 224, 71, 0.2);">
-        <h3 style="color:#b45309; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🏆 RANKING DE VENDAS DO MÊS</h3>
+        <h3 style="color:#b45309; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🏆 RANKING DE VENDAS DO PERÍODO</h3>
         <div style="display:flex; flex-direction:column; gap:8px;">`;
     if (rankingArr.length === 0) htmlRanking += `<p style='text-align:center; color:#999; font-size:0.8rem; margin:0;'>Nenhuma venda registrada.</p>`;
     
@@ -2192,14 +2190,43 @@ function renderizarDashboard() {
         let minhasVendas = vDashGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
         let tVend = 0, tItens = 0, comAprovada = 0, comPendente = 0;
         let mProd = {}, mCli = {};
+        let faturamentoPorDiaMeus = {};
 
         minhasVendas.forEach(v => {
             const val = parseDinheiro(v.valor_venda); const com = parseFloat(v.valor_comissao) || 0; const q = parseInt(v.qtd) || 1;
             tVend += val; tItens += q;
             if(v.status === 'Pago' && v.repasse_feito) comAprovada += com; else comPendente += com;
+            
             if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q;
             if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
+
+            if (v.status !== 'Presente') {
+                let dia = v.dataVendaIso ? v.dataVendaIso.split('-')[2] : '00';
+                if(!faturamentoPorDiaMeus[dia]) faturamentoPorDiaMeus[dia] = 0;
+                faturamentoPorDiaMeus[dia] += val;
+            }
         });
+
+        let prevM_int = parseInt(fM) - 1; let prevA_int = parseInt(fA);
+        if(prevM_int === 0) { prevM_int = 12; prevA_int -= 1; }
+        let prevM_str = String(prevM_int).padStart(2, '0');
+        let pfxPrev = `${prevA_int}-${prevM_str}`;
+        
+        let pVendMeus = 0;
+        vendasGlobal.forEach(v => {
+            if (String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim() && v.dataVendaIso && v.dataVendaIso.startsWith(pfxPrev) && v.status !== 'Presente') {
+                pVendMeus += parseDinheiro(v.valor_venda);
+            }
+        });
+        
+        let crescimentoIcon = '➖'; let crescimentoCor = '#888'; let crescimentoTxt = 'Igual ao mês anterior';
+        if (pVendMeus > 0) {
+            let perc = ((tVend - pVendMeus) / pVendMeus) * 100;
+            if (perc > 0) { crescimentoIcon = '📈'; crescimentoCor = '#15803d'; crescimentoTxt = `+${perc.toFixed(1)}% vs Mês Ant.`; }
+            else if (perc < 0) { crescimentoIcon = '📉'; crescimentoCor = '#b91c1c'; crescimentoTxt = `${perc.toFixed(1)}% vs Mês Ant.`; }
+        } else if (tVend > 0) {
+            crescimentoIcon = '🚀'; crescimentoCor = '#15803d'; crescimentoTxt = `Novo recorde!`;
+        }
 
         let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
         let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5);
@@ -2210,19 +2237,34 @@ function renderizarDashboard() {
         container.innerHTML = `
             <div class="dashboard-grid">
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
-                    <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">MINHAS VENDAS TOTAIS</h3>
+                    <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">MINHAS VENDAS NO PERÍODO</h3>
                     <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVend)}</p>
                     <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">${tItens} produtos vendidos</p>
+                    <div style="margin-top: 10px; background: rgba(255,255,255,0.1); display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; color: #fff; font-weight: bold;">
+                        ${crescimentoIcon} ${crescimentoTxt} (Anterior: ${fmt(pVendMeus)})
+                    </div>
                 </div>
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
-                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO APROVADA</h3>
+                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO REPASSADA (PAGA)</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#2e7d32; margin:0;">${fmt(comAprovada)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Já acertado c/ a empresa</p>
                 </div>
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
                     <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO PENDENTE</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#b45309; margin:0;">${fmt(comPendente)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
+                
                 ${htmlRanking}
+                
+                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 MEU DESEMPENHO DIÁRIO 👆</h3>
+                    <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos para detalhes)</p>
+                    <div style="position: relative; height: 200px; width: 100%;">
+                        <canvas id="chartFatDiarioVendedor"></canvas>
+                    </div>
+                </div>
+
                 <div class="dash-card" style="padding:15px;">
                     <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP 5 PRODUTOS</h3>
                     ${listaProd}
@@ -2232,6 +2274,43 @@ function renderizarDashboard() {
                     ${listaCli}
                 </div>
             </div>`;
+
+        if (typeof Chart !== 'undefined') {
+            if (window.gFatDiarioVend) window.gFatDiarioVend.destroy();
+            
+            const exibirDetalhesGraficoVend = (titulo, arrayDados) => {
+                let html = arrayDados.map(item => `
+                    <div style="border-bottom:1px dashed #e5e7eb; padding:10px 0;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <b style="color:var(--brand-dark);">${item.qtd}x ${item.produto}</b>
+                            <b style="color:#15803d;">${safeFmt(item.valor_venda)}</b>
+                        </div>
+                        <div style="font-size:0.7rem; color:#64748b;">👤 Cli: ${item.cliente} | 📊 ${item.status}</div>
+                    </div>`).join('');
+                document.getElementById('titulo-detalhes-chart').innerText = titulo;
+                document.getElementById('conteudo-detalhes-chart').innerHTML = html || '<p>Sem dados registrados.</p>';
+                document.getElementById('modal-detalhes-chart').style.display = 'flex';
+            };
+
+            const ctxFatVend = document.getElementById('chartFatDiarioVendedor').getContext('2d');
+            let diasOrdVend = Object.keys(faturamentoPorDiaMeus).sort();
+            let valDiariosVend = diasOrdVend.map(d => faturamentoPorDiaMeus[d]);
+            
+            window.gFatDiarioVend = new Chart(ctxFatVend, {
+                type: 'line',
+                data: { labels: diasOrdVend.map(d => `Dia ${d}`), datasets: [{ label: 'Faturamento', data: valDiariosVend, borderColor: '#0369a1', backgroundColor: 'rgba(3, 105, 161, 0.2)', fill: true, tension: 0.4 }] },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } },
+                    onClick: (e, activeEls) => {
+                        if(activeEls.length > 0) {
+                            const diaSelect = diasOrdVend[activeEls[0].index];
+                            let venDoDia = minhasVendas.filter(v => v.dataVendaIso && v.dataVendaIso.split('-')[2] == diaSelect && v.status !== 'Presente');
+                            exibirDetalhesGraficoVend(`Minhas Vendas (Dia ${diaSelect})`, venDoDia);
+                        }
+                    }
+                }
+            });
+        }
         return; 
     }
 
@@ -2239,12 +2318,7 @@ function renderizarDashboard() {
     // VISÃO DO ADMIN (War Room / MESA DE DIRETORIA)
     // ============================================
     
-    // Filtra gastos respeitando Data e também o Sócio, se houver filtro aplicado
-    const gDashGlobal = gastosGlobal.filter(g => {
-        let passTempo = pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true;
-        let passSocio = fSocioDash ? (String(g.socio || '').toLowerCase().trim() === fSocioDash) : true;
-        return passTempo && passSocio;
-    });
+    const gDashGlobal = gSocioGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true);
     
     let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0, tVendasTotais = 0, qtdVendasReais = 0;
     let mProd = {}, mCli = {}; 
@@ -2253,21 +2327,19 @@ function renderizarDashboard() {
     let faturamentoPorDia = {};
     let mixProdutos = {};
     let mixProdutosDetalhes = {}; 
-    let devedoresGlobais = {};
-
-    vendasGlobal.forEach(v => {
-        if (v.status === 'Pendente' || v.status === 'Parcelado') {
-            let clienteLimpo = String(v.cliente).trim();
-            if (!devedoresGlobais[clienteLimpo]) devedoresGlobais[clienteLimpo] = 0;
-            devedoresGlobais[clienteLimpo] += parseDinheiro(v.valor_venda);
-        }
-    });
+    let devedoresFiltrados = {}; 
 
     vDashGlobal.forEach(v => { 
         const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
         if (v.status === 'Pago') tRec += val; else tPend += val; 
         tLucroTotal += luc; 
         tVendasTotais += val;
+
+        if (v.status === 'Pendente' || v.status === 'Parcelado') {
+            let clienteLimpo = String(v.cliente).trim();
+            if (!devedoresFiltrados[clienteLimpo]) devedoresFiltrados[clienteLimpo] = 0;
+            devedoresFiltrados[clienteLimpo] += val;
+        }
 
         if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; 
         if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; 
@@ -2302,19 +2374,59 @@ function renderizarDashboard() {
     const patrimonio = lReal + tPend + estValor; 
     const ticketMedio = pedidosIdSet.size > 0 ? (tVendasTotais / pedidosIdSet.size) : 0;
 
+    let histVendas = new Array(12).fill(0), histRec = new Array(12).fill(0), histGastos = new Array(12).fill(0);
+    vSocioGlobal.forEach(v => {
+        if(v.dataVendaIso && v.dataVendaIso.startsWith(fA) && v.status !== 'Presente') {
+            let mIndex = parseInt(v.dataVendaIso.split('-')[1]) - 1;
+            let val = parseDinheiro(v.valor_venda);
+            histVendas[mIndex] += val;
+            if(v.status === 'Pago') histRec[mIndex] += val;
+        }
+    });
+    gSocioGlobal.forEach(g => {
+        if(g.dataIso && g.dataIso.startsWith(fA)) {
+            let mIndex = parseInt(g.dataIso.split('-')[1]) - 1;
+            histGastos[mIndex] += parseDinheiro(g.total);
+        }
+    });
+
+    let prevM_int = parseInt(fM) - 1; let prevA_int = parseInt(fA);
+    if(prevM_int === 0) { prevM_int = 12; prevA_int -= 1; }
+    let prevM_str = String(prevM_int).padStart(2, '0');
+    let pfxPrev = `${prevA_int}-${prevM_str}`;
+    let cVen = 0, cRec = 0, cGas = 0, cLuc = 0;
+    let pVen = 0, pRec = 0, pGas = 0, pLuc = 0;
+
+    vSocioGlobal.forEach(v => {
+        let val = parseDinheiro(v.valor_venda); let luc = parseDinheiro(v.lucro);
+        if(v.dataVendaIso && v.dataVendaIso.startsWith(pfx) && v.status !== 'Presente') { cVen += val; cLuc += luc; if(v.status === 'Pago') cRec += val; }
+        if(v.dataVendaIso && v.dataVendaIso.startsWith(pfxPrev) && v.status !== 'Presente') { pVen += val; pLuc += luc; if(v.status === 'Pago') pRec += val; }
+    });
+    gSocioGlobal.forEach(g => { let val = parseDinheiro(g.total); if(g.dataIso && g.dataIso.startsWith(pfx)) cGas += val; if(g.dataIso && g.dataIso.startsWith(pfxPrev)) pGas += val; });
+
+    // CÁLCULO DA GAMIFICAÇÃO ADMIN
+    let crescimentoAdminIcon = '➖'; let crescimentoAdminTxt = 'Igual ao período anterior';
+    if (pVen > 0) {
+        let perc = ((tVendasTotais - pVen) / pVen) * 100;
+        if (perc > 0) { crescimentoAdminIcon = '📈'; crescimentoAdminTxt = `+${perc.toFixed(1)}% vs Ant.`; }
+        else if (perc < 0) { crescimentoAdminIcon = '📉'; crescimentoAdminTxt = `${perc.toFixed(1)}% vs Ant.`; }
+    } else if (tVendasTotais > 0) {
+        crescimentoAdminIcon = '🚀'; crescimentoAdminTxt = `Novo recorde!`;
+    }
+
     let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5); 
     let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5); 
-    let topDevedores = Object.keys(devedoresGlobais).map(k => ({ nome: k, divida: devedoresGlobais[k] })).sort((a, b) => b.divida - a.divida).slice(0, 5);
+    let topDevedores = Object.keys(devedoresFiltrados).map(k => ({ nome: k, divida: devedoresFiltrados[k] })).sort((a, b) => b.divida - a.divida).slice(0, 5);
     
-    let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
-    let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
+    let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
+    let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     
     let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `
         <div onclick="switchTab('vendas'); toggleVendasTab('lotes'); document.getElementById('cobranca-cliente').value = '${d.nome}'; prepararCobranca();" 
              style="display:flex; justify-content:space-between; border-bottom:1px dashed #fca5a5; padding:8px 5px; cursor:pointer; border-radius:4px;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='transparent'">
             <span style="font-size:0.85rem; color:#7f1d1d; font-weight:700;">#${i+1} 🔗 ${d.nome}</span>
             <strong style="color:#b91c1c; font-size:0.9rem;">${fmt(d.divida)}</strong>
-        </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado pendente! 🎉</p>";
+        </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado gerado neste período! 🎉</p>";
 
     const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
 
@@ -2325,11 +2437,34 @@ function renderizarDashboard() {
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
                 <p style="font-size: 0.7rem; color: #e8dde1; margin: 5px 0 0 0; opacity: 0.8;">Caixa + Estoque Físico + A Receber</p>
             </div>
+            
             <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucro}; background: #fafafa;">
                 <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
                 <p style="font-size:1.8rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
                 <p style="font-size:0.65rem; color:#888; margin-top:3px;">Entradas Pagas - Gastos Totais da Empresa</p>
             </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
+                <div>
+                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE ATUAL FÍSICO</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
+                </div>
+                <div style="text-align:right;">
+                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">VALOR VAREJO DO ESTOQUE</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
+                </div>
+            </div>
+
+            <!-- ⭐ NOVO CARTÃO DE VENDAS TOTAIS ADMIN AQUI -->
+            <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
+                <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">TOTAL VENDIDO NO PERÍODO</h3>
+                <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVendasTotais)}</p>
+                <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">(Soma de Entradas + A Receber)</p>
+                <div style="margin-top: 10px; background: rgba(255,255,255,0.1); display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; color: #fff; font-weight: bold;">
+                    ${crescimentoAdminIcon} ${crescimentoAdminTxt} (Anterior: ${fmt(pVen)})
+                </div>
+            </div>
+
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
                 <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
                 <p style="font-size:1.2rem; font-weight:900; color:#2e7d32; margin:0;" id="d-receitas">${fmt(tRec)}</p>
@@ -2351,8 +2486,22 @@ function renderizarDashboard() {
             ${htmlRanking}
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">⚖️ COMPARATIVO (${fM}/${fA} vs ${prevM_str}/${prevA_int})</h3>
+                <div style="position: relative; height: 230px; width: 100%;">
+                    <canvas id="chartCompMes"></canvas>
+                </div>
+            </div>
+            
+            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📅 HISTÓRICO ANUAL (${fA})</h3>
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="chartHistAnual"></canvas>
+                </div>
+            </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO 👆</h3>
-                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos do gráfico para ver detalhes)</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos para detalhes)</p>
                 <div style="position: relative; height: 200px; width: 100%;">
                     <canvas id="chartFatDiario"></canvas>
                 </div>
@@ -2371,19 +2520,8 @@ function renderizarDashboard() {
                 </div>
             </div>
 
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
-                <div>
-                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE FÍSICO</h3>
-                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
-                </div>
-                <div style="text-align:right;">
-                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">VALOR VAREJO DO ESTOQUE</h3>
-                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
-                </div>
-            </div>
-
             <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fef2f2; border:1px solid #fecaca;">
-                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 TOP 5 DEVEDORES GLOBAIS 👆</h3>
+                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 TOP 5 DEVEDORES DO PERÍODO 👆</h3>
                 <p style="font-size:0.6rem; color:#b91c1c; margin-top:-5px; margin-bottom:10px;">(Clique no nome para ir cobrar)</p>
                 <div style="margin-bottom: 15px;">${listaDevedores}</div>
             </div>
@@ -2415,15 +2553,15 @@ function renderizarDashboard() {
         </div>
     `;
 
-    // 🎨 RENDERIZAÇÃO DOS GRÁFICOS INTERATIVOS (Chart.js)
     if (typeof Chart !== 'undefined') { 
         if (window.gFatDiario) window.gFatDiario.destroy();
         if (window.gForcaVendas) window.gForcaVendas.destroy();
         if (window.gMixProd) window.gMixProd.destroy();
         if (window.gReceitasGastos) window.gReceitasGastos.destroy();
         if (window.gStatusVendas) window.gStatusVendas.destroy();
+        if (window.gHistAnual) window.gHistAnual.destroy();
+        if (window.gCompMes) window.gCompMes.destroy();
         
-        // Função Mágica de DRILL-DOWN (Aceita Vendas ou Gastos!)
         const exibirDetalhesGrafico = (titulo, arrayDados, tipoModal = 'vendas') => {
             let html = arrayDados.map(item => {
                 if(tipoModal === 'vendas') {
@@ -2450,6 +2588,33 @@ function renderizarDashboard() {
             document.getElementById('conteudo-detalhes-chart').innerHTML = html || '<p>Sem dados registrados.</p>';
             document.getElementById('modal-detalhes-chart').style.display = 'flex';
         };
+
+        const ctxHist = document.getElementById('chartHistAnual').getContext('2d');
+        window.gHistAnual = new Chart(ctxHist, {
+            type: 'line',
+            data: { 
+                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'], 
+                datasets: [
+                    { label: 'Vendido (Geral)', data: histVendas, borderColor: '#0284c7', backgroundColor: 'rgba(2, 132, 199, 0.1)', fill: true, tension: 0.3 },
+                    { label: 'Recebido (Caixa)', data: histRec, borderColor: '#15803d', backgroundColor: 'rgba(21, 128, 61, 0.1)', fill: true, tension: 0.3 },
+                    { label: 'Gastos', data: histGastos, borderColor: '#b91c1c', backgroundColor: 'rgba(185, 28, 28, 0.1)', fill: true, tension: 0.3 }
+                ] 
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        const ctxComp = document.getElementById('chartCompMes').getContext('2d');
+        window.gCompMes = new Chart(ctxComp, {
+            type: 'bar',
+            data: { 
+                labels: ['Vendas (Totais)', 'Entrou (Caixa)', 'Gastos', 'Lucro Projetado'], 
+                datasets: [
+                    { label: `Anterior (${prevM_str}/${prevA_int})`, data: [pVen, pRec, pGas, pLuc], backgroundColor: '#94a3b8', borderRadius: 4 },
+                    { label: `Atual (${fM}/${fA})`, data: [cVen, cRec, cGas, cLuc], backgroundColor: '#b45309', borderRadius: 4 }
+                ] 
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } } }
+        });
 
         const ctxFat = document.getElementById('chartFatDiario').getContext('2d');
         let diasOrdenados = Object.keys(faturamentoPorDia).sort();
@@ -2501,7 +2666,6 @@ function renderizarDashboard() {
             }
         });
 
-        // 🖱️ A NOVA MÁGICA DE CLIQUES NOS GRÁFICOS ANTIGOS!
         const ctxRG = document.getElementById('chartReceitasGastos').getContext('2d'); 
         window.gReceitasGastos = new Chart(ctxRG, { 
             type: 'bar', 
@@ -2532,7 +2696,7 @@ function renderizarDashboard() {
                         if(activeEls[0].index === 0) {
                             let vPagas = vDashGlobal.filter(v => v.status === 'Pago');
                             exibirDetalhesGrafico(`Pedidos Pagos`, vPagas, 'vendas');
-                        } else {
+                        } else { 
                             let vFiado = vDashGlobal.filter(v => v.status === 'Pendente' || v.status === 'Parcelado');
                             exibirDetalhesGrafico(`Pedidos no Fiado`, vFiado, 'vendas');
                         }
