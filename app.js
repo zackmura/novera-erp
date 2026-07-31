@@ -1645,12 +1645,10 @@ function filtrarVendas() {
     const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda'; 
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
     
-    // 🛡️ LISTA DE CHEFES (Para não cobrar acerto de comissão deles)
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin', 'sem vendedor', '');
 
     let filtradas = vendasGlobal.filter(v => { 
-        // A TRAVA DE PRIVACIDADE: O Vendedor NÃO vê a lista de vendas dos outros
         if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return false;
 
         let pD = true, pM = true, pS = true, pSo = true, pC = true; 
@@ -1667,7 +1665,7 @@ function filtrarVendas() {
     filtradas.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso)); 
     
     let tVend = 0, tRec = 0, tDev = 0, tLuc = 0, tItens = 0, html = "";
-    let tComPend = 0, tComAcert = 0; 
+    let tComPend = 0, tComAcert = 0, tComFutura = 0; 
     
     if (filtradas.length === 0) { 
         html = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Vazio.</p>"; 
@@ -1682,16 +1680,20 @@ function filtrarVendas() {
             const isAcertado = v.repasse_feito;
             const vComissao = parseFloat(v.valor_comissao) || 0;
             
-            // VERIFICA SE A VENDA FOI FEITA POR UM DOS CHEFES
             const isSocioAdmin = nomesAdmins.includes(String(v.socio || '').toLowerCase().trim());
             
             if(isP) {
                 tRec += val; 
-                if(isAcertado) { tComAcert += vComissao; }
-                else if (!isSocioAdmin) { tComPend += vComissao; } // Só soma pendência se não for admin
+                if(isAcertado) { 
+                    tComAcert += vComissao; 
+                } else if (!isSocioAdmin) { 
+                    tComPend += vComissao; 
+                } 
             } else if(!isPresente) {
                 tDev += val; 
-                if (!isSocioAdmin) tComPend += vComissao; 
+                if (!isSocioAdmin) {
+                    tComFutura += vComissao; // Comissão travada pq o cliente não pagou
+                }
             } 
 
             let txtStatus = '';
@@ -1701,11 +1703,9 @@ function filtrarVendas() {
 
             if (isP) {
                 if (isSocioAdmin) {
-                    // SE O CHEFE VENDEU: Apenas mostra que tá Pago e limpa os alertas!
                     txtStatus = `<p style="font-size:0.75rem; color:#2e7d32; font-weight:800; margin:0;">✔️ Pago: ${v.dataPgtoDisplay || '?'}</p>`;
                     corBorda = "#2e7d32"; badgeClass = "status-pago";
                 } else {
-                    // SE O VENDEDOR VENDEU: Processo normal de comissão
                     if (isAcertado) {
                         txtStatus = `<p style="font-size:0.75rem; color:#0369a1; font-weight:800; margin:0;">🤝 Acertado / Repassado</p>`;
                         corBorda = "#0369a1"; badgeClass = "status-pago";
@@ -1731,14 +1731,26 @@ function filtrarVendas() {
             let txtLucro = '';
             if (isAdmin) {
                 if (!isPresente) {
-                    // Esconde a palavra "Comissão" se o vendedor for você ou a Natália
-                    let txtComissaoVisual = isSocioAdmin ? '' : `<br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span>`;
+                    let txtComissaoVisual = '';
+                    if (!isSocioAdmin) {
+                        if (isP) {
+                            txtComissaoVisual = `<br> <span style="color:#0369a1;">Comissão: ${safeFmt(v.valor_comissao)}</span>`;
+                        } else {
+                            txtComissaoVisual = `<br> <span style="color:#888;">Comissão: ${safeFmt(v.valor_comissao)} (Bloqueada: Fiado)</span>`;
+                        }
+                    }
                     txtLucro = `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} ${txtComissaoVisual}</p>`;
                 } else {
                     txtLucro = `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
                 }
             } else {
-                txtLucro = !isPresente ? `<p style="font-size:0.65rem; color:#0369a1; font-weight:700; margin:0; line-height: 1.3;">Sua Comissão: <br> <span style="font-size:0.9rem; font-weight:900;">${safeFmt(v.valor_comissao)}</span></p>` : '';
+                if (!isPresente) {
+                    if (isP) {
+                        txtLucro = `<p style="font-size:0.65rem; color:#0369a1; font-weight:700; margin:0; line-height: 1.3;">Sua Comissão: <br> <span style="font-size:0.9rem; font-weight:900;">${safeFmt(v.valor_comissao)}</span></p>`;
+                    } else {
+                        txtLucro = `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0; line-height: 1.3;">Sua Comissão: <br> <span style="font-size:0.9rem; font-weight:900;">${safeFmt(v.valor_comissao)}</span><br><span style="font-size:0.6rem;">(Libera após pgto do cliente)</span></p>`;
+                    }
+                }
             }
             
             const txtLocal = `<p style="font-size:0.65rem; color:#666; margin: 2px 0 0 0;">📍 Retirada: <b>${v.local_estoque}</b></p>`;
@@ -1803,28 +1815,80 @@ function filtrarVendas() {
     }
 
     document.getElementById('lista-vendas-cadastradas').innerHTML = html; 
-    document.getElementById('dash-v-total').innerText = fmt(tVend); 
-    document.getElementById('dash-v-receita').innerText = fmt(tRec); 
-    document.getElementById('dash-v-receber').innerText = fmt(tDev);
-    document.getElementById('dash-v-itens').innerText = tItens;
 
-    const elLucro = document.getElementById('dash-v-lucro');
-    if (elLucro) {
-        const h3Titulo = elLucro.previousElementSibling; 
-        
+    const gridVendas = document.querySelector('.vendas-sticky-header .dash-grid');
+    if (gridVendas) {
         if (isAdmin) {
-            h3Titulo.innerText = "LUCRO LÍQUIDO";
-            h3Titulo.style.color = "#888";
-            elLucro.style.color = "var(--brand-dark)";
-            elLucro.innerHTML = `${fmt(tLuc)} <div style="font-size:0.65rem; color:#b45309; margin-top:4px; letter-spacing:0; font-weight:700;">Falta Acertar (Equipe): ${fmt(tComPend)}</div>`;
+            gridVendas.innerHTML = `
+                <div class="dash-card highlight" style="margin-bottom:0; grid-column: span 2;">
+                    <h3>Total Vendido</h3><p class="valor">${fmt(tVend)}</p>
+                </div>
+                <div class="dash-card receita" style="margin-bottom:0;">
+                    <h3>Recebido (Na Conta)</h3><p class="valor">${fmt(tRec)}</p>
+                </div>
+                <div class="dash-card receber" style="margin-bottom:0;">
+                    <h3>A Receber (Fiado)</h3><p class="valor">${fmt(tDev)}</p>
+                </div>
+                <div class="dash-card" style="margin-bottom:0; border-left: 4px solid #7c3aed;">
+                    <h3 style="color:#7c3aed;">Lucro Líquido</h3><p class="valor" style="color:#7c3aed;">${fmt(tLuc)}</p>
+                </div>
+                <div class="dash-card" style="margin-bottom:0;">
+                    <h3>Itens Vendidos</h3><p class="valor">${tItens}</p>
+                </div>
+                <div class="dash-card" style="margin-bottom:0; grid-column: span 2; background:#fffbeb; border: 1px solid #fde047;">
+                    <h3 style="color:#b45309; border-bottom:1px dashed #fde047; padding-bottom:5px; margin-bottom:5px;">🤝 Acerto de Comissões (Equipe)</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="text-align:left; flex: 1;">
+                            <span style="font-size:0.65rem; color:#b45309; font-weight:bold; display:block;">Bloqueado (Fiado)</span>
+                            <span style="font-size:1.1rem; color:#b45309; font-weight:900;">${fmt(tComFutura)}</span>
+                        </div>
+                        <div style="text-align:center; flex: 1; border-left: 1px dashed #fcd34d; border-right: 1px dashed #fcd34d; padding: 0 10px;">
+                            <span style="font-size:0.65rem; color:#b91c1c; font-weight:bold; display:block;">Liberado (Falta Pagar)</span>
+                            <span style="font-size:1.3rem; color:#b91c1c; font-weight:900;">${fmt(tComPend)}</span>
+                        </div>
+                        <div style="text-align:right; flex: 1;">
+                            <span style="font-size:0.65rem; color:#15803d; font-weight:bold; display:block;">Já Repassado</span>
+                            <span style="font-size:1.1rem; color:#15803d; font-weight:900;">${fmt(tComAcert)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
         } else {
-            h3Titulo.innerText = "MINHA COMISSÃO";
-            h3Titulo.style.color = "#0369a1"; 
-            elLucro.style.color = "#0369a1";
-            elLucro.innerHTML = `${fmt(tComPend + tComAcert)} <div style="font-size:0.65rem; color:#2e7d32; margin-top:4px; letter-spacing:0; font-weight:700;">Já Repassado (Acertado): ${fmt(tComAcert)}</div>`;
+            gridVendas.innerHTML = `
+                <div class="dash-card highlight" style="margin-bottom:0; grid-column: span 2;">
+                    <h3>Minhas Vendas (Total)</h3><p class="valor">${fmt(tVend)}</p>
+                </div>
+                <div class="dash-card receita" style="margin-bottom:0;">
+                    <h3>Recebido (Caixa)</h3><p class="valor">${fmt(tRec)}</p>
+                </div>
+                <div class="dash-card receber" style="margin-bottom:0;">
+                    <h3>A Receber (Fiado)</h3><p class="valor">${fmt(tDev)}</p>
+                </div>
+                <div class="dash-card" style="margin-bottom:0; border-left: 4px solid #0369a1;">
+                    <h3 style="color:#0369a1;">Itens Vendidos</h3><p class="valor" style="color:#0369a1;">${tItens}</p>
+                </div>
+                <div class="dash-card" style="margin-bottom:0; grid-column: span 2; background:#f0fdf4; border: 1px solid #bbf7d0;">
+                    <h3 style="color:#166534; border-bottom:1px dashed #bbf7d0; padding-bottom:5px; margin-bottom:5px;">💰 Minhas Comissões</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="text-align:left; flex: 1;">
+                            <span style="font-size:0.65rem; color:#b45309; font-weight:bold; display:block;">Futura (Fiado)</span>
+                            <span style="font-size:1.1rem; color:#b45309; font-weight:900;">${fmt(tComFutura)}</span>
+                        </div>
+                        <div style="text-align:center; flex: 1; border-left: 1px dashed #86efac; border-right: 1px dashed #86efac; padding: 0 10px;">
+                            <span style="font-size:0.65rem; color:#0369a1; font-weight:bold; display:block;">Liberada (No Caixa)</span>
+                            <span style="font-size:1.3rem; color:#0369a1; font-weight:900;">${fmt(tComPend)}</span>
+                        </div>
+                        <div style="text-align:right; flex: 1;">
+                            <span style="font-size:0.65rem; color:#15803d; font-weight:bold; display:block;">Já Recebi</span>
+                            <span style="font-size:1.1rem; color:#15803d; font-weight:900;">${fmt(tComAcert)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
     }
 }
+
 
 // ===============================================
 // FUNÇÃO DO BOTÃO "APERTO DE MÃOS" (ACERTO CAIXA)
