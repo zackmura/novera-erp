@@ -1211,8 +1211,10 @@ async function gerarCatalogoPDFFrontend() {
 
 function renderizarCompras() {
     const fila = document.getElementById('lista-compras-cards'); 
-    const tBusca = document.getElementById('busca-compras').value.toLowerCase().trim(); 
-    let pends = comprasGlobal.filter(c => c.status !== 'Comprado'); 
+    if(!fila) return;
+    
+    const tBusca = document.getElementById('busca-compras') ? document.getElementById('busca-compras').value.toLowerCase().trim() : ''; 
+    let pends = comprasGlobal.filter(c => c.status !== 'Comprado' && c.status !== 'Concluido'); 
     
     if (tBusca) { 
         pends = pends.filter(c => (c.item + " " + c.categoria).toLowerCase().includes(tBusca)); 
@@ -1221,17 +1223,18 @@ function renderizarCompras() {
     pends.sort((a, b) => new Date(a.dataPrevista) - new Date(b.dataPrevista)); 
     
     if (comprasGlobal.length === 0) { 
-        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma compra planejada.</p>"; 
+        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem; margin-top:20px;'>Nenhuma compra planejada.</p>"; 
         return; 
     } 
     if (pends.length === 0) { 
-        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo comprado ou não encontrado!</p>"; 
+        fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem; margin-top:20px;'>Tudo comprado ou não encontrado!</p>"; 
         return; 
     } 
     
     const hojeIso = new Date().toISOString().split('T')[0]; 
     let html = ""; 
     let gruposCompras = {};
+    let totalGeralPlanejado = 0; 
 
     pends.forEach(c => {
         let cat = c.categoria ? c.categoria.toUpperCase() : "OUTROS / SEM CATEGORIA";
@@ -1242,7 +1245,9 @@ function renderizarCompras() {
         else if (c.dataPrevista === hojeIso) { classBadge = "b-hoje"; textoBadge = "Hoje"; }
         
         const valorTotalCompra = parseDinheiro(c.valor_previsto) * (parseInt(c.qtd) || 1);
+        
         gruposCompras[cat].total += valorTotalCompra;
+        totalGeralPlanejado += valorTotalCompra; 
 
         gruposCompras[cat].itens.push(`
         <div class="rotulo-card card-compra-list" style="border-left: 5px solid var(--primary-dark); padding: 15px; border-radius: 8px;">
@@ -1276,12 +1281,26 @@ function renderizarCompras() {
         </div>`);
     }); 
 
+    // ⭐ NOVO LAYOUT CENTRALIZADO E COM RESPIRO ⭐
+    if (!tBusca) { 
+        html += `
+        <div style="background: white; border: 1px solid #e2e8f0; border-top: 5px solid var(--primary-dark); padding: 35px 20px; border-radius: 12px; margin-bottom: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-shadow: 0 6px 15px rgba(0,0,0,0.05); gap: 20px;">
+            <div>
+                <p style="margin:0; font-size: 0.75rem; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;">💰 Valor Total do Planejamento</p>
+                <p style="margin:5px 0 0 0; font-size: 2.5rem; font-weight: 900; color: var(--brand-dark);">${fmt(totalGeralPlanejado)}</p>
+            </div>
+            <button id="btn-copiar-pedido" onclick="copiarPedidoClipboard()" style="background: var(--primary-dark); color: white; border: none; padding: 14px 30px; border-radius: 50px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; width: 100%; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                📋 Copiar Pedido (S/ Preço)
+            </button>
+        </div>`;
+    }
+
     Object.keys(gruposCompras).sort().forEach(cat => {
         html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
                     <span>🛒 CATEGORIA: ${cat}</span>
                     <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">PREVISTO: ${fmt(gruposCompras[cat].total)}</span>
                  </div>`;
-        html += `<div class="grid-compras-grupo">`;
+        html += `<div class="grid-compras-grupo" style="display:flex; flex-direction:column; gap:10px;">`;
         html += gruposCompras[cat].itens.join('');
         html += `</div>`;
     });
@@ -3930,4 +3949,63 @@ function toggleFabricaTab(aba) {
         document.getElementById('btn-sub-fab-fila').classList.add('active');
         document.getElementById('fabrica-fila-view').style.display = 'block';
     }
+}
+
+// ==========================================
+// 📋 COPIAR PEDIDO PARA A ÁREA DE TRANSFERÊNCIA
+// ==========================================
+function copiarPedidoClipboard() {
+    let pendentes = comprasGlobal.filter(c => c.status !== 'Comprado' && c.status !== 'Concluido');
+    
+    if (pendentes.length === 0) {
+        alert('Não há itens pendentes de compra para copiar!');
+        return;
+    }
+
+    let grupos = {};
+    pendentes.forEach(c => {
+        let cat = String(c.categoria || 'Diversos').toUpperCase();
+        if (!grupos[cat]) grupos[cat] = [];
+        grupos[cat].push(c);
+    });
+
+    let texto = "*NOVO PEDIDO - NOVERA SCENT*\n\n";
+    texto += "Olá! Pode separar esses itens para mim, por favor?\n\n";
+
+    for (let cat in grupos) {
+        texto += `*${cat}*\n`;
+        grupos[cat].forEach(c => {
+            texto += `- ${c.qtd}x ${c.item}\n`;
+        });
+        texto += `\n`;
+    }
+    
+    texto += "Fico no aguardo do total para acertarmos. Obrigado!";
+
+    // MÁGICA DE UX: Copia silenciosamente e anima o botão (SEM ALERTAS NA TELA)
+    navigator.clipboard.writeText(texto).then(() => {
+        const btn = document.getElementById('btn-copiar-pedido');
+        if(btn) {
+            let originalText = btn.innerHTML;
+            let originalBg = btn.style.background;
+            let originalWidth = btn.offsetWidth; 
+            
+            // Trava a largura para o botão não "tremer" e muda a cor
+            btn.style.width = originalWidth + 'px';
+            btn.innerHTML = '✅ Copiado com sucesso!';
+            btn.style.background = '#15803d'; // Verde Sucesso
+            btn.style.transform = 'scale(1.05)'; // Dá um "pulinho"
+            
+            // Volta ao normal magicamente após 2.5 segundos
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = originalBg;
+                btn.style.transform = 'scale(1)';
+                btn.style.width = '100%'; 
+            }, 2500);
+        }
+    }).catch(err => {
+        console.error("Erro ao copiar: ", err);
+        alert("Erro ao copiar. Seu navegador pode ter bloqueado a área de transferência.");
+    });
 }
