@@ -3030,20 +3030,28 @@ function abrirMapaSeparacao(modo = 'pendentes') {
     const hoje = new Date();
     const dIsoHoje = hoje.toISOString().split('T')[0];
     
-    // 🛡️ A NOVA MÁGICA: Lista VIP de Vendedores
-    // O sistema só vai listar vendas se o nome bater exatamente com quem tem cargo de 'Vendedor' no cadastro!
+    // 🛡️ Lista VIP de Vendedores
     let nomesVendedoresOficiais = usuariosGlobal.filter(u => u.cargo === 'Vendedor').map(u => String(u.usuario).toLowerCase().trim());
 
-    // Pega as vendas individuais aplicando o filtro inteligente
+    // Pega as vendas individuais aplicando o filtro inteligente de LOGÍSTICA
     let vendasSeparacao = vendasGlobal.filter(v => {
-        let pLocal = (v.local_estoque === 'Sede' || !v.local_estoque);
-        
         let nomeNaVenda = String(v.socio || '').toLowerCase().trim();
         let pEquipe = nomesVendedoresOficiais.includes(nomeNaVenda); // SÓ PASSA SE FOR UM VENDEDOR OFICIAL
         
+        // 📦 A MÁGICA LOGÍSTICA: Decide se a SEDE precisa separar o pedido ou não
+        let loc = String(v.local_estoque || 'Sede').toLowerCase().trim();
+        let precisaSeparar = false;
+
+        if (loc === 'sede' || loc === '') {
+            precisaSeparar = true; // Regra 1: Saiu da sede principal, tem que separar.
+        } else if (nomeNaVenda !== '' && !loc.includes(nomeNaVenda)) {
+            precisaSeparar = true; // Regra 2: Retirou de outro lugar que NÃO contém o nome do vendedor (ex: Kamila retirando da Cleo).
+        }
+        // Se chegou aqui e precisaSeparar continuar "false", é porque ela retirou de um local que leva o nome dela (ex: Kamila/Pancho). O item já está com ela!
+
         let pModo = false;
         if (modo === 'pendentes') {
-            pModo = !v.separado; // 🧹 Limpeza automática: se tiver marcado no banco, não aparece aqui!
+            pModo = !v.separado; // Limpeza automática: se tiver marcado no banco, não aparece aqui
             tituloFiltro = "Fila Geral de Pendentes";
         } else if (modo === 'hoje') {
             pModo = (v.dataVendaIso === dIsoHoje);
@@ -3055,7 +3063,8 @@ function abrirMapaSeparacao(modo = 'pendentes') {
             tituloFiltro = "Vendas de Ontem";
         }
         
-        return pLocal && pEquipe && pModo;
+        // Tem que ser da equipe E precisar de separação E bater a data/status
+        return precisaSeparar && pEquipe && pModo;
     });
 
     const divConteudo = document.getElementById('conteudo-separacao');
@@ -3063,7 +3072,7 @@ function abrirMapaSeparacao(modo = 'pendentes') {
     if (vendasSeparacao.length === 0) {
         divConteudo.innerHTML = `<div style="text-align:center; padding: 30px 10px; color:#64748b;">
             <span style="font-size:3rem; display:block; margin-bottom:10px;">🎉</span>
-            <b>Tudo pronto!</b><br>Nenhum item encontrado na: <b>${tituloFiltro}</b>.
+            <b>Tudo pronto!</b><br>Nenhum item pendente de separação pela Sede em: <b>${tituloFiltro}</b>.
         </div>`;
         document.getElementById('modal-separacao').style.display = 'flex';
         return;
@@ -3091,17 +3100,17 @@ function abrirMapaSeparacao(modo = 'pendentes') {
         mapaVendedores[vend].sort((a,b) => new Date(a.dataVendaIso) - new Date(b.dataVendaIso));
 
         mapaVendedores[vend].forEach(v => {
-            // Verifica o status REAL salvo na Nuvem
             let isChecked = v.separado ? true : false;
             let checkAttr = isChecked ? 'checked' : '';
             let opacity = isChecked ? '0.4' : '1';
             let lineThrough = isChecked ? 'line-through' : 'none';
             
-            // Se estiver na Fila de Pendentes, mostra a Data em vermelho pra você saber se está atrasado!
             let badgeData = modo === 'pendentes' ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 5px; border-radius:4px; font-size:0.6rem; margin-left:5px;">${v.dataVendaDisplay}</span>` : '';
             let obsHtml = v.observacao ? `<br><span style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${v.observacao}</span>` : '';
+            
+            // Aviso de Logística: Mostra de onde você tem que tirar o produto!
+            let localRetiradaAviso = `<br><span style="font-size:0.7rem; color:#15803d; font-weight:bold;">📍 Pegar de: ${v.local_estoque || 'Sede'}</span>`;
 
-            // Agora o checkbox bate direto no ID do banco de dados (v.linha)
             html += `<label style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; opacity: ${opacity}; text-decoration: ${lineThrough};">
                         <input type="checkbox" ${checkAttr} style="width: 22px; height: 22px; accent-color: #0ea5e9; cursor:pointer; flex-shrink: 0;" 
                         onchange="
@@ -3112,6 +3121,7 @@ function abrirMapaSeparacao(modo = 'pendentes') {
                         <div style="font-size: 0.95rem; color: var(--brand-dark); line-height: 1.3;">
                             <b style="color:#b45309; font-size:1.1rem;">${v.qtd}x</b> ${v.produto} ${badgeData}
                             <br><span style="font-size:0.75rem; color:#64748b;">(Cli: ${v.cliente})</span>
+                            ${localRetiradaAviso}
                             ${obsHtml}
                         </div>
                      </label>`;
