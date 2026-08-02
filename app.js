@@ -3038,16 +3038,21 @@ function abrirMapaSeparacao(modo = 'pendentes') {
         let nomeNaVenda = String(v.socio || '').toLowerCase().trim();
         let pEquipe = nomesVendedoresOficiais.includes(nomeNaVenda); // SÓ PASSA SE FOR UM VENDEDOR OFICIAL
         
-        // 📦 A MÁGICA LOGÍSTICA: Decide se a SEDE precisa separar o pedido ou não
+        // 📦 A MÁGICA LOGÍSTICA COM ANTICORPOS PARA ACENTOS E Ç
         let loc = String(v.local_estoque || 'Sede').toLowerCase().trim();
+        
+        // Remove os acentos das palavras para o sistema entender que "Cléo" e "Cleo" são a mesma pessoa
+        let locLimpo = loc.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let nomeLimpo = nomeNaVenda.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
         let precisaSeparar = false;
 
-        if (loc === 'sede' || loc === '') {
+        if (locLimpo === 'sede' || locLimpo === '') {
             precisaSeparar = true; // Regra 1: Saiu da sede principal, tem que separar.
-        } else if (nomeNaVenda !== '' && !loc.includes(nomeNaVenda)) {
-            precisaSeparar = true; // Regra 2: Retirou de outro lugar que NÃO contém o nome do vendedor (ex: Kamila retirando da Cleo).
+        } else if (nomeLimpo !== '' && !locLimpo.includes(nomeLimpo)) {
+            precisaSeparar = true; // Regra 2: Retirou de outro lugar que NÃO contém o nome do vendedor.
         }
-        // Se chegou aqui e precisaSeparar continuar "false", é porque ela retirou de um local que leva o nome dela (ex: Kamila/Pancho). O item já está com ela!
+        // Se chegou aqui e precisaSeparar continuar "false", é porque ela retirou de um local que leva o nome dela (ex: Kamila/Pancho ou Cléo). O item já está com ela!
 
         let pModo = false;
         if (modo === 'pendentes') {
