@@ -1570,7 +1570,10 @@ function renderizarCarrinho() {
     elTotal.innerText = fmt(somaPedido);
 }
 
+let vendaCarrinhoEmAndamento = false; // trava contra clique duplo enquanto o pedido está sendo enviado ao servidor
+
 function salvarVendaCarrinho() {
+    if (vendaCarrinhoEmAndamento) return; // já tem um envio em andamento, ignora cliques repetidos
     if (carrinhoPDV.length === 0) return mostrarAlerta("Atenção", "O carrinho está vazio! Insira produtos primeiro.", "warning");
 
     const data = document.getElementById('v-data').value;
@@ -1580,6 +1583,11 @@ function salvarVendaCarrinho() {
     const observacao = document.getElementById('v-observacao').value;
 
     if (!data || !cliente) return mostrarAlerta("Atenção", "Preencha a Data e o Cliente no topo.", "warning");
+
+    vendaCarrinhoEmAndamento = true;
+    const btnFinalizar = document.getElementById('btn-finalizar-venda');
+    const textoOriginalBtn = btnFinalizar ? btnFinalizar.innerHTML : '';
+    if (btnFinalizar) { btnFinalizar.disabled = true; btnFinalizar.innerHTML = '⏳ PROCESSANDO...'; }
 
     mostrarLoading("Registrando Pedido...");
     const msgLog = `🛒 Pedido Fechado: ${cliente} (${carrinhoPDV.length} itens). Status: ${status}`;
@@ -1613,11 +1621,15 @@ function salvarVendaCarrinho() {
         } else {
             // Se o servidor barrou, mostra a mensagem e Sincroniza o estoque na mesma hora!
             mostrarAlerta("⚠️ Alerta de Estoque", resultado.erro || "Falha ao salvar no banco.", "warning");
-            sincronizarDadosUnico(); 
+            sincronizarDadosUnico();
         }
     })
     .catch(e => mostrarAlerta("Erro", "Falha na conexão.", "error"))
-    .finally(() => ocultarLoading());
+    .finally(() => {
+        ocultarLoading();
+        vendaCarrinhoEmAndamento = false;
+        if (btnFinalizar) { btnFinalizar.disabled = false; btnFinalizar.innerHTML = textoOriginalBtn; }
+    });
 }
 
 function renderizarVendas() { 
