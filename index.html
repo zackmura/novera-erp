@@ -441,7 +441,17 @@
                             </div>
                             <div class="row">
                                 <div class="col"><label>Cliente</label><input type="text" id="f-v-cliente" list="f-lista-clientes" placeholder="Buscar..." oninput="filtrarVendas()"><datalist id="f-lista-clientes"></datalist></div>
-                                <div class="col"><label>Sócio</label><select id="f-v-socio" onchange="filtrarVendas()"><option value="">Todos</option></select></div>
+                                <div class="col"><label>Vendedor</label><select id="f-v-socio" onchange="filtrarVendas()"><option value="">Todos</option></select></div>
+                            </div>
+                            <div class="row">
+                                <div class="col" id="filtro-comissao-wrap">
+                                    <label>🤝 Status da Comissão</label>
+                                    <select id="f-v-comissao" onchange="filtrarVendas()">
+                                        <option value="">Todos</option>
+                                        <option value="pendente">🔴 Pendente de Acerto</option>
+                                        <option value="acertado">✅ Já Acertado</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>

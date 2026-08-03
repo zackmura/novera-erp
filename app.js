@@ -192,6 +192,7 @@ function aplicarPermissoes() {
     const btnSubEncomendas = document.getElementById('btn-sub-encomendas');
     const selectStatusVenda = document.getElementById('v-status');
     const btnSubSeparacao = document.getElementById('btn-sub-separacao'); // 🛡️ AGORA ESTÁ NO LUGAR CERTO!
+    const filtroComissaoWrap = document.getElementById('filtro-comissao-wrap'); // Filtro de acerto de comissão: só faz sentido pra quem administra
 
     if (!isAdmin) {
         switchTab('vendas'); // Vendedor sempre cai na tela de vendas ao abrir
@@ -224,6 +225,7 @@ function aplicarPermissoes() {
         // ESCONDE AS ABAS EXCLUSIVAS DA DIRETORIA
         if (btnSubEncomendas) btnSubEncomendas.style.display = 'none';
         if (btnSubSeparacao) btnSubSeparacao.style.display = 'none';
+        if (filtroComissaoWrap) filtroComissaoWrap.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -235,6 +237,8 @@ function aplicarPermissoes() {
 
     } else {
         switchTab('dashboard'); // 👑 O Chefe sempre cai no Painel ao abrir o app!
+
+        if (filtroComissaoWrap) filtroComissaoWrap.style.display = '';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -1675,20 +1679,30 @@ function filtrarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda'; 
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
-    
+    const elFComissao = document.getElementById('f-v-comissao'); const fComissao = elFComissao ? elFComissao.value : '';
+
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin', 'sem vendedor', '');
 
-    let filtradas = vendasGlobal.filter(v => { 
+    let filtradas = vendasGlobal.filter(v => {
         if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return false;
 
-        let pD = true, pM = true, pS = true, pSo = true, pC = true; 
-        let dataAlvoIso = ""; 
-        if (fTipoData === 'venda') { dataAlvoIso = v.dataVendaIso; } else { if (v.dataPgtoDisplay) { const parts = v.dataPgtoDisplay.split('/'); if (parts.length === 3) dataAlvoIso = `${parts[2]}-${parts[1]}-${parts[0]}`; } } 
-        if (fDia) { if (dataAlvoIso !== fDia) pD = false; } 
-        if (fMes) { const mesAlvo = dataAlvoIso ? dataAlvoIso.split('-')[1] : null; if (mesAlvo && mesAlvo !== fMes) pM = false; } 
-        if (fStatus && v.status !== fStatus) pS = false; 
-        if (fSocio && String(v.socio || '').toLowerCase() !== fSocio) pSo = false; 
+        // Filtro exclusivo de Admin: quem já pagou mas ainda falta (ou já teve) o acerto de comissão com o vendedor
+        if (fComissao && isAdmin) {
+            const isSocioAdminV = nomesAdmins.includes(String(v.socio || '').toLowerCase().trim());
+            if (isSocioAdminV) return false; // comissão só se aplica a vendas de vendedores, não das sócias
+            const isPagoV = v.status === 'Pago';
+            if (fComissao === 'pendente' && !(isPagoV && !v.repasse_feito)) return false;
+            if (fComissao === 'acertado' && !(isPagoV && v.repasse_feito)) return false;
+        }
+
+        let pD = true, pM = true, pS = true, pSo = true, pC = true;
+        let dataAlvoIso = "";
+        if (fTipoData === 'venda') { dataAlvoIso = v.dataVendaIso; } else { if (v.dataPgtoDisplay) { const parts = v.dataPgtoDisplay.split('/'); if (parts.length === 3) dataAlvoIso = `${parts[2]}-${parts[1]}-${parts[0]}`; } }
+        if (fDia) { if (dataAlvoIso !== fDia) pD = false; }
+        if (fMes) { const mesAlvo = dataAlvoIso ? dataAlvoIso.split('-')[1] : null; if (mesAlvo && mesAlvo !== fMes) pM = false; }
+        if (fStatus && v.status !== fStatus) pS = false;
+        if (fSocio && String(v.socio || '').toLowerCase() !== fSocio) pSo = false;
         if (fCliente && !String(v.cliente || '').toLowerCase().includes(fCliente)) pC = false; 
         return pD && pM && pS && pSo && pC; 
     });
