@@ -2269,8 +2269,13 @@ function renderizarDashboard() {
     });
     htmlRanking += `</div></div>`;
 
+    // ============================================
+    // VISÃO DO VENDEDOR (Gamificada: Projeção + Badges + CRM)
+    // ============================================
     if (!isAdmin) {
         let minhasVendas = vDashGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+        let minhasVendasHist = vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim()); 
+        
         let tVend = 0, tItens = 0, comAprovada = 0, comPendente = 0;
         let mProd = {}, mCli = {};
         let faturamentoPorDiaMeus = {};
@@ -2289,6 +2294,119 @@ function renderizarDashboard() {
                 faturamentoPorDiaMeus[dia] += val;
             }
         });
+
+        // 🔮 MÁGICA 1: PROJEÇÃO DE GANHOS
+        let totalComissaoGerada = comAprovada + comPendente;
+        let dataHojeProj = new Date();
+        let eMesAtual = (parseInt(fM) === dataHojeProj.getMonth() + 1 && parseInt(fA) === dataHojeProj.getFullYear());
+        let htmlProjecao = "";
+
+        if (eMesAtual) {
+            let diasNoMes = new Date(parseInt(fA), parseInt(fM), 0).getDate();
+            let diasPassados = dataHojeProj.getDate();
+            
+            let projecaoMensal = (totalComissaoGerada / diasPassados) * diasNoMes;
+            if (projecaoMensal < totalComissaoGerada) projecaoMensal = totalComissaoGerada;
+
+            let porcentagemProgresso = projecaoMensal > 0 ? (totalComissaoGerada / projecaoMensal) * 100 : 0;
+            let msgMotivacional = totalComissaoGerada === 0 ? "Faça a sua primeira venda do mês para calcularmos sua projeção! 🎯" : "*Se você mantiver o seu ritmo atual de vendas. Bora bater a meta! 🚀";
+
+            htmlProjecao = `
+            <div class="dash-card" style="grid-column: span 2; padding: 20px; border: 1px solid #c4b5fd; background: #faf5ff; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.15);">
+                <h3 style="color:#7e22ce; font-size:0.85rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🔮 SUA ESTIMATIVA DE GANHOS DO MÊS</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                    <div style="text-align:left;">
+                        <span style="font-size:0.65rem; color:#9333ea; font-weight:bold; display:block;">Já Garantido (Comissões)</span>
+                        <span style="font-size:1.4rem; color:#7e22ce; font-weight:900;">${fmt(totalComissaoGerada)}</span>
+                    </div>
+                    <div style="font-size:1.5rem; color:#d8b4fe; animation: pulse 2s infinite;">👉</div>
+                    <div style="text-align:right;">
+                        <span style="font-size:0.65rem; color:#15803d; font-weight:bold; display:block;">Projeção Final do Mês</span>
+                        <span style="font-size:1.4rem; color:#16a34a; font-weight:900;">${fmt(projecaoMensal)}</span>
+                    </div>
+                </div>
+                <div style="width: 100%; background: #e9d5ff; border-radius: 10px; height: 10px; overflow: hidden; position: relative; border: 1px solid #d8b4fe;">
+                    <div style="width: ${porcentagemProgresso}%; background: linear-gradient(90deg, #9333ea, #a855f7); height: 100%; border-radius: 10px; transition: width 1.5s ease-in-out;"></div>
+                </div>
+                <p style="font-size:0.65rem; color:#a855f7; text-align:center; margin:10px 0 0 0; font-style:italic;">${msgMotivacional}</p>
+            </div>`;
+        }
+
+        // 🏅 MÁGICA 2: BADGES DE CONQUISTAS (CORRIGIDOS PARA METAS CLARAS)
+        let totalFiadoMês = 0;
+        minhasVendas.forEach(v => { if(v.status !== 'Pago' && v.status !== 'Presente') totalFiadoMês += parseDinheiro(v.valor_venda); });
+
+        let badges = [];
+        
+        // 🚀 Ouro/Prata trocados por conquistas de "Volume e Ação" claras
+        if(tItens >= 50) badges.push(`<div title="Máquina de Vendas: +50 itens no mês!" style="display:flex; flex-direction:column; align-items:center; background:#fef08a; padding:8px 10px; border-radius:8px; border:1px solid #fde047; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">🚀</span><span style="font-size:0.6rem; font-weight:900; color:#b45309; margin-top:4px;">50+ VENDAS</span></div>`);
+        else if(tItens >= 20) badges.push(`<div title="Ritmo Acelerado: +20 itens no mês!" style="display:flex; flex-direction:column; align-items:center; background:#fed7aa; padding:8px 10px; border-radius:8px; border:1px solid #fdba74; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">🔥</span><span style="font-size:0.6rem; font-weight:900; color:#c2410c; margin-top:4px;">20+ VENDAS</span></div>`);
+        else if(tItens >= 10) badges.push(`<div title="Belo Começo: +10 itens no mês!" style="display:flex; flex-direction:column; align-items:center; background:#bbf7d0; padding:8px 10px; border-radius:8px; border:1px solid #86efac; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">⭐</span><span style="font-size:0.6rem; font-weight:900; color:#15803d; margin-top:4px;">10+ VENDAS</span></div>`);
+        
+        // 💎 Conquista Financeira
+        if(tVend >= 2000) badges.push(`<div title="Faturamento VIP: +R$ 2.000 vendidos no mês!" style="display:flex; flex-direction:column; align-items:center; background:#e9d5ff; padding:8px 10px; border-radius:8px; border:1px solid #d8b4fe; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">💎</span><span style="font-size:0.6rem; font-weight:900; color:#7e22ce; margin-top:4px;">VIP 2K+</span></div>`);
+        
+        // 🛡️ Conquista de Cobrança
+        if(tItens >= 5 && totalFiadoMês === 0) badges.push(`<div title="Cobrador de Elite: Mais de 5 vendas e R$ 0,00 Fiados pendentes no mês!" style="display:flex; flex-direction:column; align-items:center; background:#dcfce7; padding:8px 10px; border-radius:8px; border:1px solid #86efac; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">🛡️</span><span style="font-size:0.6rem; font-weight:900; color:#166534; margin-top:4px;">0 FIADO</span></div>`);
+        
+        // 🌱 Conquista Inicial
+        if(badges.length === 0 && tItens > 0) badges.push(`<div title="Deu o Primeiro Passo!" style="display:flex; flex-direction:column; align-items:center; background:#f3f4f6; padding:8px 10px; border-radius:8px; border:1px solid #e5e7eb; min-width:65px; box-shadow:0 2px 4px rgba(0,0,0,0.05);"><span style="font-size:1.6rem;">🌱</span><span style="font-size:0.6rem; font-weight:900; color:#4b5563; margin-top:4px;">INÍCIO</span></div>`);
+        if(badges.length === 0 && tItens === 0) badges.push(`<span style="font-size:0.75rem; color:#888; font-style:italic;">Faça sua primeira venda para ganhar medalhas!</span>`);
+
+        let htmlBadges = `
+        <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fff; border-bottom: 3px solid #fde047;">
+            <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px dashed #fef08a; padding-bottom:5px; margin-bottom:15px; text-align:center;">🏆 MINHAS METAS ALCANÇADAS (${fM}/${fA})</h3>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+                ${badges.join('')}
+            </div>
+        </div>`;
+
+        // 🎯 MÁGICA 3: CRM / RADAR DE RECOMPRA AUTOMÁTICO
+        let mapClientes = {};
+        const hojeD = new Date();
+        minhasVendasHist.forEach(v => {
+            if(v.status === 'Presente') return;
+            let cNome = String(v.cliente).trim();
+            let dataV = new Date(v.dataVendaIso);
+            if(!mapClientes[cNome] || dataV > mapClientes[cNome].data) {
+                mapClientes[cNome] = { data: dataV, produto: v.produto }; // Guarda sempre a venda mais recente
+            }
+        });
+
+        let listaCrm = [];
+        for(let c in mapClientes) {
+            let diffTime = Math.abs(hojeD - mapClientes[c].data);
+            let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // Entra no radar clientes que compraram o último perfume entre 45 e 120 dias
+            if(diffDays >= 45 && diffDays <= 120) {
+                listaCrm.push({ cliente: c, dias: diffDays, produto: mapClientes[c].produto });
+            }
+        }
+        listaCrm.sort((a,b) => b.dias - a.dias); // Ordena para os mais atrasados aparecerem primeiro
+
+        let htmlCrm = "";
+        if(listaCrm.length > 0) {
+            let itensCrmHtml = listaCrm.slice(0, 5).map(c => {
+                let msgZap = encodeURIComponent(`Olá ${c.cliente}, tudo bem? Aqui é da Novera Scent! ✨\n\nVi que faz uns ${c.dias} dias que você levou o perfume ${c.produto}. Ele já deve estar no finalzinho, né?\n\nQuer aproveitar para repor ou provar uma novidade? Chegou muita coisa boa!`);
+                return `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #bae6fd; padding:10px 0;">
+                    <div style="flex:1; min-width:0; margin-right:10px;">
+                        <strong style="color:var(--brand-dark); font-size:0.85rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.cliente}</strong>
+                        <span style="font-size:0.65rem; color:#0369a1;">Vendido há <b>${c.dias} dias</b> (${c.produto})</span>
+                    </div>
+                    <a href="https://wa.me/?text=${msgZap}" target="_blank" style="background:#22c55e; color:white; text-decoration:none; padding:8px 12px; border-radius:6px; font-size:0.75rem; font-weight:bold; box-shadow:0 2px 5px rgba(34, 197, 94, 0.3); display:flex; align-items:center; gap:5px; flex-shrink:0;">
+                        <span>💬</span> Chamar
+                    </a>
+                </div>`;
+            }).join('');
+            
+            htmlCrm = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid #0ea5e9; background: #f0f9ff;">
+                <h3 style="color:#0369a1; font-size:0.85rem; border-bottom:1px dashed #bae6fd; padding-bottom:5px; margin-bottom:10px;">🎯 RADAR DE RECOMPRA (DINHEIRO NA MESA)</h3>
+                <p style="font-size:0.65rem; color:#0284c7; margin-top:-5px; margin-bottom:10px;">Estes clientes compraram há mais de 45 dias. O frasco deles está no fim!</p>
+                ${itensCrmHtml}
+            </div>`;
+        }
 
         let prevM_int = parseInt(fM) - 1; let prevA_int = parseInt(fA);
         if(prevM_int === 0) { prevM_int = 12; prevA_int -= 1; }
@@ -2338,7 +2456,10 @@ function renderizarDashboard() {
                     <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
                 
+                ${htmlProjecao}
+                ${htmlBadges}
                 ${htmlRanking}
+                ${htmlCrm}
                 
                 <div class="dash-card" style="grid-column: span 2; padding: 15px;">
                     <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 MEU DESEMPENHO DIÁRIO 👆</h3>
@@ -2408,12 +2529,11 @@ function renderizarDashboard() {
     let pedidosIdSet = new Set(); 
 
     let faturamentoPorDia = {};
-    let recebimentosPorDia = {}; // 📈 A MATRIZ DO NOVO GRÁFICO
+    let recebimentosPorDia = {}; 
     let mixProdutos = {};
     let mixProdutosDetalhes = {}; 
     let devedoresFiltrados = {}; 
 
-    // Mapeia todas as vendas para gerar o Faturamento de Vendas (o que saiu no mês)
     vDashGlobal.forEach(v => { 
         const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
         if (v.status === 'Pago') tRec += val; else tPend += val; 
@@ -2451,7 +2571,6 @@ function renderizarDashboard() {
         }
     }); 
 
-    // ⭐ INTELIGÊNCIA: Mapeia os RECEBIMENTOS REAIS (Caixa que entrou este mês, mesmo de vendas antigas)
     vSocioGlobal.forEach(v => {
         if (v.status === 'Pago' && v.dataPgtoDisplay) {
             let parts = v.dataPgtoDisplay.split('/');
@@ -2459,7 +2578,6 @@ function renderizarDashboard() {
                 let dDia = parts[0];
                 let dMes = parts[1];
                 let dAno = parts[2];
-                // Se a data de pagamento cair no mês/ano do filtro atual:
                 if (dMes === fM && dAno === fA) {
                     if (!recebimentosPorDia[dDia]) recebimentosPorDia[dDia] = 0;
                     recebimentosPorDia[dDia] += parseDinheiro(v.valor_venda);
@@ -2607,7 +2725,6 @@ function renderizarDashboard() {
                 </div>
             </div>
 
-            <!-- ⭐ NOVO: GRÁFICO DE RECEBIMENTOS DIÁRIOS -->
             <div class="dash-card" style="grid-column: span 2; padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📉 CURVA DE RECEBIMENTOS DIÁRIOS 👆</h3>
                 <p style="font-size:0.6rem; color:#15803d; font-weight:bold; margin-top:-5px; margin-bottom:10px;">(Dinheiro que efetivamente entrou no Caixa a cada dia)</p>
@@ -2664,7 +2781,7 @@ function renderizarDashboard() {
 
     if (typeof Chart !== 'undefined') { 
         if (window.gFatDiario) window.gFatDiario.destroy();
-        if (window.gRecDiario) window.gRecDiario.destroy(); // Novo Destroy
+        if (window.gRecDiario) window.gRecDiario.destroy(); 
         if (window.gForcaVendas) window.gForcaVendas.destroy();
         if (window.gMixProd) window.gMixProd.destroy();
         if (window.gReceitasGastos) window.gReceitasGastos.destroy();
@@ -2744,7 +2861,6 @@ function renderizarDashboard() {
             }
         });
 
-        // ⭐ O NOVO GRÁFICO DE RECEBIMENTOS
         const ctxRec = document.getElementById('chartRecDiario').getContext('2d');
         let diasRecOrd = Object.keys(recebimentosPorDia).sort();
         let valRecDiarios = diasRecOrd.map(d => recebimentosPorDia[d]);
@@ -3038,16 +3154,21 @@ function abrirMapaSeparacao(modo = 'pendentes') {
         let nomeNaVenda = String(v.socio || '').toLowerCase().trim();
         let pEquipe = nomesVendedoresOficiais.includes(nomeNaVenda); // SÓ PASSA SE FOR UM VENDEDOR OFICIAL
         
-        // 📦 A MÁGICA LOGÍSTICA: Decide se a SEDE precisa separar o pedido ou não
+        // 📦 A MÁGICA LOGÍSTICA COM ANTICORPOS PARA ACENTOS E Ç
         let loc = String(v.local_estoque || 'Sede').toLowerCase().trim();
+        
+        // Remove os acentos das palavras para o sistema entender que "Cléo" e "Cleo" são a mesma pessoa
+        let locLimpo = loc.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let nomeLimpo = nomeNaVenda.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
         let precisaSeparar = false;
 
-        if (loc === 'sede' || loc === '') {
+        if (locLimpo === 'sede' || locLimpo === '') {
             precisaSeparar = true; // Regra 1: Saiu da sede principal, tem que separar.
-        } else if (nomeNaVenda !== '' && !loc.includes(nomeNaVenda)) {
-            precisaSeparar = true; // Regra 2: Retirou de outro lugar que NÃO contém o nome do vendedor (ex: Kamila retirando da Cleo).
+        } else if (nomeLimpo !== '' && !locLimpo.includes(nomeLimpo)) {
+            precisaSeparar = true; // Regra 2: Retirou de outro lugar que NÃO contém o nome do vendedor.
         }
-        // Se chegou aqui e precisaSeparar continuar "false", é porque ela retirou de um local que leva o nome dela (ex: Kamila/Pancho). O item já está com ela!
+        // Se chegou aqui e precisaSeparar continuar "false", é porque ela retirou de um local que leva o nome dela (ex: Kamila/Pancho ou Cléo). O item já está com ela!
 
         let pModo = false;
         if (modo === 'pendentes') {
