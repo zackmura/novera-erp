@@ -824,6 +824,10 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     width: 100% !important;
 }
 
+/* Seta de recolher/expandir o grupo de vendas de um dia (o esconder em si é feito via JS, direto no elemento) */
+.seta-dia-vendas { display: inline-block; transition: transform 0.2s ease; margin-right: 6px; }
+.seta-dia-vendas.recolhida { transform: rotate(-90deg); }
+
 /* 4. O Cartão individual */
 .card-venda-list {
     background: #fafafa;

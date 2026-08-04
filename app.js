@@ -10,6 +10,7 @@ let logsGlobal = [];
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
+let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
 let dadosCarregados = false; 
@@ -2297,11 +2298,12 @@ function filtrarVendas() {
         let datasOrdenadas = Object.keys(gruposVendas).sort((a, b) => new Date(b) - new Date(a));
         
         datasOrdenadas.forEach(dataChave => {
-            html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
-                        <span>📅 VENDAS DO DIA: ${gruposVendas[dataChave].display}</span>
+            const diaRecolhido = diasVendasRecolhidos.has(dataChave);
+            html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; cursor: pointer;" onclick="toggleDiaVendas('${dataChave}')" title="Clique para recolher/expandir">
+                        <span><span class="seta-dia-vendas${diaRecolhido ? ' recolhida' : ''}" id="seta-dia-${dataChave}">▼</span>📅 VENDAS DO DIA: ${gruposVendas[dataChave].display}</span>
                         <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">💰 TOTAL: ${fmt(gruposVendas[dataChave].totalDia)}</span>
                      </div>`;
-            html += `<div class="grid-vendas-grupo">`;
+            html += `<div class="grid-vendas-grupo" id="grupo-dia-${dataChave}" style="${diaRecolhido ? 'display:none !important;' : ''}">`;
             html += gruposVendas[dataChave].itens.join('');
             html += `</div>`;
         });
@@ -2379,6 +2381,23 @@ function filtrarVendas() {
                 </div>
             `;
         }
+    }
+}
+
+// Recolhe/expande as vendas de um dia na lista (não apaga nada, só esconde visualmente). O estado sobrevive a re-sincronizações.
+function toggleDiaVendas(dataChave) {
+    const grupo = document.getElementById('grupo-dia-' + dataChave);
+    const seta = document.getElementById('seta-dia-' + dataChave);
+    if (!grupo) return;
+
+    if (diasVendasRecolhidos.has(dataChave)) {
+        diasVendasRecolhidos.delete(dataChave);
+        grupo.style.removeProperty('display');
+        if (seta) seta.classList.remove('recolhida');
+    } else {
+        diasVendasRecolhidos.add(dataChave);
+        grupo.style.setProperty('display', 'none', 'important');
+        if (seta) seta.classList.add('recolhida');
     }
 }
 
