@@ -6,7 +6,8 @@ let KEY_IMGBB = localStorage.getItem('novera_imgbb_key') || "";
 
 let rotulosGlobal = [], estoqueGlobal = [], gastosGlobal = [], vendasGlobal = [];
 let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
-let logsGlobal = []; 
+let logsGlobal = [];
+let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -410,18 +411,44 @@ async function fazerLogin() {
     }
 }
 
-function renderizarLogs() {
-    const container = document.getElementById('lista-logs');
-    if (!container) return;
-    if (logsGlobal.length === 0) { 
-        container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhum registro encontrado.</p>"; 
-        return; 
-    }
-
+// Aplica os filtros da tela de Logs (busca, usuário, ação, data) — usado tanto pra exibir quanto pra exportar
+function obterLogsFiltrados() {
     const selUser = document.getElementById('f-log-usuario');
     const selAcao = document.getElementById('f-log-acao');
     const inputBusca = document.getElementById('busca-logs');
     const inputData = document.getElementById('f-log-data');
+
+    const tBusca = inputBusca ? inputBusca.value.toLowerCase().trim() : "";
+    const fUser = selUser ? selUser.value : "";
+    const fAcao = selAcao ? selAcao.value : "";
+    const fData = inputData ? inputData.value : "";
+
+    let fDataBR = "";
+    if (fData) {
+        const p = fData.split('-');
+        fDataBR = `${p[2]}/${p[1]}/${p[0]}`;
+    }
+
+    return logsGlobal.filter(log => {
+        let passBusca = !tBusca || (log.detalhe + " " + log.acao + " " + log.usuario).toLowerCase().includes(tBusca);
+        let passUser = !fUser || log.usuario === fUser;
+        let passAcao = !fAcao || log.acao === fAcao;
+        let passData = !fDataBR || (log.dataHora && log.dataHora.startsWith(fDataBR));
+
+        return passBusca && passUser && passAcao && passData;
+    });
+}
+
+function renderizarLogs() {
+    const container = document.getElementById('lista-logs');
+    if (!container) return;
+    if (logsGlobal.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhum registro encontrado.</p>";
+        return;
+    }
+
+    const selUser = document.getElementById('f-log-usuario');
+    const selAcao = document.getElementById('f-log-acao');
 
     if (selUser && selUser.options.length <= 1) {
         const usuariosUnicos = [...new Set(logsGlobal.map(l => l.usuario))].filter(Boolean).sort();
@@ -433,55 +460,74 @@ function renderizarLogs() {
         acoesUnicas.forEach(a => selAcao.innerHTML += `<option value="${a}">${a}</option>`);
     }
 
-    const tBusca = inputBusca ? inputBusca.value.toLowerCase().trim() : "";
-    const fUser = selUser ? selUser.value : "";
-    const fAcao = selAcao ? selAcao.value : "";
-    const fData = inputData ? inputData.value : ""; 
-
-    let fDataBR = "";
-    if (fData) {
-        const p = fData.split('-');
-        fDataBR = `${p[2]}/${p[1]}/${p[0]}`; 
-    }
-
-    let filtrados = logsGlobal.filter(log => {
-        let passBusca = !tBusca || (log.detalhe + " " + log.acao + " " + log.usuario).toLowerCase().includes(tBusca);
-        let passUser = !fUser || log.usuario === fUser;
-        let passAcao = !fAcao || log.acao === fAcao;
-        let passData = !fDataBR || (log.dataHora && log.dataHora.startsWith(fDataBR));
-
-        return passBusca && passUser && passAcao && passData;
-    });
+    let filtrados = obterLogsFiltrados();
 
     if (filtrados.length === 0) {
         container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhum log corresponde aos filtros aplicados.</p>";
         return;
     }
 
+    logsRenderizadosAtuais = filtrados; // guarda a lista exibida agora, pro clique no card abrir o modal certo pelo índice
+
     let html = "";
-    filtrados.forEach(log => {
+    filtrados.forEach((log, index) => {
         let corBadge = "#966178";
         if (log.acao.includes('EXCLUIR') || log.acao.includes('EXCLUIU')) corBadge = "#A05252";
         if (log.acao.includes('CRIAR') || log.acao.includes('NOVA') || log.acao.includes('SALVAR') || log.acao.includes('FABRICOU') || log.acao.includes('COMPRA')) corBadge = "#2e7d32";
         if (log.acao.includes('EDITAR') || log.acao.includes('ATUALIZAR') || log.acao.includes('AJUSTOU')) corBadge = "#0369a1";
-        if (log.acao.includes('ENTROU')) corBadge = "#166534"; 
+        if (log.acao.includes('ENTROU')) corBadge = "#166534";
+        if (log.acao.includes('FALHOU')) corBadge = "#c2410c"; // Login falho: destaque de alerta pra chamar atenção
 
-        html += `<div class="rotulo-card" style="align-items:center; margin-bottom:8px;">
+        const linhasDetalhe = String(log.detalhe || '').split('\n').filter(Boolean);
+        const resumo = linhasDetalhe[0] || '';
+        const temMais = linhasDetalhe.length > 1;
+
+        html += `<div class="rotulo-card" style="align-items:center; margin-bottom:8px; cursor:pointer;" onclick="abrirDetalheLog(${index})" title="Clique para ver todos os detalhes">
             <div style="flex:1;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                     <span style="font-weight:800; font-size:0.75rem; color:var(--brand-dark);">👤 ${log.usuario}</span>
                     <span style="font-size:0.65rem; color:#888;">🕒 ${log.dataHora}</span>
                 </div>
                 <div style="margin-bottom:4px;"><span style="background:${corBadge}; color:white; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; letter-spacing:0.5px;">${log.acao}</span></div>
-                <p style="font-size:0.75rem; color:#666; margin:0; line-height:1.4;">${log.detalhe}</p>
+                <p style="font-size:0.75rem; color:#666; margin:0; line-height:1.4;">${resumo}${temMais ? ' <span style="color:var(--primary-dark); font-weight:800;">— 👁️ ver detalhes</span>' : ''}</p>
             </div>
         </div>`;
     });
-    
+
     container.innerHTML = html;
 }
 
-function renderizarRotulos() { 
+function exportarLogsCsv() {
+    const filtrados = obterLogsFiltrados();
+    if (filtrados.length === 0) return mostrarAlerta("Aviso", "Nenhum log para exportar com os filtros atuais.", "warning");
+
+    let csvContent = "data:text/csv;charset=utf-8,Data e Hora,Usuario,Acao,Detalhe\n";
+    filtrados.forEach(log => {
+        const detalheLimpo = log.detalhe ? String(log.detalhe).replace(/\n/g, ' ').replace(/"/g, '""') : '';
+        const row = [`"${log.dataHora || ''}"`, `"${log.usuario || ''}"`, `"${log.acao || ''}"`, `"${detalheLimpo}"`];
+        csvContent += row.join(",") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Logs_Novera_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function abrirDetalheLog(index) {
+    const log = logsRenderizadosAtuais[index];
+    if (!log) return;
+    document.getElementById('modal-log-usuario').innerText = log.usuario || '-';
+    document.getElementById('modal-log-data').innerText = log.dataHora || '-';
+    document.getElementById('modal-log-acao').innerText = log.acao || '-';
+    document.getElementById('modal-log-detalhe').innerText = log.detalhe || 'Sem detalhes registrados.';
+    document.getElementById('modal-detalhe-log').style.display = 'flex';
+}
+
+function renderizarRotulos() {
     const isAdmin = (usuarioCargo === 'Admin'); // Porteiro de segurança da função
     const lista = document.getElementById("lista-rotulos-cadastrados"); 
     const resumo = document.getElementById("resumo-essencias"); 
