@@ -62,6 +62,28 @@ function parseDinheiro(val) {
 }
 
 function safeFmt(val) { return fmt(parseDinheiro(val)); }
+
+// Copia texto com plano B: se o navegador bloquear a área de transferência (ex: app aberto como arquivo local), usa o método clássico
+function copiarTextoFallback(texto) {
+    return new Promise((resolve, reject) => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) resolve(); else reject(new Error('execCommand copy falhou'));
+        } catch (e) { reject(e); }
+    });
+}
+function copiarTextoSeguro(texto) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(texto).catch(() => copiarTextoFallback(texto));
+    }
+    return copiarTextoFallback(texto);
+}
 function dataBR(isoStr) { if (!isoStr) return ""; const p = isoStr.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 
 function formatarNomeProdutoHtml(nome, tipo) {
@@ -1376,6 +1398,132 @@ function abrirModalCompraLote() { const marcados = document.querySelectorAll('.c
 async function confirmarCompraLoteModal() { const checkboxes = document.querySelectorAll('.chk-item-compra-lote:checked'); const local = padronizarTexto(document.getElementById('mcl-local').value); const socio = padronizarTexto(document.getElementById('mcl-socio').value); if (!local || !socio) return mostrarAlerta("Atenção", "Informe o Fornecedor e o Sócio.", "warning"); document.getElementById('modal-comprar-lote').style.display = 'none'; mostrarLoading("Lançando Lote..."); let itensStr = []; for (let chk of checkboxes) { let c = comprasGlobal.find(x => x.linha == chk.value); if (c) { itensStr.push(c.item); let totalGasto = (parseFloat(c.qtd) || 1) * parseFloat(c.valor_previsto); await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "marcar_comprado", linha: c.linha, item: c.item, qtd: c.qtd, local: local, socio: socio, valor_unitario: fmtPlanilha(c.valor_previsto), total: fmtPlanilha(totalGasto), log_detalhe: `🛒 Compra em lote: ${c.item}` }) }); } } mostrarAlerta("Lote Enviado!", "Os itens foram processados.", "success"); sincronizarDadosUnico(); }
 function excluirComprasEmLote() { const checkboxes = document.querySelectorAll('.chk-item-compra-lote:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Marque os itens.", "warning"); abrirConfirmacao("Excluir Selecionados?", `Deseja apagar ${checkboxes.length} itens marcados?`, "🗑️", "#A05252", "#803f3f", "🗑️ Confirmar", async () => { mostrarLoading("Apagando..."); for (let chk of checkboxes) { await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "excluir_registro", aba: "Compras", linha: chk.value, log_detalhe: `🗑️ Excluiu compra em lote.` }) }); } mostrarAlerta("Removidos!", "Itens apagados.", "success"); sincronizarDadosUnico(); }); }
 
+// ==========================================
+// 🤖 SUGESTÃO INTELIGENTE DE COMPRAS
+// Cruza: Fábrica (perfumes abaixo do mínimo) + Essências (cód. fornecedor) + Despesas (último preço pago)
+// ==========================================
+let sugestaoComprasAtual = [];
+
+// Compara nomes ignorando maiúsculas e acentos ("Essência" bate com "essencia")
+function normalizarNomeBusca(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
+
+// Procura nas Despesas o gasto mais recente cujo nome "lembra" a essência (os nomes nem sempre batem exatos)
+function buscarUltimoPrecoEssencia(nomeEssencia) {
+    const alvo = normalizarNomeBusca(nomeEssencia);
+    if (!alvo) return null;
+    let melhor = null;
+    gastosGlobal.forEach(g => {
+        const item = normalizarNomeBusca(g.item);
+        if (!item) return;
+        const bate = item.includes(alvo) || (item.length >= 4 && alvo.includes(item));
+        if (bate && parseDinheiro(g.valor) > 0) {
+            if (!melhor || String(g.dataIso) > String(melhor.dataIso)) melhor = g;
+        }
+    });
+    return melhor;
+}
+
+function gerarSugestaoCompras() {
+    // Mesma matemática do radar da Fábrica: físico + macerando - reservado em encomendas
+    let totalMacerandoPorProduto = {};
+    producaoGlobal.forEach(p => { if (p.status === 'Em Andamento') { let n = padronizarTexto(p.nome_produto); totalMacerandoPorProduto[n] = (totalMacerandoPorProduto[n] || 0) + (parseFloat(p.qtd_prevista) || 0); } });
+    let totalEncomendadoPorProduto = {};
+    encomendasGlobal.forEach(enc => { if (enc.status === 'Pendente' || enc.status === 'Produzido') { let n = padronizarTexto(enc.item); totalEncomendadoPorProduto[n] = (totalEncomendadoPorProduto[n] || 0) + (parseInt(enc.qtd) || 0); } });
+    const minEstoqueGlob = parseInt(configuracoesGlobais.estoque_minimo) || 5;
+
+    // Agrupa o déficit por essência: dois volumes do mesmo perfume somam na mesma essência
+    const porEssencia = {};
+    for (let key in estoqueAgrupado) {
+        const e = estoqueAgrupado[key];
+        if (!String(e.tipo).toLowerCase().includes('perfume')) continue;
+        const projetado = (e.totalQtd + (totalMacerandoPorProduto[key] || 0)) - (totalEncomendadoPorProduto[key] || 0);
+        if (projetado >= minEstoqueGlob) continue;
+        const deficit = minEstoqueGlob - projetado;
+
+        const rotulo = rotulosGlobal.find(r => r.codigo === e.codigo);
+        const chave = rotulo ? String(rotulo.codigo) : 'sem-rotulo-' + key;
+        if (!porEssencia[chave]) porEssencia[chave] = { essencia: rotulo ? rotulo.essencia : e.nome, codigoForn: rotulo ? (rotulo.codigo_forn || '') : '', marca: rotulo ? (rotulo.marca || '') : '', temRotulo: !!rotulo, deficit: 0, produtos: [] };
+        porEssencia[chave].deficit += deficit;
+        porEssencia[chave].produtos.push(`${e.nome} (faltam ${deficit})`);
+    }
+
+    sugestaoComprasAtual = Object.values(porEssencia).map(s => ({ ...s, ultimoGasto: buscarUltimoPrecoEssencia(s.essencia) }));
+
+    if (sugestaoComprasAtual.length === 0) return mostrarAlerta("Tudo em dia! ✨", `Nenhum perfume abaixo do estoque mínimo (${minEstoqueGlob} un). Nada a comprar por enquanto.`, "success");
+
+    renderizarSugestaoCompras();
+    document.getElementById('modal-sugestao-compras').style.display = 'flex';
+}
+
+function renderizarSugestaoCompras() {
+    const rendimento = Math.max(1, parseInt(document.getElementById('sc-rendimento').value) || 5);
+    let html = '';
+    sugestaoComprasAtual.forEach((s, i) => {
+        const qtdSugerida = Math.ceil(s.deficit / rendimento);
+        const codTxt = s.codigoForn ? `<span style="background:#fdf5f7; border:1px solid #f3d8e2; color:#966178; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:900;">Cód. Forn: ${s.codigoForn}</span>` : `<span style="color:#b45309; font-size:0.65rem; font-weight:700;">⚠️ Sem cód. fornecedor no menu Essências</span>`;
+        const marcaTxt = s.marca ? ` <span style="font-size:0.65rem; color:#888;">(${s.marca})</span>` : '';
+        const infoPreco = s.ultimoGasto
+            ? `💰 Último pago: <b>${safeFmt(s.ultimoGasto.valor)}</b> em ${s.ultimoGasto.dataDisplay} <span style="color:#888;">— despesa: "${s.ultimoGasto.item}"</span>`
+            : `<span style="color:#b45309;">💰 Preço não encontrado nas Despesas — preencha ao lado</span>`;
+        const precoInicial = s.ultimoGasto ? safeFmt(s.ultimoGasto.valor) : '';
+
+        html += `
+        <div style="border:1px solid var(--border-color); border-radius:10px; padding:12px; margin-bottom:10px; background:#fff;">
+            <div style="display:flex; align-items:flex-start; gap:10px;">
+                <input type="checkbox" id="sc-chk-${i}" checked style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
+                <div style="flex:1; min-width:0;">
+                    <p style="margin:0 0 4px 0; font-weight:800; font-size:0.85rem; color:var(--brand-dark);">🧴 Essência ${s.essencia}${marcaTxt}</p>
+                    <div style="margin-bottom:5px;">${codTxt}</div>
+                    <p style="margin:0 0 4px 0; font-size:0.7rem; color:#666;">📉 Faltam <b>${s.deficit} perfumes</b>: ${s.produtos.join(' | ')}</p>
+                    <p style="margin:0 0 8px 0; font-size:0.7rem; color:#444;">${infoPreco}</p>
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;"><label style="font-size:0.6rem;">Qtd Essências</label><input type="number" id="sc-qtd-${i}" value="${qtdSugerida}" min="1" style="padding:8px;"></div>
+                        <div style="flex:1;"><label style="font-size:0.6rem;">Valor Unit.</label><input type="text" id="sc-valor-${i}" class="mask-money" value="${precoInicial}" placeholder="R$ 0,00" style="padding:8px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById('lista-sugestao-compras').innerHTML = html;
+}
+
+let sugestaoEmEnvio = false; // trava contra clique duplo no confirmar
+async function confirmarSugestaoCompras() {
+    if (sugestaoEmEnvio) return;
+    const selecionados = [];
+    sugestaoComprasAtual.forEach((s, i) => {
+        const chk = document.getElementById('sc-chk-' + i);
+        if (!chk || !chk.checked) return;
+        const qtd = Math.max(1, parseInt(document.getElementById('sc-qtd-' + i).value) || 1);
+        const valor = parseDinheiro(document.getElementById('sc-valor-' + i).value);
+        selecionados.push({ s, qtd, valor });
+    });
+    if (selecionados.length === 0) return mostrarAlerta("Aviso", "Marque ao menos uma essência para adicionar.", "warning");
+
+    sugestaoEmEnvio = true;
+    const btnConf = document.getElementById('btn-confirmar-sugestao');
+    if (btnConf) { btnConf.disabled = true; btnConf.innerHTML = '⏳ ADICIONANDO...'; }
+    mostrarLoading("Adicionando à Fila de Compras...");
+
+    try {
+        const hoje = new Date();
+        const dataIso = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        for (let sel of selecionados) {
+            const nomeItem = `Essência ${sel.s.essencia}` + (sel.s.codigoForn ? ` Cod: ${sel.s.codigoForn}` : '');
+            await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_compra", data: dataIso, categoria: "Fragâncias", item: nomeItem, qtd: sel.qtd, valor: fmtPlanilha(sel.valor), log_detalhe: `🤖 Sugestão da fábrica: ${sel.qtd}x ${nomeItem}` }) });
+        }
+        document.getElementById('modal-sugestao-compras').style.display = 'none';
+        mostrarAlerta("Pronto!", `${selecionados.length} essência(s) adicionada(s) à Fila de Compras.`, "success");
+        sincronizarDadosUnico();
+    } catch (e) {
+        mostrarAlerta("Erro", "Falha ao enviar. Verifique a conexão e tente de novo.", "error");
+    } finally {
+        ocultarLoading();
+        sugestaoEmEnvio = false;
+        if (btnConf) { btnConf.disabled = false; btnConf.innerHTML = '✅ Adicionar Selecionados à Fila'; }
+    }
+}
+
 function calcularTotalGasto() { const qtd = parseFloat(document.getElementById('g-qtd').value) || 1; const valUnit = parseDinheiro(document.getElementById('g-valor').value); document.getElementById('g-total').value = valUnit > 0 ? fmt(qtd * valUnit) : "R$ 0,00"; }
 function calcularEditGasto() { const qtd = parseFloat(document.getElementById('edit-g-qtd').value) || 1; const valUnit = parseDinheiro(document.getElementById('edit-g-valor').value); document.getElementById('edit-g-total').value = valUnit > 0 ? fmt(qtd * valUnit) : "R$ 0,00"; }
 
@@ -2092,7 +2240,7 @@ function prepararCobranca() {
         }
     }
 }
-function copiarPendenciasWhats() { const cliReal = document.getElementById('cobranca-cliente').value; if (!cliReal) return mostrarAlerta("Aviso", "Selecione um cliente para cobrar.", "warning"); const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal; const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning"); let txt = `Olá ${cliDisplay}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n`; let tot = 0; checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); txt += `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n`; tot += val; } }); txt += `\n*Total em aberto: ${fmt(tot)}*\n\nQualquer dúvida, é só chamar!`; navigator.clipboard.writeText(txt).then(() => mostrarAlerta("Copiado!", "Texto copiado.", "success")); }
+function copiarPendenciasWhats() { const cliReal = document.getElementById('cobranca-cliente').value; if (!cliReal) return mostrarAlerta("Aviso", "Selecione um cliente para cobrar.", "warning"); const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal; const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning"); let txt = `Olá ${cliDisplay}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n`; let tot = 0; checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); txt += `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n`; tot += val; } }); txt += `\n*Total em aberto: ${fmt(tot)}*\n\nQualquer dúvida, é só chamar!`; copiarTextoSeguro(txt).then(() => mostrarAlerta("Copiado!", "Texto copiado.", "success")).catch(() => mostrarAlerta("Erro", "Não foi possível copiar. Copie manualmente.", "error")); }
 
 async function montarCobranca() {
     const cliReal = document.getElementById('cobranca-cliente').value; if (!cliReal) return mostrarAlerta("Aviso", "Selecione um cliente devedor.", "warning"); const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal; const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning");
@@ -3034,7 +3182,7 @@ function renderizarDashboard() {
 
 function abrirModalRelatorios() { document.getElementById('modal-relatorios').style.display = 'flex'; }
 function exportarExcel() { const dMes = document.getElementById('d-filtro-mes').value; const dAno = document.getElementById('d-filtro-ano').value; let pfx = dAno && dMes ? `${dAno}-${dMes}` : dAno; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); if (vDash.length === 0) return mostrarAlerta("Aviso", "Nenhuma venda neste período.", "warning"); let csvContent = "data:text/csv;charset=utf-8,Data,Cliente,Produto,Socio,Quantidade,Valor,Status,Custo Und,Custo Total,Lucro,Markup,Data Pagamento,Observacao\n"; vDash.forEach(v => { let obsLimpa = v.observacao ? v.observacao.replace(/\n/g, ' ').replace(/"/g, '""') : ''; let row = [v.dataVendaDisplay, `"${v.cliente}"`, `"${v.produto}"`, v.socio, v.qtd, `"${v.valor_venda}"`, v.status, `"${v.custo_und}"`, `"${v.custo_total}"`, `"${v.lucro}"`, `"${v.markup}"`, v.dataPgtoDisplay || "", `"${obsLimpa}"`]; csvContent += row.join(",") + "\n"; }); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Vendas_Novera_${pfx || 'Tudo'}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
-function copiarFechamento() { const dMesSel = document.getElementById('d-filtro-mes'); const dMesText = dMesSel.options[dMesSel.selectedIndex].text; const dAno = document.getElementById('d-filtro-ano').value || 'Todo o Período'; let lReal = document.getElementById('d-lucro-real').innerText; let entradas = document.getElementById('d-receitas').innerText; let saidas = document.getElementById('d-gastos').innerText; let aReceber = document.getElementById('d-receber').innerText; let patrimonio = document.getElementById('d-patrimonio').innerText; let txt = `📊 *FECHAMENTO NOVERA SCENT* 📊\n🗓️ Período: ${dMesText} ${dAno}\n\n👑 *Patrimônio Total:* ${patrimonio}\n\n📈 *Entradas (Pagas):* ${entradas}\n📉 *Saídas (Gastos):* ${saidas}\n⏳ *A Receber (Fiado):* ${aReceber}\n💰 *Caixa Líquido:* ${lReal}\n\n🤝 *Divisão de Lucros Projetada:*\n`; const fM = document.getElementById('d-filtro-mes').value; const fA = document.getElementById('d-filtro-ano').value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); let mSoc = {}; vDash.forEach(v => { const luc = parseDinheiro(v.lucro); if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); let sociosText = ""; for (let s in mSoc) { sociosText += `▪️ ${s}: ${fmt(mSoc[s])}\n`; } txt += sociosText || "Nenhum lucro.\n"; txt += `\n✨ _Bora pra cima!_ 🚀`; navigator.clipboard.writeText(txt).then(() => { mostrarAlerta("Copiado!", "Resumo do fechamento copiado.", "success"); }).catch(err => { mostrarAlerta("Erro", "Falha ao copiar texto.", "error"); }); }
+function copiarFechamento() { const dMesSel = document.getElementById('d-filtro-mes'); const dMesText = dMesSel.options[dMesSel.selectedIndex].text; const dAno = document.getElementById('d-filtro-ano').value || 'Todo o Período'; let lReal = document.getElementById('d-lucro-real').innerText; let entradas = document.getElementById('d-receitas').innerText; let saidas = document.getElementById('d-gastos').innerText; let aReceber = document.getElementById('d-receber').innerText; let patrimonio = document.getElementById('d-patrimonio').innerText; let txt = `📊 *FECHAMENTO NOVERA SCENT* 📊\n🗓️ Período: ${dMesText} ${dAno}\n\n👑 *Patrimônio Total:* ${patrimonio}\n\n📈 *Entradas (Pagas):* ${entradas}\n📉 *Saídas (Gastos):* ${saidas}\n⏳ *A Receber (Fiado):* ${aReceber}\n💰 *Caixa Líquido:* ${lReal}\n\n🤝 *Divisão de Lucros Projetada:*\n`; const fM = document.getElementById('d-filtro-mes').value; const fA = document.getElementById('d-filtro-ano').value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); let mSoc = {}; vDash.forEach(v => { const luc = parseDinheiro(v.lucro); if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); let sociosText = ""; for (let s in mSoc) { sociosText += `▪️ ${s}: ${fmt(mSoc[s])}\n`; } txt += sociosText || "Nenhum lucro.\n"; txt += `\n✨ _Bora pra cima!_ 🚀`; copiarTextoSeguro(txt).then(() => { mostrarAlerta("Copiado!", "Resumo do fechamento copiado.", "success"); }).catch(err => { mostrarAlerta("Erro", "Falha ao copiar texto.", "error"); }); }
 
 function fazerLogout(motivo) {
     if (motivo) alert(motivo);
@@ -4248,7 +4396,7 @@ function copiarPedidoClipboard() {
     texto += "Fico no aguardo do total para acertarmos. Obrigado!";
 
     // MÁGICA DE UX: Copia silenciosamente e anima o botão (SEM ALERTAS NA TELA)
-    navigator.clipboard.writeText(texto).then(() => {
+    copiarTextoSeguro(texto).then(() => {
         const btn = document.getElementById('btn-copiar-pedido');
         if(btn) {
             let originalText = btn.innerHTML;
