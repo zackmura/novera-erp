@@ -343,12 +343,20 @@ function iniciarSessaoLocal(usuario, cargo, token) {
     localStorage.setItem('novera_last_user', usuario);
     localStorage.setItem('novera_user_cargo', cargo || 'Vendedor');
     if (token) localStorage.setItem('novera_token', token); // Salva o crachá
-    
+
     usuarioLogado = usuario;
     usuarioCargo = cargo || 'Vendedor';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
     document.getElementById('cfg-user').value = usuario;
+
+    const bannerView = document.getElementById('banner-visualizacao-como');
+    if (bannerView) {
+        const emVisualizacao = !!localStorage.getItem('novera_admin_token_original');
+        bannerView.style.display = emVisualizacao ? 'flex' : 'none';
+        if (emVisualizacao) document.getElementById('banner-visualizacao-nome').innerText = usuario;
+    }
+
     aplicarPermissoes();
     verificarNovidades();
     
@@ -2987,6 +2995,9 @@ function fazerLogout(motivo) {
     localStorage.removeItem('novera_token'); // Exclui o crachá
     localStorage.removeItem('novera_session_expires');
     localStorage.removeItem('novera_user_cargo');
+    localStorage.removeItem('novera_admin_token_original'); // Limpa qualquer sessão de "ver como" pendente
+    localStorage.removeItem('novera_admin_user_original');
+    localStorage.removeItem('novera_admin_cargo_original');
     dadosCarregados = false;
     window.location.reload();
 }
@@ -3897,6 +3908,7 @@ function renderizarUsuarios() {
         let taxa = parseFloat(u.comissao) || 0;
 
         let btnExcluir = u.usuario === usuarioLogado ? '' : `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('usuarios', ${u.id}, 'Usuário: ${u.usuario}')" title="Excluir Usuário">🗑️</button>`;
+        let btnVerComo = (!isAdmin) ? `<button class="btn-acao" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd; width:36px; height:36px;" onclick="visualizarComoUsuario(${u.id})" title="Ver o sistema como este vendedor">👁️</button>` : '';
 
         html += `
         <div class="rotulo-card card-producao-list" style="border-left: 5px solid ${corBorda}; padding: 15px; border-radius: 8px;">
@@ -3906,10 +3918,11 @@ function renderizarUsuarios() {
                 </h4>
                 <p style="font-size:0.75rem; color:#888; margin:0;">ID: ${u.id} | <b style="color:var(--primary-dark);">Comissão: ${taxa}%</b></p>
             </div>
-            
+
             <div class="prod-actions">
                 <div></div> <!-- Esta div vazia empurra os botões pra direita no celular -->
                 <div style="display:flex; gap:8px; align-items:center;">
+                    ${btnVerComo}
                     <button class="btn-acao" style="background:#fef08a; color:#b45309; border-color:#fde047; width:36px; height:36px;" onclick="resetarSenhaUsuario(${u.id})" title="Resetar Senha">🔑</button>
                     <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararEdicaoUsuario(${u.id})" title="Editar">✏️</button>
                     ${btnExcluir}
@@ -3987,6 +4000,55 @@ function resetarSenhaUsuario(id) {
             sincronizarDadosUnico();
         });
     });
+}
+
+// "Ver como": deixa o Admin enxergar o sistema como um vendedor específico, sem nunca precisar saber a senha dele.
+function visualizarComoUsuario(id) {
+    const u = usuariosGlobal.find(x => x.id == id);
+    if (!u) return;
+    abrirConfirmacao(
+        `Ver como ${u.usuario}?`,
+        `Você vai visualizar o sistema exatamente como ${u.usuario} vê. Nenhuma ação de Admin fica disponível enquanto estiver nesse modo. Um aviso fixo vai aparecer no topo pra você voltar quando quiser.`,
+        "👁️", "#0369a1", "#082f49", "✔️ Visualizar",
+        () => {
+            mostrarLoading("Entrando como " + u.usuario + "...");
+            fetch(API_NOVERA, {
+                method: "POST",
+                headers: cabecalhoAuth(),
+                body: JSON.stringify({ usuario: usuarioLogado, acao: "admin_visualizar_como", id_usuario_alvo: u.id })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.sucesso) {
+                    // Guarda a sessão de Admin original pra dar pra voltar depois
+                    localStorage.setItem('novera_admin_token_original', localStorage.getItem('novera_token'));
+                    localStorage.setItem('novera_admin_user_original', usuarioLogado);
+                    localStorage.setItem('novera_admin_cargo_original', usuarioCargo);
+
+                    dadosCarregados = false;
+                    iniciarSessaoLocal(res.usuario, res.cargo, res.token); // já dispara a sincronização, pois dadosCarregados está false
+                } else {
+                    mostrarAlerta("Erro", res.erro || "Não foi possível entrar como este usuário.", "error");
+                }
+            })
+            .catch(e => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+            .finally(() => ocultarLoading());
+        }
+    );
+}
+
+function voltarDaVisualizacao() {
+    const tokenAdmin = localStorage.getItem('novera_admin_token_original');
+    const userAdmin = localStorage.getItem('novera_admin_user_original');
+    const cargoAdmin = localStorage.getItem('novera_admin_cargo_original');
+    if (!tokenAdmin) return;
+
+    localStorage.removeItem('novera_admin_token_original');
+    localStorage.removeItem('novera_admin_user_original');
+    localStorage.removeItem('novera_admin_cargo_original');
+
+    dadosCarregados = false;
+    iniciarSessaoLocal(userAdmin, cargoAdmin, tokenAdmin); // já dispara a sincronização, pois dadosCarregados está false
 }
 
 // Função para o Admin confirmar o Acerto de Contas com o Vendedor
