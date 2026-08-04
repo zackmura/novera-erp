@@ -86,6 +86,18 @@ function copiarTextoSeguro(texto) {
 }
 function dataBR(isoStr) { if (!isoStr) return ""; const p = isoStr.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 
+// Mostra há quanto tempo aquele local não recebe estoque novo desse produto, colorindo conforme o tempo parado
+function badgeIdadeEstoque(dataIso) {
+    if (!dataIso) return '';
+    const dias = Math.floor((new Date() - new Date(dataIso.split('T')[0] + 'T00:00:00')) / 86400000);
+    if (isNaN(dias) || dias < 0) return '';
+    let texto = dias === 0 ? 'hoje' : dias === 1 ? 'há 1d' : dias < 30 ? `há ${dias}d` : `há ${Math.floor(dias / 30)}m`;
+    let cor = '#6b7280';
+    if (dias >= 60) { cor = '#991b1b'; texto = '🐌 ' + texto; }
+    else if (dias >= 30) { cor = '#92400e'; texto = '⏳ ' + texto; }
+    return ` <span style="color:${cor}; font-weight:800;">· ${texto}</span>`;
+}
+
 function formatarNomeProdutoHtml(nome, tipo) {
     const prod = estoqueGlobal.find(e => e.nome === nome);
     if (prod && prod.codigo) {
@@ -338,7 +350,7 @@ async function sincronizarDadosUnico() {
                 if (generoEncontrado === '') generoEncontrado = 'Unissex';
 
                 if (!estoqueAgrupado[n]) {
-                    estoqueAgrupado[n] = { nome: e.nome, tipo: e.tipo, codigo: e.codigo, preco: e.preco, custo: e.custo, foto: e.foto, totalQtd: 0, locais: {}, genero: generoEncontrado };
+                    estoqueAgrupado[n] = { nome: e.nome, tipo: e.tipo, codigo: e.codigo, preco: e.preco, custo: e.custo, foto: e.foto, totalQtd: 0, locais: {}, locaisDatas: {}, genero: generoEncontrado };
                 }
                 let lExib = e.local ? e.local.trim() : 'Sede';
                 let q = parseFloat(e.qtd) || 0;
@@ -346,6 +358,7 @@ async function sincronizarDadosUnico() {
                 if (!estoqueAgrupado[n].locais[lExib]) estoqueAgrupado[n].locais[lExib] = 0;
                 estoqueAgrupado[n].locais[lExib] += q;
                 estoqueAgrupado[n].totalQtd += q;
+                estoqueAgrupado[n].locaisDatas[lExib] = e.dataEntrada || null; // data da última entrada de estoque nesse local específico
             });
 
             atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao();
@@ -1148,16 +1161,17 @@ function renderizarEstoque() {
         let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
         let badgeEncomenda = qtdEncomendada > 0 ? `<div style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:bold; margin-top:8px; border:1px solid #fca5a5; display:inline-block;">📦 ${qtdEncomendada} Reservado(s)</div>` : '';
 
-        let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`; 
-        for(let loc in e.locais) { 
-            if(e.locais[loc] > 0) { locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b></span>`; } 
-        } 
-        locaisHtml += `</div>`; 
-        if (qtdExibicao <= 0) locaisHtml = ""; 
+        let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`;
+        for(let loc in e.locais) {
+            if(e.locais[loc] > 0) { const idadeLoc = badgeIdadeEstoque(e.locaisDatas ? e.locaisDatas[loc] : null); locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b>${idadeLoc}</span>`; }
+        }
+        locaisHtml += `</div>`;
+        if (qtdExibicao <= 0) locaisHtml = "";
         
         const nomeEncode = encodeURIComponent(e.nome); 
         const txtCusto = isAdmin ? `<p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>` : '';
         const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
+        const btnTransferirEst = (isAdmin && qtdExibicao > 0) ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="abrirModalTransferirEstoque('${nomeEncode}')" title="Transferir Entre Locais">🔄</button>` : '';
 
         gruposEstoque[tipoKey].itens.push(`
         <div class="rotulo-card card-estoque-list" style="${opacidade}">
@@ -1183,10 +1197,11 @@ function renderizarEstoque() {
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
+                    ${btnTransferirEst}
                     ${btnEditarEst}
                 </div>
             </div>
-        </div>`); 
+        </div>`);
     }); 
 
     let tiposOrdenados = Object.keys(gruposEstoque).sort();
@@ -1221,9 +1236,84 @@ async function salvarEdicaoEstoque() {
     document.getElementById('modal-editar-estoque').style.display = 'none'; 
     mostrarLoading("Atualizando Servidor..."); 
     try { 
-        const py = { usuario: usuarioLogado, acao: "atualizar_estoque_multilocal", nome: nome, tipo: tipo, custo: fmtPlanilha(c), preco: fmtPlanilha(p), foto: fotoFinal, codigo: cod, distribuicao: distribuicao, log_detalhe: msgLog }; 
-        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(() => { mostrarAlerta("Atualizado!", "Estoque Multi-Local ajustado.", "success"); sincronizarDadosUnico(); }); 
-    } catch (e) { } 
+        const py = { usuario: usuarioLogado, acao: "atualizar_estoque_multilocal", nome: nome, tipo: tipo, custo: fmtPlanilha(c), preco: fmtPlanilha(p), foto: fotoFinal, codigo: cod, distribuicao: distribuicao, log_detalhe: msgLog };
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(() => { mostrarAlerta("Atualizado!", "Estoque Multi-Local ajustado.", "success"); sincronizarDadosUnico(); });
+    } catch (e) { }
+}
+
+// ==========================================
+// 🔄 TRANSFERIR ESTOQUE ENTRE LOCAIS (rápido, sem reescrever a distribuição inteira)
+// ==========================================
+function abrirModalTransferirEstoque(nomeEncoded) {
+    const nomeDecoded = decodeURIComponent(nomeEncoded);
+    const e = estoqueAgrupado[padronizarTexto(nomeDecoded)];
+    if (!e) return;
+
+    const locaisComEstoque = Object.keys(e.locais).filter(l => e.locais[l] > 0);
+    if (locaisComEstoque.length === 0) return mostrarAlerta("Aviso", "Esse produto não tem estoque disponível em nenhum local.", "warning");
+
+    document.getElementById('modal-transferir-estoque').dataset.produto = e.nome;
+    document.getElementById('ts-nome-produto').innerText = e.nome;
+
+    // Locais conhecidos: os que já têm esse produto + os cadastrados no sistema (pra permitir criar uma distribuição nova)
+    const todosLocais = new Set([...locaisComEstoque, ...estoqueGlobal.map(x => x.local ? x.local.trim() : 'Sede').filter(Boolean)]);
+
+    const selOrigem = document.getElementById('ts-local-origem');
+    selOrigem.innerHTML = locaisComEstoque.map(l => `<option value="${l}">${l} (${e.locais[l]} un)</option>`).join('');
+
+    const selDestino = document.getElementById('ts-local-destino');
+    selDestino.innerHTML = [...todosLocais].sort().map(l => `<option value="${l}">${l}</option>`).join('');
+    // Sugere um destino diferente da origem, se houver mais de um local
+    if (todosLocais.size > 1 && selDestino.options[0].value === selOrigem.value) selDestino.selectedIndex = 1;
+
+    document.getElementById('ts-qtd').value = 1;
+    atualizarSaldoOrigemTransferencia();
+    document.getElementById('modal-transferir-estoque').style.display = 'flex';
+}
+
+function atualizarSaldoOrigemTransferencia() {
+    const nome = document.getElementById('modal-transferir-estoque').dataset.produto;
+    const e = estoqueAgrupado[padronizarTexto(nome)];
+    const origem = document.getElementById('ts-local-origem').value;
+    const saldo = e && e.locais[origem] ? e.locais[origem] : 0;
+    document.getElementById('ts-saldo-origem').innerText = `Disponível em ${origem}: ${saldo} un`;
+    document.getElementById('ts-qtd').max = saldo;
+}
+
+let transferenciaEmAndamento = false; // trava contra clique duplo
+function confirmarTransferirEstoque() {
+    if (transferenciaEmAndamento) return;
+    const nome = document.getElementById('modal-transferir-estoque').dataset.produto;
+    const localOrigem = document.getElementById('ts-local-origem').value;
+    const localDestino = document.getElementById('ts-local-destino').value;
+    const qtd = parseFloat(document.getElementById('ts-qtd').value) || 0;
+
+    if (qtd <= 0) return mostrarAlerta("Atenção", "Informe uma quantidade válida.", "warning");
+    if (localOrigem === localDestino) return mostrarAlerta("Atenção", "Escolha dois locais diferentes.", "warning");
+
+    transferenciaEmAndamento = true;
+    const btn = document.getElementById('btn-confirmar-transferencia');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ TRANSFERINDO...'; }
+    mostrarLoading("Transferindo Estoque...");
+
+    const msgLog = `🔄 Transferiu ${qtd}x [${nome}]: ${localOrigem} → ${localDestino}`;
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "transferir_estoque", nome: nome, qtd: qtd, local_origem: localOrigem, local_destino: localDestino, log_detalhe: msgLog }) })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) {
+            document.getElementById('modal-transferir-estoque').style.display = 'none';
+            mostrarAlerta("Transferido!", `${qtd}x movido(s) de ${localOrigem} para ${localDestino}.`, "success");
+            sincronizarDadosUnico();
+        } else {
+            mostrarAlerta("Erro", res.erro || "Não foi possível transferir.", "error");
+        }
+    })
+    .catch(e => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => {
+        ocultarLoading();
+        transferenciaEmAndamento = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = '✅ Confirmar Transferência'; }
+    });
 }
 
 function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => padronizarTexto(e.tipo)).filter(t => t)); let html = `<label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="cat-todas" onchange="toggleTodasCategorias(this)" checked style="width:16px; height:16px; flex-shrink:0;"> <strong>Selecionar Todas</strong></label><div style="border-top:1px dashed #E8DDE1; margin-bottom:10px;"></div>`;[...tipos].forEach(t => { let nomeBonito = t.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); html += `<label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin-bottom:8px; cursor:pointer;"><input type="checkbox" class="chk-cat-tipo" value="${t}" checked onchange="verificarCategorias()" style="width:16px; height:16px; flex-shrink:0;"> ${nomeBonito}</label>`; }); document.getElementById('cat-checkbox-container').innerHTML = html; document.getElementById('modal-gerar-catalogo').style.display = 'flex'; }
@@ -3278,7 +3368,7 @@ async function sincronizarDadosSilencioso() {
                 if (generoEncontrado === '') generoEncontrado = 'Unissex';
 
                 if (!estoqueAgrupado[n]) {
-                    estoqueAgrupado[n] = { nome: e.nome, tipo: e.tipo, codigo: e.codigo, preco: e.preco, custo: e.custo, foto: e.foto, totalQtd: 0, locais: {}, genero: generoEncontrado };
+                    estoqueAgrupado[n] = { nome: e.nome, tipo: e.tipo, codigo: e.codigo, preco: e.preco, custo: e.custo, foto: e.foto, totalQtd: 0, locais: {}, locaisDatas: {}, genero: generoEncontrado };
                 }
                 let lExib = e.local ? e.local.trim() : 'Sede';
                 let q = parseFloat(e.qtd) || 0;
@@ -3286,6 +3376,7 @@ async function sincronizarDadosSilencioso() {
                 if (!estoqueAgrupado[n].locais[lExib]) estoqueAgrupado[n].locais[lExib] = 0;
                 estoqueAgrupado[n].locais[lExib] += q;
                 estoqueAgrupado[n].totalQtd += q;
+                estoqueAgrupado[n].locaisDatas[lExib] = e.dataEntrada || null; // data da última entrada de estoque nesse local específico
             });
 
             // 3. O SEGREDO: Salvar o que o usuário selecionou no PDV para a atualização não desmanchar
