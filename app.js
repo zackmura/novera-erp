@@ -2910,7 +2910,7 @@ function renderizarDashboard() {
         let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
 
         container.innerHTML = `
-            <div class="dashboard-grid">
+            <div class="dash-grid">
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
                     <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">MINHAS VENDAS NO PERÍODO</h3>
                     <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVend)}</p>
@@ -2999,6 +2999,7 @@ function renderizarDashboard() {
     const gDashGlobal = gSocioGlobal.filter(g => pfx ? (g.dataIso && g.dataIso.startsWith(pfx)) : true);
     
     let tRec = 0, tPend = 0, tGas = 0, tLucroTotal = 0, tVendasTotais = 0, qtdVendasReais = 0;
+    let tCustoTotal = 0, tBonusPago = 0;
     let mProd = {}, mCli = {}; 
     let pedidosIdSet = new Set(); 
 
@@ -3008,11 +3009,14 @@ function renderizarDashboard() {
     let mixProdutosDetalhes = {}; 
     let devedoresFiltrados = {}; 
 
-    vDashGlobal.forEach(v => { 
-        const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1; 
-        if (v.status === 'Pago') tRec += val; else tPend += val; 
-        tLucroTotal += luc; 
+    vDashGlobal.forEach(v => {
+        const val = parseDinheiro(v.valor_venda); const luc = parseDinheiro(v.lucro); const q = parseInt(v.qtd) || 1;
+        if (v.status === 'Pago') tRec += val; else tPend += val;
+        tLucroTotal += luc;
         tVendasTotais += val;
+        tCustoTotal += parseDinheiro(v.custo_total);
+        const bonusPctVenda = parseFloat(v.bonus_aplicado) || 0;
+        if (bonusPctVenda > 0) tBonusPago += (val * bonusPctVenda) / 100;
 
         if (v.status === 'Pendente' || v.status === 'Parcelado') {
             let clienteLimpo = String(v.cliente).trim();
@@ -3122,9 +3126,40 @@ function renderizarDashboard() {
         </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado gerado neste período! 🎉</p>";
 
     const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
+    const corLucroTotal = tLucroTotal < 0 ? "#b91c1c" : "#7c3aed";
+    const margemMedia = tCustoTotal > 0 ? (tLucroTotal / tCustoTotal) * 100 : 0;
+
+    // 🔮 Lucro Projetado do Mês (mesma lógica de ritmo já usada na visão do vendedor, aplicada ao lucro da empresa toda)
+    let htmlLucroProjetadoAdmin = "";
+    const dataHojeProjAdmin = new Date();
+    const eMesAtualAdmin = (parseInt(fM) === dataHojeProjAdmin.getMonth() + 1 && parseInt(fA) === dataHojeProjAdmin.getFullYear());
+    if (eMesAtualAdmin) {
+        const diasNoMesAdmin = new Date(parseInt(fA), parseInt(fM), 0).getDate();
+        const diasPassadosAdmin = dataHojeProjAdmin.getDate();
+        let projecaoLucroAdmin = (tLucroTotal / diasPassadosAdmin) * diasNoMesAdmin;
+        if (tLucroTotal >= 0 && projecaoLucroAdmin < tLucroTotal) projecaoLucroAdmin = tLucroTotal;
+        const corProjAdmin = projecaoLucroAdmin < 0 ? "#b91c1c" : "#15803d";
+
+        htmlLucroProjetadoAdmin = `
+        <div class="dash-card" style="grid-column: span 2; padding: 20px; border: 1px solid #c4b5fd; background: #faf5ff;">
+            <h3 style="color:#7e22ce; font-size:0.85rem; font-weight:900; text-align:center; margin:0 0 15px 0;">🔮 LUCRO PROJETADO DO MÊS</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="text-align:left;">
+                    <span style="font-size:0.65rem; color:#9333ea; font-weight:bold; display:block;">Já Confirmado (${diasPassadosAdmin}/${diasNoMesAdmin} dias)</span>
+                    <span style="font-size:1.4rem; color:#7e22ce; font-weight:900;">${fmt(tLucroTotal)}</span>
+                </div>
+                <div style="font-size:1.5rem; color:#d8b4fe;">👉</div>
+                <div style="text-align:right;">
+                    <span style="font-size:0.65rem; color:#666; font-weight:bold; display:block;">Se Mantiver o Ritmo</span>
+                    <span style="font-size:1.4rem; color:${corProjAdmin}; font-weight:900;">${fmt(projecaoLucroAdmin)}</span>
+                </div>
+            </div>
+            <p style="font-size:0.6rem; color:#a855f7; text-align:center; margin:10px 0 0 0; font-style:italic;">Projeção linear com base no ritmo de vendas, custo e comissão até aqui.</p>
+        </div>`;
+    }
 
     container.innerHTML = `
-        <div class="dashboard-grid">
+        <div class="dash-grid">
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
                 <h3 style="color: #e8dde1; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">👑 PATRIMÔNIO NOVERA</h3>
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
@@ -3135,6 +3170,23 @@ function renderizarDashboard() {
                 <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
                 <p style="font-size:1.8rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
                 <p style="font-size:0.65rem; color:#888; margin-top:3px;">Entradas Pagas - Gastos Totais da Empresa</p>
+            </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucroTotal}; background: #fafafa;">
+                <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">LUCRO LÍQUIDO (MARGEM DO PERÍODO)</h3>
+                <p style="font-size:1.8rem; font-weight:900; color:${corLucroTotal}; margin:0;">${fmt(tLucroTotal)}</p>
+                <p style="font-size:0.65rem; color:#888; margin-top:3px;">Venda − Custo − Comissão, já incluindo Fiado ainda não pago</p>
+            </div>
+
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #7c3aed; background: #fafafa;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">MARGEM MÉDIA DO PERÍODO</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#7c3aed; margin:0;">${margemMedia.toFixed(1)}%</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Lucro sobre o custo dos produtos</p>
+            </div>
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid #c2410c; background: #fafafa;">
+                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">🔥 BÔNUS DE COMISSÃO PAGO</h3>
+                <p style="font-size:1.2rem; font-weight:900; color:#c2410c; margin:0;">${fmt(tBonusPago)}</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Custo do incentivo de Estoque Parado no período</p>
             </div>
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
@@ -3156,6 +3208,8 @@ function renderizarDashboard() {
                     ${crescimentoAdminIcon} ${crescimentoAdminTxt} (Anterior: ${fmt(pVen)})
                 </div>
             </div>
+
+            ${htmlLucroProjetadoAdmin}
 
             <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
                 <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
