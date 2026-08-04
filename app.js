@@ -9,6 +9,7 @@ let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
 let logsGlobal = [];
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
+let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
 let dadosCarregados = false; 
@@ -86,15 +87,25 @@ function copiarTextoSeguro(texto) {
 }
 function dataBR(isoStr) { if (!isoStr) return ""; const p = isoStr.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 
+// Quantos dias faz desde a última entrada de estoque nessa data (null se não houver data registrada)
+function diasParadoDesde(dataIso) {
+    if (!dataIso) return null;
+    const dias = Math.floor((new Date() - new Date(dataIso.split('T')[0] + 'T00:00:00')) / 86400000);
+    return (isNaN(dias) || dias < 0) ? null : dias;
+}
+
+// Limite (em dias) configurado pela Diretoria em Parâmetros Globais pra considerar um produto "parado"
+function limiteDiasParadoConfigurado() { return parseInt(configuracoesGlobais.dias_estoque_parado) || 30; }
+
 // Mostra há quanto tempo aquele local não recebe estoque novo desse produto, colorindo conforme o tempo parado
 function badgeIdadeEstoque(dataIso) {
-    if (!dataIso) return '';
-    const dias = Math.floor((new Date() - new Date(dataIso.split('T')[0] + 'T00:00:00')) / 86400000);
-    if (isNaN(dias) || dias < 0) return '';
+    const dias = diasParadoDesde(dataIso);
+    if (dias === null) return '';
+    const limite = limiteDiasParadoConfigurado();
     let texto = dias === 0 ? 'hoje' : dias === 1 ? 'há 1d' : dias < 30 ? `há ${dias}d` : `há ${Math.floor(dias / 30)}m`;
     let cor = '#6b7280';
-    if (dias >= 60) { cor = '#991b1b'; texto = '🐌 ' + texto; }
-    else if (dias >= 30) { cor = '#92400e'; texto = '⏳ ' + texto; }
+    if (dias >= limite * 2) { cor = '#991b1b'; texto = '🐌 ' + texto; }
+    else if (dias >= limite) { cor = '#92400e'; texto = '⏳ ' + texto; }
     return ` <span style="color:${cor}; font-weight:800;">· ${texto}</span>`;
 }
 
@@ -147,9 +158,9 @@ function switchTab(tabId) {
 
     // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
     if (usuarioCargo !== 'Admin') {
-        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios'];
+        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado'];
         if (abasProibidas.includes(tabId)) {
-            tabId = 'vendas'; 
+            tabId = 'vendas';
         }
     }
 
@@ -162,6 +173,7 @@ function switchTab(tabId) {
 
     if (tabId === 'dashboard') { setTimeout(() => { renderizarDashboard(); }, 50); }
     if (tabId === 'logs') { renderizarLogs(); }
+    if (tabId === 'estoqueparado') { renderizarEstoqueParado(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
     if (tabId === 'vendas' && !document.getElementById('v-data').value) { document.getElementById('v-data').valueAsDate = new Date(); document.getElementById('e-data').valueAsDate = new Date(); }
 }
@@ -208,6 +220,7 @@ function aplicarPermissoes() {
     const navRotulos = document.getElementById('nav-rotulos'); if(navRotulos) navRotulos.style.display = isAdmin ? 'flex' : 'none';
     const navPrecificar = document.getElementById('nav-precificar'); if(navPrecificar) navPrecificar.style.display = isAdmin ? 'flex' : 'none';
     const navGastos = document.getElementById('nav-gastos'); if(navGastos) navGastos.style.display = isAdmin ? 'flex' : 'none';
+    const navEstoqueParado = document.getElementById('nav-estoqueparado'); if(navEstoqueParado) navEstoqueParado.style.display = isAdmin ? 'flex' : 'none';
 
     // Abas liberadas para todos
     const navEstoque = document.getElementById('nav-estoque');
@@ -337,6 +350,7 @@ async function sincronizarDadosUnico() {
             producaoGlobal = dados.producao || []; // ADICIONE AQUI
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
+            bonusComissaoGlobal = dados.bonusComissao || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -361,7 +375,7 @@ async function sincronizarDadosUnico() {
                 estoqueAgrupado[n].locaisDatas[lExib] = e.dataEntrada || null; // data da última entrada de estoque nesse local específico
             });
 
-            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao();
+            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao(); if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
             
             if (!dadosCarregados) {
@@ -1219,6 +1233,116 @@ function renderizarEstoque() {
     if(document.getElementById('est-valor-total')) { document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; }
 }
 
+// ==========================================
+// 🐌 ESTOQUE PARADO + BÔNUS DE COMISSÃO
+// ==========================================
+let estoqueParadoAtual = []; // lista exibida agora, pra ligar os botões de bônus ao produto certo pelo índice
+
+function renderizarEstoqueParado() {
+    const container = document.getElementById('lista-estoque-parado');
+    if (!container) return;
+
+    const inputFiltro = document.getElementById('ep-filtro-dias');
+    if (inputFiltro && !inputFiltro.value) inputFiltro.value = limiteDiasParadoConfigurado();
+    const diasFiltro = parseInt(inputFiltro ? inputFiltro.value : limiteDiasParadoConfigurado()) || limiteDiasParadoConfigurado();
+
+    const mapaBonus = {};
+    bonusComissaoGlobal.forEach(b => mapaBonus[b.nomeProduto] = b);
+
+    let itens = [];
+    for (let key in estoqueAgrupado) {
+        const e = estoqueAgrupado[key];
+        if (e.totalQtd <= 0) continue;
+
+        // Pega o "pior caso": o local com mais dias sem reposição entre os que têm estoque
+        let piorDias = null;
+        for (let loc in e.locais) {
+            if (e.locais[loc] <= 0) continue;
+            const dias = diasParadoDesde(e.locaisDatas[loc]);
+            if (dias !== null && (piorDias === null || dias > piorDias)) piorDias = dias;
+        }
+        if (piorDias === null || piorDias < diasFiltro) continue;
+
+        itens.push({ nome: e.nome, codigo: e.codigo, qtd: e.totalQtd, dias: piorDias, bonus: mapaBonus[e.nome] || null });
+    }
+
+    itens.sort((a, b) => b.dias - a.dias);
+    estoqueParadoAtual = itens;
+
+    if (itens.length === 0) {
+        container.innerHTML = `<p style='text-align:center; color:#999; font-size:0.85rem; padding: 20px 0;'>✨ Nenhum produto parado há mais de ${diasFiltro} dias. Tudo girando bem!</p>`;
+        return;
+    }
+
+    let html = '';
+    itens.forEach((item, i) => {
+        const codigoBadge = item.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${item.codigo}</span>` : '';
+        const corDias = item.dias >= diasFiltro * 2 ? '#991b1b' : '#92400e';
+        const iconeDias = item.dias >= diasFiltro * 2 ? '🐌' : '⏳';
+
+        let blocoBonus;
+        if (item.bonus) {
+            blocoBonus = `
+            <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:10px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span style="font-size:0.8rem; font-weight:800; color:#92400e;">🔥 Bônus ativo: +${item.bonus.bonusPercentual}% de comissão</span>
+                <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px;" onclick="removerBonusComissao('${encodeURIComponent(item.nome)}')" title="Remover bônus">🗑️</button>
+            </div>`;
+        } else {
+            blocoBonus = `
+            <div style="display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+                <input type="number" id="ep-bonus-input-${i}" placeholder="Ex: 2" min="0.1" step="0.1" style="flex:1 1 80px; width:auto; min-width:80px; padding:8px; border-radius:8px; border:1px solid var(--border-color); box-sizing:border-box;">
+                <span style="font-size:0.8rem; color:#888; white-space:nowrap;">% bônus</span>
+                <button class="btn-salvar" style="margin:0; padding:8px 16px; font-size:0.75rem; background:#0369a1; box-shadow:0 4px 0 #075985; white-space:nowrap; width:auto; flex:0 0 auto;" onclick="salvarBonusComissao(${i})">✔️ Definir</button>
+            </div>`;
+        }
+
+        html += `
+        <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left: 5px solid ${corDias}; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+                <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${codigoBadge}${item.nome}</h4>
+                <span style="color:${corDias}; font-weight:900; font-size:0.85rem;">${iconeDias} há ${item.dias} dias</span>
+            </div>
+            <p style="margin:5px 0 0 0; font-size:0.75rem; color:#666;">📦 Estoque total: <b>${item.qtd} un</b></p>
+            ${blocoBonus}
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function salvarBonusComissao(index) {
+    const item = estoqueParadoAtual[index];
+    if (!item) return;
+    const inputEl = document.getElementById('ep-bonus-input-' + index);
+    const bonusPct = parseFloat(inputEl.value);
+    if (isNaN(bonusPct) || bonusPct <= 0) return mostrarAlerta("Atenção", "Digite um percentual de bônus válido, maior que zero.", "warning");
+
+    mostrarLoading("Definindo bônus...");
+    const msgLog = `🔥 Definiu bônus de comissão: +${bonusPct}% em [${item.nome}] (parado há ${item.dias} dias)`;
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_bonus_comissao", nome_produto: item.nome, bonus_percentual: bonusPct, log_detalhe: msgLog }) })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) { mostrarAlerta("Bônus Definido!", `+${bonusPct}% de comissão em ${item.nome}.`, "success"); sincronizarDadosUnico(); }
+        else mostrarAlerta("Erro", res.erro || "Falha ao definir bônus.", "error");
+    })
+    .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => ocultarLoading());
+}
+
+function removerBonusComissao(nomeEncoded) {
+    const nome = decodeURIComponent(nomeEncoded);
+    abrirConfirmacao("Remover Bônus?", `O bônus de comissão de "${nome}" será removido. Vendas futuras voltam a valer só a comissão normal.`, "🗑️", "#A05252", "#803f3f", "🗑️ Remover", () => {
+        mostrarLoading("Removendo bônus...");
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "remover_bonus_comissao", nome_produto: nome, log_detalhe: `🔥 Removeu bônus de comissão de [${nome}]` }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { mostrarAlerta("Removido!", "Bônus de comissão removido.", "success"); sincronizarDadosUnico(); }
+            else mostrarAlerta("Erro", res.erro || "Falha ao remover.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
+}
 
 function abrirModalEditarEstoque(nomeEncoded) { const nomeDecoded = decodeURIComponent(nomeEncoded); const e = estoqueAgrupado[padronizarTexto(nomeDecoded)]; if (!e) return; document.getElementById('edit-e-nome').value = e.nome; document.getElementById('edit-e-tipo').value = e.tipo; document.getElementById('edit-e-custo').value = safeFmt(e.custo); document.getElementById('edit-e-preco').value = safeFmt(e.preco); document.getElementById('edit-e-codigo').value = e.codigo || ''; let fotos = e.foto ? e.foto.split(',') : []; document.getElementById('edit-e-img-preview').src = fotos[0] || 'logo.png'; document.getElementById('img-original-preview').src = fotos[0] || 'logo.png'; document.getElementById('edit-e-foto-antiga').value = e.foto || ''; document.getElementById('edit-e-foto-nova').value = ''; document.getElementById('ai-preview-box').style.display = 'none'; const container = document.getElementById('edit-e-locais-container'); container.innerHTML = ''; for (let loc in e.locais) { adicionarLinhaLocal(loc, e.locais[loc]); } if (Object.keys(e.locais).length === 0) adicionarLinhaLocal('Sede', 0); document.getElementById('modal-editar-estoque').style.display = 'flex'; }
 function adicionarLinhaLocal(loc = '', qtd = 0) { const div = document.createElement('div'); div.className = 'row edit-local-row'; div.style.marginBottom = '5px'; div.innerHTML = `<div class="col"><input type="text" class="edit-l-nome" value="${loc}" list="lista-locais-estoque" placeholder="Ex: Sede, Casa..."></div><div class="col" style="flex:0.4"><input type="number" class="edit-l-qtd" value="${qtd}" min="0"></div><button class="btn-acao" style="margin-top:2px; height: 46px; background:#fff0f6; border-color:#fce7f3; color:#be185d;" onclick="this.parentElement.remove()" title="Remover Local">🗑️</button>`; document.getElementById('edit-e-locais-container').appendChild(div); }
@@ -1928,8 +2052,39 @@ function salvarVendaCarrinho() {
     });
 }
 
-function renderizarVendas() { 
+// Mostra pro vendedor os produtos com bônus de comissão ativo agora (Estoque Parado), já somando com a % dele
+function renderizarBannerBonusComissao() {
+    const banner = document.getElementById('banner-bonus-comissao');
+    if (!banner) return;
+
+    if (usuarioCargo === 'Admin' || bonusComissaoGlobal.length === 0) { banner.style.display = 'none'; return; }
+
+    const meuUsuario = usuariosGlobal.find(u => String(u.usuario).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+    const minhaComissao = meuUsuario ? (parseFloat(meuUsuario.comissao) || 0) : 0;
+
+    const itens = bonusComissaoGlobal
+        .map(b => ({ bonus: b, estoque: estoqueAgrupado[padronizarTexto(b.nomeProduto)] }))
+        .filter(x => x.estoque && x.estoque.totalQtd > 0);
+
+    if (itens.length === 0) { banner.style.display = 'none'; return; }
+
+    let html = `<div style="background:#fef3c7; border:1px solid #fde68a; border-radius:12px; padding:15px; margin-bottom:15px;">
+        <p style="margin:0 0 10px 0; font-weight:900; color:#92400e; font-size:0.85rem;">🔥 COMISSÃO EXTRA NESSES PRODUTOS HOJE</p>`;
+
+    itens.forEach(({ bonus, estoque }) => {
+        const totalPct = (minhaComissao + bonus.bonusPercentual).toFixed(1).replace(/\.0$/, '');
+        const codigoBadge = estoque.codigo ? `${estoque.codigo}: ` : '';
+        html += `<p style="margin:0 0 6px 0; font-size:0.78rem; color:#78350f; line-height:1.5;">Se vender hoje o perfume <b>${codigoBadge}${estoque.nome}</b>, você ganharia <b>${minhaComissao}% + ${bonus.bonusPercentual}%</b> (adicional) = <b>${totalPct}%</b> de comissão!</p>`;
+    });
+
+    html += `</div>`;
+    banner.innerHTML = html;
+    banner.style.display = 'block';
+}
+
+function renderizarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
+    renderizarBannerBonusComissao();
     // Filtra a lista de clientes e devedores para o vendedor ver só os dele
     const listaVendasPermitidas = isAdmin ? vendasGlobal : vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
 
@@ -2076,7 +2231,8 @@ function filtrarVendas() {
                             txtComissaoVisual = `<br> <span style="color:#888;">Comissão: ${safeFmt(v.valor_comissao)} (Bloqueada: Fiado)</span>`;
                         }
                     }
-                    txtLucro = `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} ${txtComissaoVisual}</p>`;
+                    const txtContaLucro = `<p style="font-size:0.6rem; color:#aaa; margin:2px 0 0 0;">🧮 ${safeFmt(v.valor_venda)} − Custo ${safeFmt(v.custo_total)} − Comissão ${safeFmt(v.valor_comissao)} = Lucro ${safeFmt(v.lucro)}</p>`;
+                    txtLucro = `<p style="font-size:0.65rem; color:#b45309; font-weight:700; margin:0; line-height: 1.3;">Lucro Líquido: ${safeFmt(v.lucro)} ${txtComissaoVisual}</p>${txtContaLucro}`;
                 } else {
                     txtLucro = `<p style="font-size:0.65rem; color:#888; font-weight:700; margin:0;">Custo Abs: ${safeFmt(v.custo_total)}</p>`;
                 }
@@ -3353,6 +3509,7 @@ async function sincronizarDadosSilencioso() {
             producaoGlobal = dados.producao || []; 
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
+            bonusComissaoGlobal = dados.bonusComissao || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
             
@@ -3395,6 +3552,7 @@ async function sincronizarDadosSilencioso() {
             renderizarCompras(); 
             renderizarProducao();
             if(typeof calcularRadarProducao === 'function') calcularRadarProducao();
+            if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
 
             // 4. Devolve a seleção para a tela de vendas
@@ -4363,6 +4521,7 @@ function aplicarConfiguracoesDinamicas() {
     }
 
     if(document.getElementById('cfg-estoque-min')) document.getElementById('cfg-estoque-min').value = configuracoesGlobais.estoque_minimo || 5;
+    if(document.getElementById('cfg-dias-parado')) document.getElementById('cfg-dias-parado').value = configuracoesGlobais.dias_estoque_parado || 30;
     if(document.getElementById('cfg-tipos-prod')) document.getElementById('cfg-tipos-prod').value = configuracoesGlobais.tipos_produto || '';
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
@@ -4383,22 +4542,24 @@ function aplicarConfiguracoesDinamicas() {
 // ATUALIZAÇÃO DA FUNÇÃO DE SALVAR (Agora ela fecha o modal sozinha!)
 function salvarParametrosSistema() {
     const estMin = document.getElementById('cfg-estoque-min').value;
+    const diasParado = document.getElementById('cfg-dias-parado').value;
     const tipos = document.getElementById('cfg-tipos-prod').value;
     const cats = document.getElementById('cfg-cat-compras').value;
     const locais = document.getElementById('cfg-locais').value;
 
     mostrarLoading();
     fetch(API_NOVERA, {
-        method: 'POST', 
+        method: 'POST',
         headers: cabecalhoAuth(),
-        body: JSON.stringify({ 
-            acao: 'salvar_configuracoes', 
-            configs: { 
-                estoque_minimo: estMin, 
-                tipos_produto: tipos, 
-                categorias_compras: cats, 
-                locais_estoque: locais 
-            } 
+        body: JSON.stringify({
+            acao: 'salvar_configuracoes',
+            configs: {
+                estoque_minimo: estMin,
+                dias_estoque_parado: diasParado,
+                tipos_produto: tipos,
+                categorias_compras: cats,
+                locais_estoque: locais
+            }
         })
     })
     .then(r => r.json())
