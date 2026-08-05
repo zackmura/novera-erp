@@ -1538,12 +1538,51 @@ function renderizarEstoque() {
 // ==========================================
 let estoqueParadoAtual = []; // lista exibida agora, pra ligar os botões de bônus ao produto certo pelo índice
 
+function ajustarFiltroDiasParado(delta) {
+    const input = document.getElementById('ep-filtro-dias');
+    if (!input) return;
+    let val = parseInt(input.value) || limiteDiasParadoConfigurado();
+    input.value = Math.max(1, val + delta);
+    renderizarEstoqueParado();
+}
+
+function renderizarBonusAtivos() {
+    const cont = document.getElementById('lista-bonus-ativos');
+    if (!cont) return;
+
+    if (!bonusComissaoGlobal.length) {
+        cont.innerHTML = `<p style='color:#999; font-size:0.8rem; margin: 5px 0 0 0;'>Nenhum bônus ativo no momento. Defina um bônus nos produtos parados abaixo. 👇</p>`;
+        return;
+    }
+
+    let html = '';
+    [...bonusComissaoGlobal].sort((a, b) => (parseFloat(b.bonusPercentual) || 0) - (parseFloat(a.bonusPercentual) || 0)).forEach(b => {
+        const prod = estoqueAgrupado[padronizarTexto(b.nomeProduto)];
+        const qtd = prod ? (prod.totalQtd || 0) : 0;
+        const codigoBadge = prod && prod.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${prod.codigo}</span>` : '';
+        const avisoZerado = qtd <= 0 ? ` <span style="color:#b91c1c; font-weight:800;">(estoque zerou — pode remover!)</span>` : '';
+        html += `
+        <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="min-width:0;">
+                <span style="font-size:0.85rem; font-weight:800; color:#92400e;">🔥 +${b.bonusPercentual}%</span>
+                <span style="font-size:0.82rem; color:var(--brand-dark); font-weight:700; margin-left:6px;">${codigoBadge}${b.nomeProduto}</span>
+                <span style="font-size:0.7rem; color:#a16207; display:block; margin-top:2px;">📦 ${qtd} un no estoque${avisoZerado}</span>
+            </div>
+            <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px; flex:0 0 auto;" onclick="removerBonusComissao('${encodeURIComponent(b.nomeProduto)}')" title="Remover bônus">🗑️</button>
+        </div>`;
+    });
+    cont.innerHTML = html;
+}
+
 function renderizarEstoqueParado() {
+    renderizarBonusAtivos();
+
     const container = document.getElementById('lista-estoque-parado');
     if (!container) return;
 
     const inputFiltro = document.getElementById('ep-filtro-dias');
-    if (inputFiltro && !inputFiltro.value) inputFiltro.value = limiteDiasParadoConfigurado();
+    // Só preenche o padrão quando o campo NÃO está em edição — senão, ao apagar pra digitar, o valor antigo volta sozinho
+    if (inputFiltro && !inputFiltro.value && document.activeElement !== inputFiltro) inputFiltro.value = limiteDiasParadoConfigurado();
     const diasFiltro = parseInt(inputFiltro ? inputFiltro.value : limiteDiasParadoConfigurado()) || limiteDiasParadoConfigurado();
 
     const mapaBonus = {};
@@ -2418,8 +2457,8 @@ function renderizarBannerBonusComissao() {
 
     if (itens.length === 0) { banner.style.display = 'none'; return; }
 
-    let html = `<div style="background:#fef3c7; border:1px solid #fde68a; border-radius:12px; padding:15px; margin-bottom:15px;">
-        <p style="margin:0 0 10px 0; font-weight:900; color:#92400e; font-size:0.85rem;">🔥 COMISSÃO EXTRA NESSES PRODUTOS HOJE</p>`;
+    let html = `<div class="banner-bonus-pulso" style="background:#fef3c7; border:1px solid #fbbf24; border-radius:12px; padding:15px; margin-bottom:15px;">
+        <p style="margin:0 0 10px 0; font-weight:900; color:#92400e; font-size:0.85rem;"><span class="fogo-pulso" style="display:inline-block;">🔥</span> COMISSÃO EXTRA NESSES PRODUTOS HOJE</p>`;
 
     itens.forEach(({ bonus, estoque }) => {
         const totalPct = (minhaComissao + bonus.bonusPercentual).toFixed(1).replace(/\.0$/, '');
@@ -2532,7 +2571,26 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
         grupos[tipoKey].push(e);
     });
 
+    const escaparRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const abreviarNomeItem = (e) => e.nome.replace(new RegExp('^' + escaparRegex(e.tipo) + '\\s+', 'i'), abreviarTipo(e.tipo) + ' ');
+
     let html = '';
+
+    // 🔥 Vitrine dos bônus: grupo exclusivo no TOPO da lista. No celular o menu é desenhado pelo
+    // sistema (cor/animação não pegam), então o destaque vem de posição + MAIÚSCULAS + emojis.
+    // O produto continua aparecendo no grupo do tipo dele também, pra quem procura por categoria.
+    if (comBonus) {
+        const itensComBonus = itens.filter(e => mapaBonus[e.nome]);
+        if (itensComBonus.length) {
+            html += `<optgroup label="🔥 GANHE + COMISSÃO EXTRA HOJE 🔥">`;
+            itensComBonus.sort((a, b) => (mapaBonus[b.nome] || 0) - (mapaBonus[a.nome] || 0)).forEach(e => {
+                const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
+                const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
+                html += `<option value="${e.nome}" style="background:#fef3c7; color:#b45309; font-weight:800;">🔥 ${(exibeCodigo + abreviarNomeItem(e)).toUpperCase()}${sufixoQtd} ⚡ +${mapaBonus[e.nome]}% EXTRA</option>`;
+            });
+            html += `</optgroup>`;
+        }
+    }
     Object.keys(grupos).sort((a, b) => {
         const idxA = indiceTipo(a), idxB = indiceTipo(b);
         return idxA !== idxB ? idxA - idxB : a.localeCompare(b);
@@ -2554,7 +2612,8 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
             const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' ');
             const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
             const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
-            html += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}</option>`;
+            const estiloBonus = bonusItem ? ' style="background:#fef3c7; color:#b45309; font-weight:800;"' : '';
+            html += `<option value="${e.nome}"${estiloBonus}>${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}</option>`;
         });
         html += `</optgroup>`;
     });
@@ -3617,10 +3676,38 @@ function renderizarDashboard() {
     // 👻 Clientes que menos compraram no período (o inverso do Top 5)
     let arrCliFracos = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => a.val - b.val).slice(0, 5);
 
+    // 🕵️ Clientes Sumidos: já compraram alguma vez, mas estão há 45+ dias sem comprar nada.
+    // Usa o histórico COMPLETO (ignora o filtro de mês, senão todo mundo fora do mês viraria "sumido"), mas respeita o filtro de Vendedor.
+    const DIAS_CLIENTE_SUMIDO = 45;
+    let mapaUltimaCompra = {};
+    vSocioGlobal.forEach(v => {
+        if (!v.cliente || !v.dataVendaIso) return;
+        const nomeCli = String(v.cliente).trim();
+        if (!nomeCli) return;
+        if (!mapaUltimaCompra[nomeCli]) mapaUltimaCompra[nomeCli] = { ultima: v.dataVendaIso, total: 0 };
+        if (v.dataVendaIso > mapaUltimaCompra[nomeCli].ultima) mapaUltimaCompra[nomeCli].ultima = v.dataVendaIso;
+        mapaUltimaCompra[nomeCli].total += parseDinheiro(v.valor_venda);
+    });
+    let arrSumidos = Object.keys(mapaUltimaCompra)
+        .map(k => ({ nome: k, dias: diasParadoDesde(mapaUltimaCompra[k].ultima), total: mapaUltimaCompra[k].total }))
+        .filter(c => c.dias !== null && c.dias >= DIAS_CLIENTE_SUMIDO)
+        .sort((a, b) => b.total - a.total); // quem mais gastava e sumiu aparece primeiro: maior potencial de reconquista
+    const totalSumidos = arrSumidos.length;
+    arrSumidos = arrSumidos.slice(0, 8);
+    const tempoSumido = (dias) => dias < 60 ? `${dias} dias` : `${Math.floor(dias / 30)} meses`;
+
     let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     let listaEncalhados = arrEncalhados.length ? arrEncalhados.map((p, i) => `<div style="display:flex; justify-content:space-between; gap:8px; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem; min-width:0; overflow-wrap:break-word;">#${i+1} ${p.nome}</span><strong style="color:#b91c1c; font-size:0.8rem; white-space:nowrap;">${p.vendido} un <span style="color:#999; font-weight:600;">(${p.estoque} sobrando)</span></strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto em estoque.</p>";
     let listaCliFracos = arrCliFracos.length ? arrCliFracos.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#6b7280; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
+    let listaSumidos = arrSumidos.length ? arrSumidos.map((c, i) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; border-bottom:1px dashed #ddd6fe; padding:7px 0;">
+            <span style="font-size:0.82rem; font-weight:700; color:#4c1d95; min-width:0; overflow-wrap:break-word;">#${i+1} ${c.nome}</span>
+            <span style="text-align:right; white-space:nowrap;">
+                <strong style="color:#7c3aed; font-size:0.8rem; display:block;">há ${tempoSumido(c.dias)}</strong>
+                <span style="color:#999; font-size:0.65rem;">já gastou ${fmt(c.total)}</span>
+            </span>
+        </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum cliente sumido — todo mundo comprou nos últimos 45 dias! 🎉</p>";
     
     let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `
         <div onclick="switchTab('vendas'); toggleVendasTab('lotes'); document.getElementById('cobranca-cliente').value = '${d.nome}'; prepararCobranca();" 
@@ -3802,6 +3889,12 @@ function renderizarDashboard() {
                 <h3 style="color:#6b7280; font-size:0.75rem; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:10px;">👻 5 CLIENTES QUE MENOS COMPRAM</h3>
                 <div id="d-ranking-clientes-fracos">${listaCliFracos}</div>
                 <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Entre quem comprou algo no período.</p>
+            </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#faf5ff; border:1px solid #ddd6fe;">
+                <h3 style="color:#7c3aed; font-size:0.8rem; border-bottom:1px solid #ddd6fe; padding-bottom:5px; margin-bottom:10px;">🕵️ CLIENTES SUMIDOS (45+ DIAS SEM COMPRAR)${totalSumidos > 8 ? ` — ${totalSumidos} NO TOTAL` : ''}</h3>
+                <div id="d-ranking-sumidos">${listaSumidos}</div>
+                <p style="font-size:0.6rem; color:#a78bfa; margin:8px 0 0 0; font-style:italic;">Quem mais gastava aparece primeiro — são os melhores para chamar de volta. Vale para o histórico todo, independente do mês filtrado.</p>
             </div>
 
             <div class="dash-card" style="padding: 15px;">
@@ -4051,7 +4144,30 @@ async function alterarSenha() {
 // ==========================================
 // MÓDULO: SINCRONIZAÇÃO FANTASMA (AUTO-SYNC)
 // ==========================================
+// Detecta se a pessoa está no meio de alguma coisa (modal aberto, digitando, itens marcados).
+// Nesses casos o auto-sync PULA a rodada — senão a atualização apaga o que está sendo feito.
+function usuarioEstaOcupado() {
+    // 1. Algum modal/janela aberto? (edições, confirmações, parâmetros, separação, catálogo...)
+    const modais = document.querySelectorAll('[class*="modal-overlay"], [id^="modal-"]');
+    for (const m of modais) {
+        if (m.style.display && m.style.display !== 'none') return true;
+    }
+    // 2. Digitando em algum campo de texto?
+    const ae = document.activeElement;
+    if (ae && (ae.isContentEditable || ((ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && !ae.readOnly && !['checkbox', 'radio', 'button', 'submit', 'file'].includes((ae.type || '').toLowerCase())))) return true;
+    // 3. Itens marcados na fila de compras (pra lançar em gastos ou excluir em lote)?
+    if (document.querySelector('.chk-item-compra-lote:checked')) return true;
+    return false;
+}
+
 async function sincronizarDadosSilencioso() {
+    // 0. Se a pessoa está mexendo em algo, não atualiza agora — tenta de novo no próximo minuto
+    if (usuarioEstaOcupado()) {
+        const syncElPausa = document.getElementById("sync-status");
+        if (syncElPausa) { syncElPausa.innerText = "✏️"; syncElPausa.title = "Atualização pausada enquanto você edita"; }
+        return;
+    }
+
     // 1. Mostra a nuvem girando lá no topo, sem bloquear a tela do usuário
     const syncEl = document.getElementById("sync-status");
     if (syncEl) { syncEl.innerText = "🔄"; syncEl.classList.add('spin-anim'); }

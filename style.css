@@ -50,6 +50,18 @@ body {
 .nav-item-more.active { color: var(--primary-dark); }
 .nav-item-more.active .icon { filter: grayscale(0%) opacity(1); transform: scale(1.1); }
 
+/* Chama atenção pro banner de comissão extra: brilho pulsante na caixa + foguinho balançando */
+@keyframes pulsoBonus {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    50% { box-shadow: 0 0 0 9px rgba(245, 158, 11, 0); }
+}
+@keyframes fogoBalanca {
+    0%, 100% { transform: scale(1) rotate(-6deg); }
+    50% { transform: scale(1.35) rotate(6deg); }
+}
+.banner-bonus-pulso { animation: pulsoBonus 2s ease-in-out infinite; }
+.fogo-pulso { animation: fogoBalanca 0.9s ease-in-out infinite; }
+
 .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; }
 
 .section-title { font-size: 0.85rem; color: var(--primary-dark); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 25px 0 15px; border-left: 4px solid var(--primary); padding-left: 10px; display: flex; justify-content: space-between; align-items: center;}
