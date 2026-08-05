@@ -2266,7 +2266,7 @@ function atualizarAvisoBonusProduto(nomeProduto) {
     if (!aviso) return;
 
     const bonusAtivo = bonusComissaoGlobal.find(b => b.nomeProduto === nomeProduto);
-    if (!nomeProduto || !bonusAtivo) { aviso.style.display = 'none'; return; }
+    if (usuarioCargo === 'Admin' || !nomeProduto || !bonusAtivo) { aviso.style.display = 'none'; return; }
 
     aviso.innerHTML = `🔥 Esse produto tem bônus de <b>+${bonusAtivo.bonusPercentual}%</b> de comissão hoje!`;
     aviso.style.display = 'block';
@@ -2637,7 +2637,7 @@ function renderizarVendas() {
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
     // Mesma lista agrupada por tipo: Vendas mostra só o que TEM estoque; Encomendas mostra só o que está ZERADO (encomenda é pro que falta)
-    let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: true });
+    let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: !isAdmin });
     let htmlEncomendas = '<option value="">Selecione o produto esgotado...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => (e.totalQtd || 0) <= 0), { comBonus: false, comQtd: false });
 
     const fvClienteSelect = document.getElementById('f-v-cliente'); 
