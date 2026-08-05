@@ -177,7 +177,7 @@ function switchTab(tabId) {
 
     // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
     if (usuarioCargo !== 'Admin') {
-        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado'];
+        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado', 'alexa'];
         if (abasProibidas.includes(tabId)) {
             tabId = 'vendas';
         }
@@ -259,6 +259,7 @@ function renderizarNavPorPerfil() {
     const itensMais = isAdmin ? [
         ['estoqueparado', '🐌', 'Parado'],
         ['encomendas', '🎁', 'Encomendas'],
+        ['alexa', '🗣️', 'Alexa'],
     ] : [
         ['encomendas', '🎁', 'Encomendas'],
         ['sugestaoproducao', '💡', 'Sugerir'],
