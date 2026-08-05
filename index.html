@@ -99,6 +99,7 @@
                 <button id="btn-sub-fab-receita" class="sub-nav-btn active" onclick="toggleFabricaTab('receita')">🧪 Nova Receita</button>
                 <button id="btn-sub-fab-lancar" class="sub-nav-btn" onclick="toggleFabricaTab('lancar')">⚡ Lançar Produção</button>
                 <button id="btn-sub-fab-fila" class="sub-nav-btn" onclick="toggleFabricaTab('fila')">⏳ Fila Maceração</button>
+                <button id="btn-sub-fab-sugestoes" class="sub-nav-btn" onclick="toggleFabricaTab('sugestoes')">💡 Sugestões</button>
             </div>
 
             <!-- SUB-ABA 1: NOVA RECEITA E CÁLCULOS -->
@@ -191,6 +192,13 @@
                 </div>
 
                 <div id="lista-producao-cards"></div>
+            </div>
+
+            <!-- SUB-ABA 4: SUGESTÕES DE PRODUÇÃO (enviadas pelos vendedores) -->
+            <div id="fabrica-sugestoes-view" style="display: none;">
+                <div class="section-title" style="margin-top: 0;">💡 Sugestões da Equipe</div>
+                <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Pedidos de produção sugeridos pelos vendedores. Atenda pra já mandar pra fila de maceração, ou descarte se não for o momento.</p>
+                <div id="lista-sugestoes-producao"></div>
             </div>
 
         </div>
@@ -359,7 +367,6 @@
            <div id="banner-chegando-em-breve" style="display:none;"></div>
            <div class="sub-nav-container">
                 <button id="btn-sub-registro" class="sub-nav-btn active" onclick="toggleVendasTab('registro')">🛒 PDV Rápido</button>
-                <button id="btn-sub-encomendas" class="sub-nav-btn" onclick="toggleVendasTab('encomendas')">📦 Encomendas</button>
                 <button id="btn-sub-lotes" class="sub-nav-btn" onclick="toggleVendasTab('lotes')">📄 Docs & Lotes</button>
                 <!-- NOVO BOTÃO: MAPA DE SEPARAÇÃO (SÓ ADMIN) -->
                 <button id="btn-sub-separacao" class="sub-nav-btn" onclick="abrirMapaSeparacao()" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-weight: bold;">🛍️ Separar Pedidos</button>
@@ -481,37 +488,6 @@
             </div>
 
             <!-- SUB-ABA 2: ENCOMENDAS -->
-            <div id="vendas-encomendas-view" style="display: none;">
-                <div class="vendas-pdv-wrapper">
-                    <div class="vendas-col-left">
-                        <div class="section-title" style="margin-top:0;">📝 Registrar Pedido Especial</div>
-                        <div class="row">
-                            <div class="col"><label>Data do Pedido</label><input type="date" id="e-data"></div>
-                            <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
-                        </div>
-                        <div class="row">
-                          <div class="col" style="flex: 2;">
-                                <label>O que o cliente pediu?</label>
-                                <select id="e-item" style="width: 100%; border-color: #ccc; background: #fff;">
-                                    <option value="">Aguardando estoque...</option>
-                                </select>
-                            </div>
-                            <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
-                        </div>
-                        <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
-                        <button class="btn-salvar" onclick="salvarEncomenda()">Salvar Pedido</button>
-                    </div>
-                    
-                    <div class="vendas-col-right">
-                        <div class="section-title" style="margin-top: 0;">📦 Fila de Produção</div>
-                        <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 15px;">
-                            <input type="text" id="busca-encomendas" class="search-bar" style="margin: 0; border: none; box-shadow: none;" placeholder="🔍 Buscar cliente ou item..." onkeyup="renderizarEncomendas()">
-                        </div>
-                        <div id="lista-encomendas-cards"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- SUB-ABA 3: DOCS E LOTES -->
             <div id="vendas-lotes-view" style="display: none;">
                 <div class="vendas-lotes-wrapper">
@@ -645,6 +621,42 @@
             <button class="btn-salvar" style="margin-top: 20px; background: #E8DDE1; color: #7a4a5e; box-shadow: none;" onclick="switchTab('configuracoes')">⬅️ Voltar para Configurações</button>
         </div>
 
+        <div id="tab-encomendas" class="tab-content">
+            <div class="section-title" style="margin-top:0;">📦 Encomendas</div>
+            <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#7a4a5e; line-height:1.5;">
+                💡 <b>Use isso quando</b> um cliente pedir um produto que não temos pronto agora, ou quiser reservar algo especial. Anote o pedido aqui — quando o produto ficar pronto, ele aparece marcado como <b>"Produzido"</b> e você já pode vender direto por aqui.
+            </div>
+            <div class="vendas-pdv-wrapper">
+                <div class="vendas-col-left">
+                    <div class="section-title" style="margin-top:0;">📝 Registrar Pedido Especial</div>
+                    <div class="row">
+                        <div class="col"><label>Data do Pedido</label><input type="date" id="e-data"></div>
+                        <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
+                    </div>
+                    <div class="row">
+                      <div class="col" style="flex: 2;">
+                            <label>O que o cliente pediu?</label>
+                            <select id="e-item" style="width: 100%; border-color: #ccc; background: #fff;">
+                                <option value="">Aguardando estoque...</option>
+                            </select>
+                        </div>
+                        <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
+                    </div>
+                    <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
+                    <button class="btn-salvar" onclick="salvarEncomenda()">Salvar Pedido</button>
+                </div>
+
+                <div class="vendas-col-right">
+                    <div class="section-title" style="margin-top: 0;">📋 Pedidos em Aberto</div>
+                    <p style="font-size:0.7rem; color:#888; margin-top:-8px; margin-bottom:15px;">De toda a equipe — qualquer um pode ver e entregar quando o cliente vier buscar.</p>
+                    <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 15px;">
+                        <input type="text" id="busca-encomendas" class="search-bar" style="margin: 0; border: none; box-shadow: none;" placeholder="🔍 Buscar cliente ou item..." onkeyup="renderizarEncomendas()">
+                    </div>
+                    <div id="lista-encomendas-cards"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-maceracaovendedor" class="tab-content">
             <div class="section-title" style="margin-top:0;">⏳ Maceração — Quando Fica Pronto</div>
             <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Consulte aqui quando cada perfume em produção fica pronto pra vender. Assim você já se planeja e avisa o cliente sem precisar perguntar. 😉</p>
@@ -657,6 +669,25 @@
             </div>
 
             <div id="lista-maceracao-vendedor"></div>
+        </div>
+
+        <div id="tab-sugestaoproducao" class="tab-content">
+            <div class="section-title" style="margin-top:0;">💡 Sugerir Produção</div>
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#1e3a8a; line-height:1.5;">
+                💡 <b>Use isso quando</b> um cliente pedir um perfume que já acabou (ou que ainda nem existe) e você achar que vale a pena fabricar mais. Escreva o produto e, se quiser, o motivo — sua sugestão cai direto pra Diretoria decidir. Simples assim, não precisa de mais nada.
+            </div>
+            <div class="input-group">
+                <label>Produto (existente ou uma ideia nova)</label>
+                <input type="text" id="sp-produto" list="lista-produtos-sugestao" placeholder="Ex: Perfume Bad Boy 40ml">
+                <datalist id="lista-produtos-sugestao"></datalist>
+            </div>
+            <div class="input-group">
+                <label>Observação (opcional)</label>
+                <textarea id="sp-observacao" placeholder="Ex: Cliente perguntou 3x essa semana"></textarea>
+            </div>
+            <button class="btn-salvar" style="background: #0369a1; box-shadow: 0 4px 0 #075985;" onclick="salvarSugestaoProducao()">💡 Enviar Sugestão</button>
+
+            <div id="lista-minhas-sugestoes" style="margin-top: 20px;"></div>
         </div>
 
         <div id="tab-estoqueparado" class="tab-content">
@@ -703,15 +734,19 @@
 
     </div>
 
+    <div class="nav-more-overlay" id="nav-more-overlay" onclick="fecharMaisMenu()"></div>
     <nav class="bottom-nav">
-        <a class="nav-item" id="nav-rotulos" onclick="switchTab('rotulos')"><span class="icon">🏷️</span><span>Essências</span></a>
+        <a class="nav-item" id="nav-rotulos" onclick="switchTab('rotulos')"><span class="icon">🏷️</span><span>Essênc.</span></a>
         <a class="nav-item" id="nav-precificar" onclick="switchTab('precificar')"><span class="icon">🧪</span><span>Fábrica</span></a>
-        <a class="nav-item" id="nav-estoque" onclick="switchTab('estoque')"><span class="icon">📦</span><span>Estoque</span></a>
         <a class="nav-item" id="nav-gastos" onclick="switchTab('gastos')"><span class="icon">💸</span><span>Gastos</span></a>
+        <a class="nav-item" id="nav-estoque" onclick="switchTab('estoque')"><span class="icon">📦</span><span>Estoque</span></a>
         <a class="nav-item active" id="nav-vendas" onclick="switchTab('vendas')"><span class="icon">🛒</span><span>Vendas</span></a>
-        <a class="nav-item" id="nav-maceracao-vendedor" onclick="switchTab('maceracaovendedor')"><span class="icon">⏳</span><span>Maceração</span></a>
-        <a class="nav-item" id="nav-estoqueparado" onclick="switchTab('estoqueparado')"><span class="icon">🐌</span><span>Parado</span></a>
         <a class="nav-item" id="nav-dashboard" onclick="switchTab('dashboard')"><span class="icon">📊</span><span>Painel</span></a>
+        <a class="nav-item" id="nav-mais" onclick="toggleMaisMenu()"><span class="icon">⋯</span><span>Mais</span></a>
+        <div class="nav-more-panel" id="nav-more-panel">
+            <a class="nav-item-more" id="nav-estoqueparado" onclick="switchTab('estoqueparado'); fecharMaisMenu()"><span class="icon">🐌</span><span>Parado</span></a>
+            <a class="nav-item-more" id="nav-encomendas" onclick="switchTab('encomendas'); fecharMaisMenu()"><span class="icon">🎁</span><span>Encomendas</span></a>
+        </div>
     </nav>
 </div>
 

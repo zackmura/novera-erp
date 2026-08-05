@@ -10,6 +10,7 @@ let logsGlobal = [];
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
+let sugestoesProducaoGlobal = []; // sugestões de fabricação enviadas pelos vendedores
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -153,9 +154,26 @@ function abrirConfirmacao(titulo, texto, icone, corHex, sombraHex, textoBtn, cal
     document.getElementById('modal-confirmar').style.display = 'flex';
 }
 
+function toggleMaisMenu() {
+    const painel = document.getElementById('nav-more-panel');
+    const overlay = document.getElementById('nav-more-overlay');
+    if (!painel || !overlay) return;
+    const abrindo = painel.style.display !== 'flex';
+    painel.style.display = abrindo ? 'flex' : 'none';
+    overlay.style.display = abrindo ? 'block' : 'none';
+}
+
+function fecharMaisMenu() {
+    const painel = document.getElementById('nav-more-panel');
+    const overlay = document.getElementById('nav-more-overlay');
+    if (painel) painel.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
+}
+
 function switchTab(tabId) {
+    fecharMaisMenu();
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.nav-item, .nav-item-more').forEach(btn => btn.classList.remove('active'));
 
     // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
     if (usuarioCargo !== 'Admin') {
@@ -169,23 +187,28 @@ function switchTab(tabId) {
     if (navBtnTarget) navBtnTarget.classList.add('active');
 
     // 👇 AQUI ESTAVA O ERRO! Removi a trava que proibia o Painel de acender a cor
-    const navBtn = document.getElementById('nav-' + tabId); 
-    if (navBtn) navBtn.classList.add('active'); 
+    const navBtn = document.getElementById('nav-' + tabId);
+    if (navBtn) navBtn.classList.add('active');
+
+    const navMais = document.getElementById('nav-mais');
+    if (navMais) navMais.classList.toggle('active', !!(navBtn && navBtn.classList.contains('nav-item-more')));
 
     if (tabId === 'dashboard') { setTimeout(() => { renderizarDashboard(); }, 50); }
     if (tabId === 'logs') { renderizarLogs(); }
     if (tabId === 'estoqueparado') { renderizarEstoqueParado(); }
     if (tabId === 'maceracaovendedor') { renderizarMaceracaoVendedor(); }
+    if (tabId === 'sugestaoproducao') { popularDatalistProdutosSugestao(); renderizarMinhasSugestoes(); }
+    if (tabId === 'encomendas') { renderizarEncomendas(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
     if (tabId === 'vendas' && !document.getElementById('v-data').value) { document.getElementById('v-data').valueAsDate = new Date(); document.getElementById('e-data').valueAsDate = new Date(); }
 }
 
 function toggleVendasTab(tab) {
-    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view'), vEnc = document.getElementById('vendas-encomendas-view');
-    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes'), btnEnc = document.getElementById('btn-sub-encomendas');
+    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view');
+    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes');
     document.querySelectorAll('.sub-nav-btn', document.getElementById('tab-vendas')).forEach(b => { b.classList.remove('active'); });
-    vReg.style.display = 'none'; vLot.style.display = 'none'; vEnc.style.display = 'none';
-    if (tab === 'registro') { vReg.style.display = 'block'; btnReg.classList.add('active'); } else if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); } else { vEnc.style.display = 'block'; btnEnc.classList.add('active'); }
+    vReg.style.display = 'none'; vLot.style.display = 'none';
+    if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); } else { vReg.style.display = 'block'; btnReg.classList.add('active'); }
 }
 
 function toggleGastosTab(tab) {
@@ -215,32 +238,61 @@ function atualizarDatalistsDinamicos() {
     }
 }
 
+function renderizarNavPorPerfil() {
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav) return;
+    const isAdmin = (usuarioCargo === 'Admin');
+
+    const itensPrincipais = isAdmin ? [
+        ['rotulos', '🏷️', 'Essênc.'],
+        ['precificar', '🧪', 'Fábrica'],
+        ['gastos', '💸', 'Gastos'],
+        ['estoque', '📦', 'Estoque'],
+        ['vendas', '🛒', 'Vendas'],
+        ['dashboard', '📊', 'Painel'],
+    ] : [
+        ['vendas', '🛒', 'Vendas'],
+        ['estoque', '📦', 'Estoque'],
+        ['maceracaovendedor', '⏳', 'Maceração'],
+        ['dashboard', '📊', 'Painel'],
+    ];
+    const itensMais = isAdmin ? [
+        ['estoqueparado', '🐌', 'Parado'],
+        ['encomendas', '🎁', 'Encomendas'],
+    ] : [
+        ['encomendas', '🎁', 'Encomendas'],
+        ['sugestaoproducao', '💡', 'Sugerir'],
+    ];
+
+    let html = itensPrincipais.map(([id, ic, lb]) =>
+        `<a class="nav-item" id="nav-${id}" onclick="switchTab('${id}')"><span class="icon">${ic}</span><span>${lb}</span></a>`
+    ).join('');
+    html += `<a class="nav-item" id="nav-mais" onclick="toggleMaisMenu()"><span class="icon">⋯</span><span>Mais</span></a>`;
+    html += `<div class="nav-more-panel" id="nav-more-panel">` + itensMais.map(([id, ic, lb]) =>
+        `<a class="nav-item-more" id="nav-${id}" onclick="switchTab('${id}'); fecharMaisMenu()"><span class="icon">${ic}</span><span>${lb}</span></a>`
+    ).join('') + `</div>`;
+    nav.innerHTML = html;
+
+    // Reacende o destaque da aba que já estava aberta
+    const abaAtiva = document.querySelector('.tab-content.active');
+    const tabAtual = abaAtiva ? abaAtiva.id.replace('tab-', '') : 'vendas';
+    const navBtn = document.getElementById('nav-' + tabAtual);
+    if (navBtn) navBtn.classList.add('active');
+    const navMais = document.getElementById('nav-mais');
+    if (navMais && navBtn && navBtn.classList.contains('nav-item-more')) navMais.classList.add('active');
+}
+
 function aplicarPermissoes() {
     const isAdmin = (usuarioCargo === 'Admin');
 
-    // Abas bloqueadas para Vendedores
-    const navRotulos = document.getElementById('nav-rotulos'); if(navRotulos) navRotulos.style.display = isAdmin ? 'flex' : 'none';
-    const navPrecificar = document.getElementById('nav-precificar'); if(navPrecificar) navPrecificar.style.display = isAdmin ? 'flex' : 'none';
-    const navGastos = document.getElementById('nav-gastos'); if(navGastos) navGastos.style.display = isAdmin ? 'flex' : 'none';
-    const navEstoqueParado = document.getElementById('nav-estoqueparado'); if(navEstoqueParado) navEstoqueParado.style.display = isAdmin ? 'flex' : 'none';
-    const navMaceracaoVendedor = document.getElementById('nav-maceracao-vendedor'); if(navMaceracaoVendedor) navMaceracaoVendedor.style.display = isAdmin ? 'none' : 'flex';
+    // Monta a barra de navegação certa para o cargo (ordem e itens diferentes por perfil)
+    renderizarNavPorPerfil();
 
-    // Abas liberadas para todos
-    const navEstoque = document.getElementById('nav-estoque');
-    if (navEstoque) { navEstoque.style.display = 'flex'; navEstoque.style.pointerEvents = 'auto'; navEstoque.style.cursor = 'pointer'; }
-    
-    const navFabrica = document.getElementById('nav-fabrica');
-    if (navFabrica) { navFabrica.style.display = 'flex'; navFabrica.style.pointerEvents = 'auto'; navFabrica.style.cursor = 'pointer'; }
-    
-    const navDashboard = document.getElementById('nav-dashboard');
-    if (navDashboard) { navDashboard.style.display = 'flex'; navDashboard.style.pointerEvents = 'auto'; navDashboard.style.cursor = 'pointer'; }
-    
     const btnAdmin = document.querySelector('button[onclick="switchTab(\'logs\')"]');
     const btnChaves = document.querySelector('.btn-ai[onclick="salvarConfiguracoesChaves()"]');
     const btnRelatorioPainel = document.querySelector('#tab-dashboard button[onclick="abrirModalRelatorios()"]');
     
     // --- BOTÕES E SELECTS ESPECÍFICOS DE VENDAS ---
-    const btnSubEncomendas = document.getElementById('btn-sub-encomendas');
     const selectStatusVenda = document.getElementById('v-status');
     const btnSubSeparacao = document.getElementById('btn-sub-separacao'); // 🛡️ AGORA ESTÁ NO LUGAR CERTO!
     const filtroComissaoWrap = document.getElementById('filtro-comissao-wrap'); // Filtro de acerto de comissão: só faz sentido pra quem administra
@@ -273,8 +325,7 @@ function aplicarPermissoes() {
             }
         }
         
-        // ESCONDE AS ABAS EXCLUSIVAS DA DIRETORIA
-        if (btnSubEncomendas) btnSubEncomendas.style.display = 'none';
+        // ESCONDE AS ABAS EXCLUSIVAS DA DIRETORIA (Encomendas agora é liberada pra equipe toda)
         if (btnSubSeparacao) btnSubSeparacao.style.display = 'none';
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = 'none';
         
@@ -316,7 +367,6 @@ function aplicarPermissoes() {
         }
         
         // LIBERA AS ABAS EXCLUSIVAS PARA OS CHEFES
-        if (btnSubEncomendas) btnSubEncomendas.style.display = 'block';
         if (btnSubSeparacao) btnSubSeparacao.style.display = 'block';
         
         // LIBERA TODAS AS OPÇÕES DE STATUS DE VENDA
@@ -354,6 +404,7 @@ async function sincronizarDadosUnico() {
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
+            sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -378,7 +429,7 @@ async function sincronizarDadosUnico() {
                 estoqueAgrupado[n].locaisDatas[lExib] = e.dataEntrada || null; // data da última entrada de estoque nesse local específico
             });
 
-            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao(); if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor();
+            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao(); if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor(); if (typeof popularDatalistProdutosSugestao === 'function') popularDatalistProdutosSugestao(); if (typeof renderizarMinhasSugestoes === 'function') renderizarMinhasSugestoes(); if (typeof renderizarSugestoesProducaoAdmin === 'function') renderizarSugestoesProducaoAdmin();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
             
             if (!dadosCarregados) {
@@ -1050,6 +1101,140 @@ function renderizarMaceracaoVendedor() {
     });
 
     container.innerHTML = html;
+}
+
+// ==========================================
+// 💡 SUGESTÃO DE PRODUÇÃO (vendedor sugere, Admin decide)
+// ==========================================
+function popularDatalistProdutosSugestao() {
+    const datalist = document.getElementById('lista-produtos-sugestao');
+    if (!datalist) return;
+    const nomes = Object.values(estoqueAgrupado).map(e => e.nome).sort((a, b) => a.localeCompare(b));
+    datalist.innerHTML = nomes.map(n => `<option value="${n}">`).join('');
+}
+
+function salvarSugestaoProducao() {
+    const campoProduto = document.getElementById('sp-produto');
+    const nomeProduto = padronizarTexto(campoProduto.value);
+    const observacao = document.getElementById('sp-observacao').value;
+    if (!nomeProduto) return mostrarAlerta("Atenção", "Escreva ou escolha o produto que você gostaria de sugerir.", "warning");
+
+    mostrarLoading("Enviando sugestão...");
+    const msgLog = `💡 Sugeriu fabricar: ${nomeProduto}`;
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_sugestao_producao", nome_produto: nomeProduto, observacao: observacao, log_detalhe: msgLog }) })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) {
+            mostrarAlerta("Enviado!", "Sua sugestão chegou pra Diretoria.", "success");
+            campoProduto.value = "";
+            document.getElementById('sp-observacao').value = "";
+            sincronizarDadosUnico();
+        } else {
+            mostrarAlerta("Erro", res.erro || "Falha ao enviar sugestão.", "error");
+        }
+    })
+    .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => ocultarLoading());
+}
+
+function renderizarMinhasSugestoes() {
+    const container = document.getElementById('lista-minhas-sugestoes');
+    if (!container) return;
+
+    const minhas = sugestoesProducaoGlobal
+        .filter(s => String(s.sugeridoPor || '').toLowerCase().trim() === usuarioLogado.toLowerCase().trim())
+        .sort((a, b) => new Date(b.dataSugestao) - new Date(a.dataSugestao));
+
+    if (minhas.length === 0) { container.innerHTML = ''; return; }
+
+    const corStatus = (status) => status === 'Atendida' ? '#166534' : status === 'Descartada' ? '#991b1b' : '#b45309';
+    const fundoStatus = (status) => status === 'Atendida' ? '#dcfce7' : status === 'Descartada' ? '#fee2e2' : '#fef3c7';
+
+    let html = `<p style="font-size:0.75rem; color:#888; font-weight:800; text-transform:uppercase; margin-bottom:10px;">📋 Minhas sugestões enviadas</p>`;
+    minhas.forEach(s => {
+        html += `<div class="rotulo-card" style="padding:12px; margin-bottom:8px; border-left: 4px solid ${corStatus(s.status)};">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                <strong style="font-size:0.85rem; color:var(--brand-dark);">${s.nomeProduto}</strong>
+                <span style="background:${fundoStatus(s.status)}; color:${corStatus(s.status)}; padding:2px 8px; border-radius:4px; font-size:0.65rem; font-weight:800; text-transform:uppercase;">${s.status}</span>
+            </div>
+            ${s.observacao ? `<p style="font-size:0.7rem; color:#888; margin:4px 0 0 0; font-style:italic;">${s.observacao}</p>` : ''}
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+// Painel do Admin: todas as sugestões pendentes de todos os vendedores, mais um histórico recente
+function renderizarSugestoesProducaoAdmin() {
+    const container = document.getElementById('lista-sugestoes-producao');
+    if (!container) return;
+
+    if (sugestoesProducaoGlobal.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.85rem; padding:20px 0;'>Nenhuma sugestão enviada ainda.</p>";
+        return;
+    }
+
+    const pendentes = sugestoesProducaoGlobal.filter(s => s.status === 'Pendente').sort((a, b) => new Date(a.dataSugestao) - new Date(b.dataSugestao));
+    const historico = sugestoesProducaoGlobal.filter(s => s.status !== 'Pendente').sort((a, b) => new Date(b.dataSugestao) - new Date(a.dataSugestao)).slice(0, 10);
+
+    let html = '';
+    if (pendentes.length === 0) {
+        html += `<p style='text-align:center; color:#15803d; font-size:0.85rem; font-weight:bold; padding:10px 0;'>✨ Nenhuma sugestão pendente!</p>`;
+    } else {
+        pendentes.forEach(s => {
+            html += `<div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left: 5px solid #0369a1; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+                    <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${s.nomeProduto}</h4>
+                    <span style="font-size:0.65rem; color:#888;">👤 ${s.sugeridoPor}</span>
+                </div>
+                ${s.observacao ? `<p style="margin:6px 0 0 0; font-size:0.75rem; color:#666; font-style:italic;">"${s.observacao}"</p>` : ''}
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button class="btn-salvar" style="margin:0; padding:8px 14px; font-size:0.75rem; background:#2C2A2B; box-shadow:none; flex:1;" onclick="irFabricarSugestao('${encodeURIComponent(s.nomeProduto)}')">🏭 Ir Fabricar</button>
+                    <button class="btn-acao" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;" onclick="decidirSugestaoProducao(${s.linha}, 'Atendida')" title="Marcar como atendida">✔️</button>
+                    <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="decidirSugestaoProducao(${s.linha}, 'Descartada')" title="Descartar">🗑️</button>
+                </div>
+            </div>`;
+        });
+    }
+
+    if (historico.length > 0) {
+        html += `<p style="font-size:0.7rem; color:#888; font-weight:800; text-transform:uppercase; margin:20px 0 10px 0;">Histórico recente</p>`;
+        historico.forEach(s => {
+            const cor = s.status === 'Atendida' ? '#166534' : '#991b1b';
+            html += `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #e5e7eb; font-size:0.75rem;">
+                <span>${s.nomeProduto} <span style="color:#888;">(${s.sugeridoPor})</span></span>
+                <span style="color:${cor}; font-weight:800;">${s.status}</span>
+            </div>`;
+        });
+    }
+
+    container.innerHTML = html;
+}
+
+function decidirSugestaoProducao(id, novoStatus) {
+    const s = sugestoesProducaoGlobal.find(x => x.linha == id);
+    if (!s) return;
+    mostrarLoading("Atualizando...");
+    const msgLog = `💡 Sugestão de [${s.nomeProduto}] marcada como ${novoStatus}`;
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_sugestao", linha: id, status: novoStatus, log_detalhe: msgLog }) })
+    .then(() => sincronizarDadosUnico())
+    .finally(() => ocultarLoading());
+}
+
+// Leva direto pro formulário de "Lançar Produção" com o produto já selecionado, se ele já existir no catálogo
+function irFabricarSugestao(nomeEncoded) {
+    const nome = decodeURIComponent(nomeEncoded);
+    toggleFabricaTab('lancar');
+    setTimeout(() => {
+        const selectProduto = document.getElementById('pr-produto');
+        const opcaoExiste = selectProduto && Array.from(selectProduto.options).some(o => o.value === nome);
+        if (opcaoExiste) {
+            selectProduto.value = nome;
+            selectProduto.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { const campoQtd = document.getElementById('pr-qtd'); if (campoQtd) campoQtd.focus(); }, 300);
+        } else {
+            mostrarAlerta("Produto Novo", `"${nome}" ainda não existe no catálogo de estoque. Cadastre a receita primeiro em "🧪 Nova Receita".`, "warning");
+        }
+    }, 100);
 }
 
 function abrirModalFinalizarProducao(id) {
@@ -1980,10 +2165,35 @@ function renderizarGastos() {
 function abrirModalEditarGasto(linha) { const g = gastosGlobal.find(x => x.linha === linha); if (!g) return; document.getElementById('edit-g-linha').value = g.linha; document.getElementById('edit-g-data').value = g.dataIso; document.getElementById('edit-g-socio').value = g.socio; document.getElementById('edit-g-local').value = g.local; document.getElementById('edit-g-item').value = g.item; document.getElementById('edit-g-qtd').value = g.qtd; document.getElementById('edit-g-valor').value = safeFmt(g.valor); document.getElementById('edit-g-total').value = safeFmt(g.total); document.getElementById('modal-editar-gasto').style.display = 'flex'; }
 function salvarEdicaoGasto() { const linha = document.getElementById('edit-g-linha').value; const gOrig = gastosGlobal.find(x => x.linha == linha); const vTotal = parseDinheiro(document.getElementById('edit-g-total').value); const py = { usuario: usuarioLogado, acao: "atualizar_gasto", linha: linha, data: document.getElementById('edit-g-data').value, local: padronizarTexto(document.getElementById('edit-g-local').value), socio: padronizarTexto(document.getElementById('edit-g-socio').value), item: padronizarTexto(document.getElementById('edit-g-item').value), qtd: document.getElementById('edit-g-qtd').value, valor: parseDinheiro(document.getElementById('edit-g-valor').value), total: vTotal, log_detalhe: `✏️ Editou despesa [${gOrig ? gOrig.item : 'Item'}]: ${gOrig ? safeFmt(gOrig.total) : ''} -> ${fmtPlanilha(vTotal)}` }; document.getElementById('modal-editar-gasto').style.display = 'none'; mostrarLoading("Salvando..."); py.valor = fmtPlanilha(py.valor); py.total = fmtPlanilha(py.total); fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(() => { mostrarAlerta("Atualizado!", "Edição salva.", "success"); sincronizarDadosUnico(); }); }
 
-function renderizarEncomendas() { const fila = document.getElementById('lista-encomendas-cards'); const tBusca = document.getElementById('busca-encomendas').value.toLowerCase().trim(); let pendentes = encomendasGlobal.filter(e => e.status !== 'Entregue'); if (tBusca) { pendentes = pendentes.filter(e => (e.cliente + " " + e.item).toLowerCase().includes(tBusca)); } pendentes.sort((a, b) => new Date(b.dataPedido) - new Date(a.dataPedido)); if (encomendasGlobal.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma encomenda ativa.</p>"; return; } if (pendentes.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo Entregue ou Não Encontrado!</p>"; return; } let html = ""; pendentes.forEach(e => { let classBadge = e.status === 'Pendente' ? 'b-atrasado' : 'b-ok'; let btnVender = e.status === 'Produzido' ? `<button class="btn-salvar" style="margin-top:5px; padding:10px; background:#2C2A2B; font-size:0.8rem; width:100%;" onclick="puxarVendaDeEncomenda(${e.linha})">🚀 Vender (PDV)</button>` : ''; let toggleStatus = e.status === 'Pendente' ? `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="mudarStatusEncomenda(${e.linha}, 'Produzido')" title="Marcar Produzido">✔️</button>` : `<button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="mudarStatusEncomenda(${e.linha}, 'Pendente')" title="Desfazer">↩️</button>`; html += `<div class="rotulo-card" style="flex-direction:column; align-items:stretch;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div class="rotulo-info"><h4>${e.cliente} <span class="badge-status ${classBadge}" style="margin-left:5px;">${e.status}</span></h4><p style="color:var(--primary); font-weight:800; font-size:0.7rem;">Pedido: ${e.dataDisplay}</p><p><b>${e.qtd}x</b> ${e.item}</p><p style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${e.obs}</p></div><div style="display:flex; gap:5px;">${toggleStatus}<button class="btn-acao" onclick="prepararExclusaoRegistro('Encomendas', ${e.linha}, 'Pedido de ${e.cliente}')">🗑️</button></div></div>${btnVender}</div>`; }); fila.innerHTML = html; }
+function renderizarEncomendas() {
+    const isAdmin = (usuarioCargo === 'Admin');
+    const fila = document.getElementById('lista-encomendas-cards');
+    const tBusca = document.getElementById('busca-encomendas').value.toLowerCase().trim();
+    let pendentes = encomendasGlobal.filter(e => e.status !== 'Entregue');
+    if (tBusca) { pendentes = pendentes.filter(e => (e.cliente + " " + e.item).toLowerCase().includes(tBusca)); }
+    pendentes.sort((a, b) => new Date(b.dataPedido) - new Date(a.dataPedido));
+    if (encomendasGlobal.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma encomenda ativa.</p>"; return; }
+    if (pendentes.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo Entregue ou Não Encontrado!</p>"; return; }
+
+    let html = "";
+    pendentes.forEach(e => {
+        let classBadge = e.status === 'Pendente' ? 'b-atrasado' : 'b-ok';
+        let btnVender = e.status === 'Produzido' ? `<button class="btn-salvar" style="margin-top:5px; padding:10px; background:#2C2A2B; font-size:0.8rem; width:100%;" onclick="puxarVendaDeEncomenda(${e.linha})">🚀 Vender (PDV)</button>` : '';
+        // Só Admin decide se já ficou pronto — o vendedor só cria/consulta/exclui a própria
+        let toggleStatus = isAdmin ? (e.status === 'Pendente'
+            ? `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="mudarStatusEncomenda(${e.linha}, 'Produzido')" title="Marcar Produzido">✔️</button>`
+            : `<button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="mudarStatusEncomenda(${e.linha}, 'Pendente')" title="Desfazer">↩️</button>`) : '';
+        const podeExcluir = isAdmin || String(e.socio || '').toLowerCase().trim() === usuarioLogado.toLowerCase().trim();
+        const btnExcluir = podeExcluir ? `<button class="btn-acao" onclick="prepararExclusaoRegistro('Encomendas', ${e.linha}, 'Pedido de ${e.cliente}')">🗑️</button>` : '';
+        const txtSocio = e.socio ? `<p style="font-size:0.65rem; color:#888; margin:2px 0 0 0;">👤 Anotado por: ${e.socio}</p>` : '';
+
+        html += `<div class="rotulo-card" style="flex-direction:column; align-items:stretch;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div class="rotulo-info"><h4>${e.cliente} <span class="badge-status ${classBadge}" style="margin-left:5px;">${e.status}</span></h4><p style="color:var(--primary); font-weight:800; font-size:0.7rem;">Pedido: ${e.dataDisplay}</p><p><b>${e.qtd}x</b> ${e.item}</p><p style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${e.obs}</p>${txtSocio}</div><div style="display:flex; gap:5px;">${toggleStatus}${btnExcluir}</div></div>${btnVender}</div>`;
+    });
+    fila.innerHTML = html;
+}
 function salvarEncomenda() { const data = document.getElementById('e-data').value, cli = padronizarTexto(document.getElementById('e-cliente').value), item = padronizarTexto(document.getElementById('e-item').value), qtd = document.getElementById('e-qtd').value, obs = document.getElementById('e-obs').value; if (!data || !cli || !item) return mostrarAlerta("Atenção", "Preencha Data, Cliente e Item.", "warning"); mostrarLoading("Salvando..."); const msgLog = `📦 Nova encomenda de ${cli}: ${qtd}x [${item}]`; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_encomenda", data: data, cliente: cli, item: item, qtd: qtd, status: 'Pendente', obs: obs, log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Registrado", "Encomenda salva.", "success"); document.getElementById('e-item').value = ""; document.getElementById('e-obs').value = ""; sincronizarDadosUnico(); }); }
 function mudarStatusEncomenda(linha, novoStatus) { let e = encomendasGlobal.find(x => x.linha == linha); if (!e) return; mostrarLoading("Atualizando..."); const msgLog = `🔄 Pedido de ${e.cliente} marcado como ${novoStatus}`; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_encomenda_status", linha: linha, status: novoStatus, log_detalhe: msgLog }) }).then(() => sincronizarDadosUnico()); }
-function puxarVendaDeEncomenda(linha) { const e = encomendasGlobal.find(x => x.linha == linha); if (!e) return; toggleVendasTab('registro'); document.getElementById('v-cliente').value = e.cliente; document.getElementById('v-qtd').value = e.qtd; document.getElementById('v-observacao').value = "REF ENCOMENDA: " + e.item; const dropdownProd = document.getElementById('v-produto'); let options = Array.from(dropdownProd.options); let achou = options.find(opt => opt.value.toLowerCase() === e.item.toLowerCase()); if (achou) { dropdownProd.value = achou.value; autoPreencherValorVenda(); } mostrarAlerta("Preenchido!", "Preenchemos o PDV para você.", "success"); }
+function puxarVendaDeEncomenda(linha) { const e = encomendasGlobal.find(x => x.linha == linha); if (!e) return; switchTab('vendas'); toggleVendasTab('registro'); document.getElementById('v-cliente').value = e.cliente; document.getElementById('v-qtd').value = e.qtd; document.getElementById('v-observacao').value = "REF ENCOMENDA: " + e.item; const dropdownProd = document.getElementById('v-produto'); let options = Array.from(dropdownProd.options); let achou = options.find(opt => opt.value.toLowerCase() === e.item.toLowerCase()); if (achou) { dropdownProd.value = achou.value; autoPreencherValorVenda(); } mostrarAlerta("Preenchido!", "Preenchemos o PDV para você.", "success"); }
 
 function onStatusVendaChange(isEdit = false) {
     const prefix = isEdit ? 'edit-v-' : 'v-';
@@ -2283,6 +2493,72 @@ function renderizarAvisoChegandoEmBreve() {
     banner.style.display = 'block';
 }
 
+// Monta as <option> de um seletor de produto agrupadas por tipo (optgroup), com ícone de gênero em cada linha
+// e o tipo abreviado no nome (ex: "Perf. Fakhar 40ml") — usado tanto no seletor de Venda quanto no de Encomenda,
+// pra manter os dois sempre com a mesma cara, sem duplicar essa lógica em dois lugares.
+function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
+    const comBonus = !!opcoes.comBonus;
+    const mapaBonus = {};
+    if (comBonus) bonusComissaoGlobal.forEach(b => mapaBonus[b.nomeProduto] = b.bonusPercentual);
+
+    const iconesPorTipo = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼' };
+    const iconeDoTipo = (tipo) => iconesPorTipo[String(tipo || '').toLowerCase().trim()] || '📦';
+
+    const iconeGenero = (codigo) => {
+        const rotuloRef = rotulosGlobal.find(r => r.codigo === codigo);
+        const genLow = rotuloRef && rotuloRef.genero ? String(rotuloRef.genero).toLowerCase().trim() : 'unissex';
+        if (genLow === 'feminino') return '🌸';
+        if (genLow === 'masculino') return '🔷';
+        if (genLow === 'infantil') return '🧸';
+        return '⚪';
+    };
+
+    const abreviacoesPorTipo = { 'perfume': 'Perf.', 'creme': 'Creme', 'home spray': 'H.Spray', 'vela': 'Vela', 'sabonete líquido': 'Sab.Líq.', 'sabonete liquido': 'Sab.Líq.' };
+    const abreviarTipo = (tipo) => {
+        const chave = String(tipo || '').toLowerCase().trim();
+        if (abreviacoesPorTipo[chave]) return abreviacoesPorTipo[chave];
+        return tipo && tipo.length > 6 ? tipo.substring(0, 5) + '.' : (tipo || '');
+    };
+
+    // Ordem dos grupos = ordem cadastrada em Parâmetros Globais > Tipos de Produtos Finais. Tipo novo, ainda não listado ali, vai pro fim.
+    const ordemTipos = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
+    const indiceTipo = (tipo) => { const i = ordemTipos.findIndex(t => t.toLowerCase() === String(tipo || '').toLowerCase()); return i === -1 ? 999 : i; };
+
+    const grupos = {};
+    itens.forEach(e => {
+        const tipoKey = e.tipo || 'Outros';
+        if (!grupos[tipoKey]) grupos[tipoKey] = [];
+        grupos[tipoKey].push(e);
+    });
+
+    let html = '';
+    Object.keys(grupos).sort((a, b) => {
+        const idxA = indiceTipo(a), idxB = indiceTipo(b);
+        return idxA !== idxB ? idxA - idxB : a.localeCompare(b);
+    }).forEach(tipoKey => {
+        grupos[tipoKey].sort((a, b) => {
+            if (comBonus) { const ba = mapaBonus[a.nome] || 0, bb = mapaBonus[b.nome] || 0; if (ba !== bb) return bb - ba; }
+            return String(b.codigo || "").localeCompare(String(a.codigo || ""));
+        });
+        const iconeGrupo = iconeDoTipo(tipoKey);
+        const tipoEscapado = tipoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const substituirTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
+        const tipoAbreviado = abreviarTipo(tipoKey);
+
+        html += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
+        grupos[tipoKey].forEach(e => {
+            const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
+            const bonusItem = comBonus ? mapaBonus[e.nome] : null;
+            const iconeLinha = bonusItem ? '🔥' : iconeGenero(e.codigo);
+            const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' ');
+            const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
+            html += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado} (${e.totalQtd}un)${sufixoBonus}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+    return html;
+}
+
 function renderizarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     renderizarBannerBonusComissao();
@@ -2299,78 +2575,10 @@ function renderizarVendas() {
     const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    let htmlVendas = '<option value="">Selecione do Estoque...</option>';
-    let htmlEncomendas = '<option value="">Selecione o Produto...</option>';
+    // Mesma lista agrupada por tipo tanto pra Vendas (só com estoque, mostra bônus) quanto pra Encomendas (todo o catálogo, sem bônus)
+    let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: true });
+    let htmlEncomendas = '<option value="">Selecione o Produto...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado), { comBonus: false });
 
-    // Produto com bônus de comissão ativo aparece destacado e primeiro dentro do próprio grupo
-    const mapaBonusVenda = {};
-    bonusComissaoGlobal.forEach(b => mapaBonusVenda[b.nomeProduto] = b.bonusPercentual);
-
-    // Ícone do cabeçalho do grupo, só pra identificar o tipo (Perfume/Creme/etc.) — não repete em cada linha, pra não pesar o texto
-    const iconesPorTipoVenda = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼' };
-    const iconeDoTipoVenda = (tipo) => iconesPorTipoVenda[String(tipo || '').toLowerCase().trim()] || '📦';
-
-    // Ícone de cada linha = gênero (emoji já "nasce" na cor certa, não dá pra pintar emoji com CSS)
-    const iconeGeneroVenda = (codigo) => {
-        const rotuloRef = rotulosGlobal.find(r => r.codigo === codigo);
-        const genLow = rotuloRef && rotuloRef.genero ? String(rotuloRef.genero).toLowerCase().trim() : 'unissex';
-        if (genLow === 'feminino') return '🌸';
-        if (genLow === 'masculino') return '🔷';
-        if (genLow === 'infantil') return '🧸';
-        return '⚪';
-    };
-
-    // Abrevia o tipo em vez de tirar — numa lista longa o cabeçalho do grupo pode ficar fora da tela ao rolar
-    const abreviacoesPorTipoVenda = { 'perfume': 'Perf.', 'creme': 'Creme', 'home spray': 'H.Spray', 'vela': 'Vela', 'sabonete líquido': 'Sab.Líq.', 'sabonete liquido': 'Sab.Líq.' };
-    const abreviarTipoVenda = (tipo) => {
-        const chave = String(tipo || '').toLowerCase().trim();
-        if (abreviacoesPorTipoVenda[chave]) return abreviacoesPorTipoVenda[chave];
-        return tipo && tipo.length > 6 ? tipo.substring(0, 5) + '.' : (tipo || ''); // tipo novo/desconhecido: abrevia genérico
-    };
-
-    const itensPorTipoVenda = {};
-    Object.values(estoqueAgrupado).forEach(e => {
-        let exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
-        htmlEncomendas += `<option value="${e.nome}">${exibeCodigo}${e.nome}</option>`;
-        if (e.totalQtd <= 0) return;
-        const tipoKey = e.tipo || 'Outros';
-        if (!itensPorTipoVenda[tipoKey]) itensPorTipoVenda[tipoKey] = [];
-        itensPorTipoVenda[tipoKey].push(e);
-    });
-
-    // A ordem dos grupos segue exatamente a ordem cadastrada em Parâmetros Globais > Tipos de Produtos Finais.
-    // Assim, pra colocar Perfume primeiro, basta reordenar aquele campo — nada fica preso no código.
-    // Qualquer tipo novo que você cadastrar no futuro e ainda não estiver naquela lista só vai pro fim, sem quebrar nada.
-    const ordemTiposVenda = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
-    const indiceTipoVenda = (tipo) => { const i = ordemTiposVenda.findIndex(t => t.toLowerCase() === String(tipo || '').toLowerCase()); return i === -1 ? 999 : i; };
-
-    Object.keys(itensPorTipoVenda).sort((a, b) => {
-        const idxA = indiceTipoVenda(a), idxB = indiceTipoVenda(b);
-        return idxA !== idxB ? idxA - idxB : a.localeCompare(b);
-    }).forEach(tipoKey => {
-        itensPorTipoVenda[tipoKey].sort((a, b) => {
-            const bonusA = mapaBonusVenda[a.nome] || 0, bonusB = mapaBonusVenda[b.nome] || 0;
-            if (bonusA !== bonusB) return bonusB - bonusA;
-            return String(b.codigo || "").localeCompare(String(a.codigo || ""));
-        });
-        const iconeGrupo = iconeDoTipoVenda(tipoKey);
-        // Escapa o tipo pra usar num regex com segurança (evita erro se o nome do tipo tiver parênteses, etc.)
-        const tipoEscapado = tipoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const substituirTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
-        const tipoAbreviado = abreviarTipoVenda(tipoKey);
-
-        htmlVendas += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
-        itensPorTipoVenda[tipoKey].forEach(e => {
-            const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
-            const bonusItem = mapaBonusVenda[e.nome];
-            const iconeLinha = bonusItem ? '🔥' : iconeGeneroVenda(e.codigo);
-            const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' '); // "Perfume Fakhar" -> "Perf. Fakhar" (continua identificável mesmo se o cabeçalho do grupo sair da tela)
-            const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
-            htmlVendas += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado} (${e.totalQtd}un)${sufixoBonus}</option>`;
-        });
-        htmlVendas += `</optgroup>`;
-    });
-    
     const fvClienteSelect = document.getElementById('f-v-cliente'); 
     const fvClienteAtual = fvClienteSelect.value; 
     fvClienteSelect.innerHTML = '<option value="">Todos</option>' + dlist.map(c => `<option value="${c}">${c}</option>`).join(''); 
@@ -3845,6 +4053,7 @@ async function sincronizarDadosSilencioso() {
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
+            sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
             
@@ -3887,7 +4096,7 @@ async function sincronizarDadosSilencioso() {
             renderizarCompras(); 
             renderizarProducao();
             if(typeof calcularRadarProducao === 'function') calcularRadarProducao();
-            if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor();
+            if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor(); if (typeof popularDatalistProdutosSugestao === 'function') popularDatalistProdutosSugestao(); if (typeof renderizarMinhasSugestoes === 'function') renderizarMinhasSugestoes(); if (typeof renderizarSugestoesProducaoAdmin === 'function') renderizarSugestoesProducaoAdmin();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
 
             // 4. Devolve a seleção para a tela de vendas
@@ -4932,12 +5141,14 @@ function toggleFabricaTab(aba) {
     document.getElementById('btn-sub-fab-receita').classList.remove('active');
     document.getElementById('btn-sub-fab-lancar').classList.remove('active');
     document.getElementById('btn-sub-fab-fila').classList.remove('active');
-    
+    document.getElementById('btn-sub-fab-sugestoes').classList.remove('active');
+
     // 2. Esconde todas as telas
     document.getElementById('fabrica-receita-view').style.display = 'none';
     document.getElementById('fabrica-lancar-view').style.display = 'none';
     document.getElementById('fabrica-fila-view').style.display = 'none';
-    
+    document.getElementById('fabrica-sugestoes-view').style.display = 'none';
+
     // 3. Mostra só a tela que foi clicada e acende o botão
     if (aba === 'receita') {
         document.getElementById('btn-sub-fab-receita').classList.add('active');
@@ -4948,6 +5159,10 @@ function toggleFabricaTab(aba) {
     } else if (aba === 'fila') {
         document.getElementById('btn-sub-fab-fila').classList.add('active');
         document.getElementById('fabrica-fila-view').style.display = 'block';
+    } else if (aba === 'sugestoes') {
+        document.getElementById('btn-sub-fab-sugestoes').classList.add('active');
+        document.getElementById('fabrica-sugestoes-view').style.display = 'block';
+        renderizarSugestoesProducaoAdmin();
     }
 }
 

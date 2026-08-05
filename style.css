@@ -26,10 +26,29 @@ body {
 .card { background: var(--card-bg); padding: 25px 20px; border-radius: 20px; box-shadow: 0 15px 35px rgba(184, 124, 150, 0.1); border: 1px solid rgba(184, 124, 150, 0.05); position: relative; }
 
 .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; box-shadow: 0 -5px 20px rgba(184, 124, 150, 0.15); border-radius: 25px 25px 0 0; z-index: 1000; padding-bottom: calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(184, 124, 150, 0.1); }
-.nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a1a1aa; text-decoration: none; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 0; }
+.nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a1a1aa; text-decoration: none; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
 .nav-item .icon { font-size: 1.35rem; margin-bottom: 4px; transition: all 0.3s ease; filter: grayscale(100%) opacity(0.5); }
 .nav-item.active { color: var(--primary-dark); }
 .nav-item.active .icon { filter: grayscale(0%) opacity(1); transform: translateY(-3px) scale(1.1); }
+
+/* Fica ABAIXO da .bottom-nav (z-index 1000): escurece só o conteúdo, deixando a barra e o painel "Mais" clicáveis */
+.nav-more-overlay { display: none; position: fixed; inset: 0; background: rgba(44, 42, 43, 0.35); z-index: 999; }
+.nav-more-panel {
+    display: none; position: absolute; bottom: 100%; left: 0; right: 0; margin: 0 0 10px;
+    background: #ffffff; border-radius: 20px;
+    box-shadow: 0 -5px 25px rgba(184, 124, 150, 0.2); padding: 15px; z-index: 1002;
+    flex-wrap: wrap; gap: 6px; box-sizing: border-box;
+}
+.nav-item-more {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #a1a1aa; text-decoration: none; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.2px;
+    text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;
+    flex: 1 1 30%; min-width: 0; padding: 12px 4px; border-radius: 14px;
+}
+.nav-item-more:active { background: rgba(184, 124, 150, 0.08); }
+.nav-item-more .icon { font-size: 1.35rem; margin-bottom: 4px; filter: grayscale(100%) opacity(0.5); }
+.nav-item-more.active { color: var(--primary-dark); }
+.nav-item-more.active .icon { filter: grayscale(0%) opacity(1); transform: scale(1.1); }
 
 .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; }
 
@@ -180,9 +199,10 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     .nav-item {
         flex-direction: row; justify-content: flex-start;
         padding: 8px 12px;
-        margin-bottom: 0; 
+        margin-bottom: 0;
         border-radius: 8px; width: 100%; box-sizing: border-box; color: #888;
         height: auto; align-items: center;
+        flex: none; /* sem isso, os itens esticam para preencher os 100vh da barra lateral, criando espaços gigantes */
     }
     
     .nav-item .icon { margin-bottom: 0; margin-right: 10px; font-size: 1.1rem; }
@@ -192,6 +212,25 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         background: #fdf5f7; color: var(--primary-dark);
         box-shadow: inset 4px 0 0 var(--primary-dark);
     }
+
+    /* No desktop, a barra lateral tem espaço de sobra: mostra tudo direto, sem menu "Mais" */
+    #nav-mais, .nav-more-overlay { display: none !important; }
+    .nav-more-panel {
+        display: flex !important; position: static; flex-direction: column; flex-wrap: nowrap;
+        width: 100%; max-width: none; background: transparent; box-shadow: none;
+        padding: 0; margin: 0; gap: 2px; transform: none; bottom: auto; left: auto;
+    }
+    .nav-item-more {
+        flex-direction: row; justify-content: flex-start; align-items: center;
+        flex: none; width: 100%; box-sizing: border-box; padding: 8px 12px; color: #888;
+    }
+    .nav-item-more .icon { margin-bottom: 0; margin-right: 10px; font-size: 1.1rem; }
+    .nav-item-more span:last-child { font-size: 0.85rem; font-weight: 700; }
+    .nav-item-more.active {
+        background: #fdf5f7; color: var(--primary-dark);
+        box-shadow: inset 4px 0 0 var(--primary-dark);
+    }
+    .nav-item-more.active .icon { transform: none; }
 
     /* 2. O CARTÃO BRANCO DO SISTEMA */
     .card {
