@@ -2564,21 +2564,14 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
     const ordemTipos = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
     const indiceTipo = (tipo) => { const i = ordemTipos.findIndex(t => t.toLowerCase() === String(tipo || '').toLowerCase()); return i === -1 ? 999 : i; };
 
-    const grupos = {};
-    itens.forEach(e => {
-        const tipoKey = e.tipo || 'Outros';
-        if (!grupos[tipoKey]) grupos[tipoKey] = [];
-        grupos[tipoKey].push(e);
-    });
-
     const escaparRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const abreviarNomeItem = (e) => e.nome.replace(new RegExp('^' + escaparRegex(e.tipo) + '\\s+', 'i'), abreviarTipo(e.tipo) + ' ');
 
     let html = '';
 
-    // 🔥 Vitrine dos bônus: grupo exclusivo no TOPO da lista. No celular o menu é desenhado pelo
-    // sistema (cor/animação não pegam), então o destaque vem de posição + MAIÚSCULAS + emojis.
-    // O produto continua aparecendo no grupo do tipo dele também, pra quem procura por categoria.
+    // 🔥 Vitrine dos bônus: grupo exclusivo no TOPO da lista. Produto com bônus aparece SÓ aqui
+    // (fora do grupo do tipo dele, pra não duplicar). No celular o menu é desenhado pelo sistema,
+    // então o destaque vem da posição + título do grupo + foguinho; a cor da linha só pega no PC.
     if (comBonus) {
         const itensComBonus = itens.filter(e => mapaBonus[e.nome]);
         if (itensComBonus.length) {
@@ -2586,11 +2579,19 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
             itensComBonus.sort((a, b) => (mapaBonus[b.nome] || 0) - (mapaBonus[a.nome] || 0)).forEach(e => {
                 const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
                 const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
-                html += `<option value="${e.nome}" style="background:#fef3c7; color:#b45309; font-weight:800;">🔥 ${(exibeCodigo + abreviarNomeItem(e)).toUpperCase()}${sufixoQtd} ⚡ +${mapaBonus[e.nome]}% EXTRA</option>`;
+                html += `<option value="${e.nome}" style="background:#fef3c7; color:#b45309; font-weight:800;">🔥 ${exibeCodigo}${abreviarNomeItem(e)}${sufixoQtd} ⚡+${mapaBonus[e.nome]}%</option>`;
             });
             html += `</optgroup>`;
+            itens = itens.filter(e => !mapaBonus[e.nome]);
         }
     }
+
+    const grupos = {};
+    itens.forEach(e => {
+        const tipoKey = e.tipo || 'Outros';
+        if (!grupos[tipoKey]) grupos[tipoKey] = [];
+        grupos[tipoKey].push(e);
+    });
     Object.keys(grupos).sort((a, b) => {
         const idxA = indiceTipo(a), idxB = indiceTipo(b);
         return idxA !== idxB ? idxA - idxB : a.localeCompare(b);
