@@ -2498,6 +2498,7 @@ function renderizarAvisoChegandoEmBreve() {
 // pra manter os dois sempre com a mesma cara, sem duplicar essa lógica em dois lugares.
 function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
     const comBonus = !!opcoes.comBonus;
+    const comQtd = opcoes.comQtd !== false; // por padrão mostra a quantidade; Encomendas esconde (é tudo zerado mesmo)
     const mapaBonus = {};
     if (comBonus) bonusComissaoGlobal.forEach(b => mapaBonus[b.nomeProduto] = b.bonusPercentual);
 
@@ -2552,7 +2553,8 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
             const iconeLinha = bonusItem ? '🔥' : iconeGenero(e.codigo);
             const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' ');
             const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
-            html += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado} (${e.totalQtd}un)${sufixoBonus}</option>`;
+            const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
+            html += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}</option>`;
         });
         html += `</optgroup>`;
     });
@@ -2575,9 +2577,9 @@ function renderizarVendas() {
     const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    // Mesma lista agrupada por tipo tanto pra Vendas (só com estoque, mostra bônus) quanto pra Encomendas (todo o catálogo, sem bônus)
+    // Mesma lista agrupada por tipo: Vendas mostra só o que TEM estoque; Encomendas mostra só o que está ZERADO (encomenda é pro que falta)
     let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: true });
-    let htmlEncomendas = '<option value="">Selecione o Produto...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado), { comBonus: false });
+    let htmlEncomendas = '<option value="">Selecione o produto esgotado...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => (e.totalQtd || 0) <= 0), { comBonus: false, comQtd: false });
 
     const fvClienteSelect = document.getElementById('f-v-cliente'); 
     const fvClienteAtual = fvClienteSelect.value; 
@@ -3600,12 +3602,25 @@ function renderizarDashboard() {
         crescimentoAdminIcon = '🚀'; crescimentoAdminTxt = `Novo recorde!`;
     }
 
-    let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5); 
-    let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5); 
+    let arrProd = Object.keys(mProd).map(k => ({ nome: k, qtd: mProd[k] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
+    let arrCli = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => b.val - a.val).slice(0, 5);
     let topDevedores = Object.keys(devedoresFiltrados).map(k => ({ nome: k, divida: devedoresFiltrados[k] })).sort((a, b) => b.divida - a.divida).slice(0, 5);
-    
+
+    // 🐢 Produtos COM estoque que menos saíram no período (inclui os que venderam ZERO — os piores ficam no topo)
+    let mProdPad = {};
+    Object.keys(mProd).forEach(k => { const kp = padronizarTexto(k); mProdPad[kp] = (mProdPad[kp] || 0) + mProd[k]; });
+    let arrEncalhados = Object.keys(estoqueAgrupado)
+        .map(k => ({ nome: estoqueAgrupado[k].nome, estoque: estoqueAgrupado[k].totalQtd || 0, vendido: mProdPad[k] || 0 }))
+        .filter(p => p.estoque > 0)
+        .sort((a, b) => (a.vendido - b.vendido) || (b.estoque - a.estoque))
+        .slice(0, 5);
+    // 👻 Clientes que menos compraram no período (o inverso do Top 5)
+    let arrCliFracos = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => a.val - b.val).slice(0, 5);
+
     let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
+    let listaEncalhados = arrEncalhados.length ? arrEncalhados.map((p, i) => `<div style="display:flex; justify-content:space-between; gap:8px; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem; min-width:0; overflow-wrap:break-word;">#${i+1} ${p.nome}</span><strong style="color:#b91c1c; font-size:0.8rem; white-space:nowrap;">${p.vendido} un <span style="color:#999; font-weight:600;">(${p.estoque} sobrando)</span></strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto em estoque.</p>";
+    let listaCliFracos = arrCliFracos.length ? arrCliFracos.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#6b7280; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     
     let listaDevedores = topDevedores.length ? topDevedores.map((d, i) => `
         <div onclick="switchTab('vendas'); toggleVendasTab('lotes'); document.getElementById('cobranca-cliente').value = '${d.nome}'; prepararCobranca();" 
@@ -3776,6 +3791,17 @@ function renderizarDashboard() {
             <div class="dash-card" style="padding:15px;">
                 <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 5 CLIENTES</h3>
                 <div id="d-ranking-clientes">${listaCli}</div>
+            </div>
+
+            <div class="dash-card" style="padding:15px;">
+                <h3 style="color:#b91c1c; font-size:0.75rem; border-bottom:1px solid #fecaca; padding-bottom:5px; margin-bottom:10px;">🐢 5 QUE MENOS SAEM (C/ ESTOQUE)</h3>
+                <div id="d-ranking-encalhados">${listaEncalhados}</div>
+                <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Vendas no período × quanto sobra no estoque.</p>
+            </div>
+            <div class="dash-card" style="padding:15px;">
+                <h3 style="color:#6b7280; font-size:0.75rem; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:10px;">👻 5 CLIENTES QUE MENOS COMPRAM</h3>
+                <div id="d-ranking-clientes-fracos">${listaCliFracos}</div>
+                <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Entre quem comprou algo no período.</p>
             </div>
 
             <div class="dash-card" style="padding: 15px;">
