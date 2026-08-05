@@ -175,6 +175,7 @@ function switchTab(tabId) {
     if (tabId === 'dashboard') { setTimeout(() => { renderizarDashboard(); }, 50); }
     if (tabId === 'logs') { renderizarLogs(); }
     if (tabId === 'estoqueparado') { renderizarEstoqueParado(); }
+    if (tabId === 'maceracaovendedor') { renderizarMaceracaoVendedor(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
     if (tabId === 'vendas' && !document.getElementById('v-data').value) { document.getElementById('v-data').valueAsDate = new Date(); document.getElementById('e-data').valueAsDate = new Date(); }
 }
@@ -222,6 +223,7 @@ function aplicarPermissoes() {
     const navPrecificar = document.getElementById('nav-precificar'); if(navPrecificar) navPrecificar.style.display = isAdmin ? 'flex' : 'none';
     const navGastos = document.getElementById('nav-gastos'); if(navGastos) navGastos.style.display = isAdmin ? 'flex' : 'none';
     const navEstoqueParado = document.getElementById('nav-estoqueparado'); if(navEstoqueParado) navEstoqueParado.style.display = isAdmin ? 'flex' : 'none';
+    const navMaceracaoVendedor = document.getElementById('nav-maceracao-vendedor'); if(navMaceracaoVendedor) navMaceracaoVendedor.style.display = isAdmin ? 'none' : 'flex';
 
     // Abas liberadas para todos
     const navEstoque = document.getElementById('nav-estoque');
@@ -376,7 +378,7 @@ async function sincronizarDadosUnico() {
                 estoqueAgrupado[n].locaisDatas[lExib] = e.dataEntrada || null; // data da última entrada de estoque nesse local específico
             });
 
-            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao(); if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado();
+            atualizarDatalistsDinamicos(); renderizarRotulos(); renderizarOpcoesPrecificacao(); renderizarEstoque(); renderizarGastos(); renderizarVendas(); renderizarDashboard(); renderizarEncomendas(); renderizarCompras(); renderizarProducao();calcularRadarProducao(); if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
             
             if (!dadosCarregados) {
@@ -791,9 +793,13 @@ function salvarFilaProducao() {
 // FUNÇÃO QUE DESENHA A FÁBRICA / MACERAÇÃO
 // ==========================================
 function renderizarProducao() {
-    const isAdmin = (usuarioCargo === 'Admin'); 
+    const isAdmin = (usuarioCargo === 'Admin');
     const fila = document.getElementById('lista-producao-cards');
     const resumo = document.getElementById('resumo-producao');
+
+    // Essa tela é só do Admin (usa data_inicio/custo, que o servidor nem envia mais pro vendedor). Vendedor tem a tela própria dele.
+    if (!isAdmin) { if (fila) fila.innerHTML = ''; if (resumo) resumo.innerHTML = ''; return; }
+
     const tBusca = document.getElementById('busca-producao') ? document.getElementById('busca-producao').value.toLowerCase().trim() : '';
 
     let pends = producaoGlobal.filter(p => p.status === 'Em Andamento');
@@ -953,6 +959,99 @@ function renderizarProducao() {
     }
 }
 
+// ==========================================
+// ⏳ CONSULTA DE MACERAÇÃO PARA VENDEDORES
+// Só mostra o essencial (produto, quantidade, quando fica pronto) — sem custo nem data de início, que é segredo de fábrica
+// ==========================================
+function renderizarMaceracaoVendedor() {
+    const container = document.getElementById('lista-maceracao-vendedor');
+    if (!container) return;
+
+    const todasEmAndamento = producaoGlobal.filter(p => p.status === 'Em Andamento');
+    if (todasEmAndamento.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.85rem; padding:20px 0;'>Nenhum perfume em maceração no momento.</p>";
+        return;
+    }
+
+    const tBusca = document.getElementById('busca-maceracao-vendedor') ? document.getElementById('busca-maceracao-vendedor').value.toLowerCase().trim() : '';
+    let itens = todasEmAndamento;
+    if (tBusca) {
+        itens = itens.filter(p => {
+            const matchNome = p.nome_produto.toLowerCase().includes(tBusca);
+            const matchCodigo = p.codigo && String(p.codigo).toLowerCase().includes(tBusca);
+            const matchCodigoLimpo = p.codigo && String(p.codigo).toLowerCase().replace('n', '').includes(tBusca);
+            return matchNome || matchCodigo || matchCodigoLimpo;
+        });
+    }
+
+    if (itens.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#999; font-size:0.85rem; padding:20px 0;'>Nenhum resultado pra essa busca.</p>";
+        return;
+    }
+
+    const hojeObj = new Date(); hojeObj.setHours(0, 0, 0, 0);
+
+    // Agrupa por data de previsão — todo item do mesmo grupo compartilha o mesmo status de urgência
+    let grupos = {};
+    itens.forEach(p => {
+        const chave = p.data_previsao;
+        if (!grupos[chave]) grupos[chave] = { itens: [], totalQtd: 0 };
+        grupos[chave].itens.push(p);
+        grupos[chave].totalQtd += parseFloat(p.qtd_prevista) || 0;
+    });
+
+    const datasOrdenadas = Object.keys(grupos).sort((a, b) => new Date(a) - new Date(b));
+
+    let html = '';
+    datasOrdenadas.forEach(dataChave => {
+        const grupo = grupos[dataChave];
+        const [ano, mes, dia] = dataChave.split('-');
+        const dataPrevObj = new Date(ano, mes - 1, dia);
+        const diffDias = Math.round((dataPrevObj - hojeObj) / 86400000);
+        const dataBr = `${dia}/${mes}/${ano}`;
+
+        let corGrupo = '#0369a1', textoStatus = '⏳ Pronto em ' + diffDias + ' dias';
+        if (diffDias < 0) { corGrupo = '#dc2626'; textoStatus = '⚠️ Atrasado'; }
+        else if (diffDias === 0) { corGrupo = '#16a34a'; textoStatus = '✅ Pronto hoje!'; }
+        else if (diffDias === 1) { corGrupo = '#16a34a'; textoStatus = '⏳ Pronto amanhã'; }
+
+        const qtdProdutos = grupo.itens.length;
+        const txtProdutos = qtdProdutos === 1 ? '1 produto' : `${qtdProdutos} produtos`;
+
+        html += `<div class="separador-data div-futuro" style="background:${corGrupo}; margin: 25px 0 10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:5px;">
+                    <span>🗓️ ${dataBr} — ${textoStatus}</span>
+                    <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.3);">${txtProdutos} • ${grupo.totalQtd} un</span>
+                 </div>`;
+
+        html += `<div class="grid-vendas-grupo">`;
+
+        grupo.itens.sort((a, b) => a.nome_produto.localeCompare(b.nome_produto)).forEach(p => {
+            // Busca o gênero na tabela de Essências (dado público, não é segredo de fábrica) pra destacar no cartão
+            const rotuloRef = rotulosGlobal.find(r => r.codigo === p.codigo);
+            const genLow = rotuloRef && rotuloRef.genero ? String(rotuloRef.genero).toLowerCase().trim() : 'unissex';
+            let corGen = '#9ca3af', corFundoGen = '#f3f4f6', corTextoGen = '#4b5563', txtGen = 'Unissex';
+            if (genLow === 'masculino') { corGen = '#0369a1'; corFundoGen = '#e0f2fe'; corTextoGen = '#0369a1'; txtGen = 'Masculino'; }
+            else if (genLow === 'feminino') { corGen = '#be185d'; corFundoGen = '#fce7f3'; corTextoGen = '#be185d'; txtGen = 'Feminino'; }
+            else if (genLow === 'infantil') { corGen = '#166534'; corFundoGen = '#dcfce7'; corTextoGen = '#166534'; txtGen = 'Infantil'; }
+
+            const codigoBadge = p.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${p.codigo}</span>` : '';
+            const generoBadge = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 8px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px;">${txtGen}</span>`;
+
+            html += `
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left: 5px solid ${corGen}; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+                    <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${codigoBadge}${p.nome_produto}${generoBadge}</h4>
+                </div>
+                <p style="margin:6px 0 0 0; font-size:0.75rem; color:#666;">📦 Rendimento previsto: <b>${p.qtd_prevista} un</b></p>
+            </div>`;
+        });
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
 function abrirModalFinalizarProducao(id) {
     const p = producaoGlobal.find(x => x.linha === id);
     if(!p) return;
@@ -1084,10 +1183,14 @@ function renderizarEstoque() {
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
 
     let totalMacerandoPorProduto = {};
+    let dataPrevistaPorProduto = {}; // nome padronizado -> data prevista mais próxima entre os lotes "Em Andamento"
     producaoGlobal.forEach(p => {
         if (p.status === 'Em Andamento') {
             let nomeP = padronizarTexto(p.nome_produto);
             totalMacerandoPorProduto[nomeP] = (totalMacerandoPorProduto[nomeP] || 0) + (parseFloat(p.qtd_prevista) || 0);
+            if (!dataPrevistaPorProduto[nomeP] || new Date(p.data_previsao) < new Date(dataPrevistaPorProduto[nomeP])) {
+                dataPrevistaPorProduto[nomeP] = p.data_previsao;
+            }
         }
     });
 
@@ -1166,7 +1269,18 @@ function renderizarEstoque() {
         if (qtdProjetada < minEstoqueGlob && qtdLivre > 0) {
             corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">⚠️ Crítico (< ${minEstoqueGlob})</span>`;
         } else if (qtdLivre < minEstoqueGlob && qtdMacerando > 0) {
-            corCustoVal = "#a16207"; htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo" style="margin:0;">⏳ Lote Vindo</span>`;
+            corCustoVal = "#a16207";
+            const dataPrevProduto = dataPrevistaPorProduto[padronizarTexto(e.nome)];
+            let txtLoteVindo = '⏳ Lote Vindo';
+            if (dataPrevProduto) {
+                const [anoLv, mesLv, diaLv] = dataPrevProduto.split('-');
+                const hojeLv = new Date(); hojeLv.setHours(0, 0, 0, 0);
+                const diffLv = Math.round((new Date(anoLv, mesLv - 1, diaLv) - hojeLv) / 86400000);
+                if (diffLv <= 0) txtLoteVindo = '⏳ Chega hoje';
+                else if (diffLv === 1) txtLoteVindo = '⏳ Chega amanhã';
+                else txtLoteVindo = `⏳ Chega em ${diffLv}d`;
+            }
+            htmlSaudeEstoque = `<span class="badge-estoque badge-produzindo" style="margin:0;">${txtLoteVindo}</span>`;
         } else if (qtdLivre <= 0) {
             corCustoVal = "#991b1b"; htmlSaudeEstoque = `<span class="badge-estoque badge-critico" style="margin:0;">🚫 Sem Estoque Livre</span>`;
         } else {
@@ -1882,7 +1996,32 @@ function onStatusVendaChange(isEdit = false) {
     }
 }
 
-function autoPreencherValorVenda() { const selecao = document.getElementById('v-produto').value; const nomePadronizado = padronizarTexto(selecao); const prodAgrupado = estoqueAgrupado[nomePadronizado]; const imgPrev = document.getElementById('v-produto-img-preview'); const comboLocal = document.getElementById('v-local-estoque'); if (comboLocal) comboLocal.innerHTML = ''; if (prodAgrupado && prodAgrupado.totalQtd > 0) { const qtd = parseInt(document.getElementById('v-qtd').value) || 1; const valorUnitario = parseDinheiro(prodAgrupado.preco); document.getElementById('v-valor').value = fmt(valorUnitario * qtd); let fotos = prodAgrupado.foto ? prodAgrupado.foto.split(',') : []; imgPrev.src = fotos[0] || 'logo.png'; imgPrev.style.display = 'block'; if (comboLocal) { let count = 0; for (let loc in prodAgrupado.locais) { if (prodAgrupado.locais[loc] > 0) { comboLocal.innerHTML += `<option value="${loc}">${loc} (Disp: ${prodAgrupado.locais[loc]})</option>`; count++; } } if (count === 0) comboLocal.innerHTML = `<option value="">Sem estoque</option>`; } } else { document.getElementById('v-valor').value = ""; imgPrev.style.display = 'none'; if (comboLocal) comboLocal.innerHTML = `<option value="">Selecione o Produto Primeiro...</option>`; } }
+// Descobre qual local deveria vir pré-selecionado: o local com o nome do vendedor (mesmo com apelido/acento diferente), senão "Sede"
+function encontrarLocalPadraoVenda(locaisDisponiveis) {
+    if (!locaisDisponiveis || locaisDisponiveis.length === 0) return '';
+    const campoSocio = document.getElementById('v-socio');
+    const socioNorm = campoSocio ? normalizarNomeBusca(campoSocio.value) : '';
+    if (socioNorm) {
+        const matchSocio = locaisDisponiveis.find(loc => normalizarNomeBusca(loc).includes(socioNorm));
+        if (matchSocio) return matchSocio;
+    }
+    const matchSede = locaisDisponiveis.find(loc => normalizarNomeBusca(loc) === 'sede');
+    return matchSede || locaisDisponiveis[0];
+}
+
+function autoPreencherValorVenda() { const selecao = document.getElementById('v-produto').value; const nomePadronizado = padronizarTexto(selecao); const prodAgrupado = estoqueAgrupado[nomePadronizado]; const imgPrev = document.getElementById('v-produto-img-preview'); const comboLocal = document.getElementById('v-local-estoque'); if (comboLocal) comboLocal.innerHTML = ''; if (prodAgrupado && prodAgrupado.totalQtd > 0) { const qtd = parseInt(document.getElementById('v-qtd').value) || 1; const valorUnitario = parseDinheiro(prodAgrupado.preco); document.getElementById('v-valor').value = fmt(valorUnitario * qtd); let fotos = prodAgrupado.foto ? prodAgrupado.foto.split(',') : []; imgPrev.src = fotos[0] || 'logo.png'; imgPrev.style.display = 'block'; if (comboLocal) { let count = 0; let locaisDisp = []; for (let loc in prodAgrupado.locais) { if (prodAgrupado.locais[loc] > 0) { comboLocal.innerHTML += `<option value="${loc}">${loc} (Disp: ${prodAgrupado.locais[loc]})</option>`; locaisDisp.push(loc); count++; } } if (count === 0) { comboLocal.innerHTML = `<option value="">Sem estoque</option>`; } else { comboLocal.value = encontrarLocalPadraoVenda(locaisDisp); } } } else { document.getElementById('v-valor').value = ""; imgPrev.style.display = 'none'; if (comboLocal) comboLocal.innerHTML = `<option value="">Selecione o Produto Primeiro...</option>`; } atualizarAvisoBonusProduto(selecao); }
+
+// Reforça o bônus de comissão bem no momento em que o vendedor acabou de escolher o produto — não dá pra rolar a tela e perder
+function atualizarAvisoBonusProduto(nomeProduto) {
+    const aviso = document.getElementById('aviso-bonus-produto-selecionado');
+    if (!aviso) return;
+
+    const bonusAtivo = bonusComissaoGlobal.find(b => b.nomeProduto === nomeProduto);
+    if (!nomeProduto || !bonusAtivo) { aviso.style.display = 'none'; return; }
+
+    aviso.innerHTML = `🔥 Esse produto tem bônus de <b>+${bonusAtivo.bonusPercentual}%</b> de comissão hoje!`;
+    aviso.style.display = 'block';
+}
 
 function autoPreencherEdicaoVenda() { 
     const selecao = document.getElementById('edit-v-produto').value;
@@ -2083,9 +2222,71 @@ function renderizarBannerBonusComissao() {
     banner.style.display = 'block';
 }
 
+// Avisa o vendedor sobre produtos SEM estoque disponível agora, mas com maceração a caminho (visual discreto, pra não competir com o aviso de bônus)
+function renderizarAvisoChegandoEmBreve() {
+    const banner = document.getElementById('banner-chegando-em-breve');
+    if (!banner) return;
+
+    if (usuarioCargo === 'Admin') { banner.style.display = 'none'; return; }
+
+    let totalEncomendadoPorProduto = {};
+    encomendasGlobal.forEach(enc => {
+        if (enc.status === 'Pendente' || enc.status === 'Produzido') {
+            let nomeP = padronizarTexto(enc.item);
+            totalEncomendadoPorProduto[nomeP] = (totalEncomendadoPorProduto[nomeP] || 0) + (parseInt(enc.qtd) || 0);
+        }
+    });
+
+    let producaoPorProduto = {}; // nome padronizado -> data prevista mais próxima entre os lotes "Em Andamento"
+    producaoGlobal.forEach(p => {
+        if (p.status !== 'Em Andamento') return;
+        const chave = padronizarTexto(p.nome_produto);
+        if (!producaoPorProduto[chave] || new Date(p.data_previsao) < new Date(producaoPorProduto[chave])) {
+            producaoPorProduto[chave] = p.data_previsao;
+        }
+    });
+
+    const hojeObj = new Date(); hojeObj.setHours(0, 0, 0, 0);
+    let itens = [];
+
+    for (let key in estoqueAgrupado) {
+        const e = estoqueAgrupado[key];
+        const qtdLivre = e.totalQtd - (totalEncomendadoPorProduto[key] || 0);
+        const dataPrevisao = producaoPorProduto[key];
+        if (qtdLivre > 0 || !dataPrevisao) continue; // só entra quem está realmente zerado e tem lote a caminho
+
+        const [ano, mes, dia] = dataPrevisao.split('-');
+        const diffDias = Math.round((new Date(ano, mes - 1, dia) - hojeObj) / 86400000);
+        itens.push({ nome: e.nome, codigo: e.codigo, diffDias, dataBr: `${dia}/${mes}` });
+    }
+
+    if (itens.length === 0) { banner.style.display = 'none'; return; }
+    itens.sort((a, b) => a.diffDias - b.diffDias);
+
+    const LIMITE_EXIBIDO = 5;
+    const visiveis = itens.slice(0, LIMITE_EXIBIDO);
+    const restantes = itens.length - visiveis.length;
+
+    let html = `<div style="background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; padding:12px 15px; margin-bottom:15px;">
+        <p style="margin:0 0 8px 0; font-weight:800; color:#4b5563; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.3px;">⏳ Chegando em breve (estoque zerado agora)</p>`;
+
+    visiveis.forEach(item => {
+        const txtPrazo = item.diffDias < 0 ? 'atrasado' : item.diffDias === 0 ? 'hoje' : item.diffDias === 1 ? 'amanhã' : `em ${item.diffDias} dias`;
+        const codigoTxt = item.codigo ? `${item.codigo}: ` : '';
+        html += `<p style="margin:0 0 4px 0; font-size:0.72rem; color:#6b7280;">▫️ ${codigoTxt}${item.nome} — <b>${txtPrazo}</b> (${item.dataBr})</p>`;
+    });
+
+    if (restantes > 0) html += `<p style="margin:4px 0 0 0; font-size:0.68rem; color:#9ca3af; font-style:italic;">+ ${restantes} outro(s) produto(s) chegando</p>`;
+
+    html += `</div>`;
+    banner.innerHTML = html;
+    banner.style.display = 'block';
+}
+
 function renderizarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     renderizarBannerBonusComissao();
+    renderizarAvisoChegandoEmBreve();
     // Filtra a lista de clientes e devedores para o vendedor ver só os dele
     const listaVendasPermitidas = isAdmin ? vendasGlobal : vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
 
@@ -2098,16 +2299,53 @@ function renderizarVendas() {
     const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    let htmlVendas = '<option value="">Selecione do Estoque...</option>'; 
-    let htmlEncomendas = '<option value="">Selecione o Produto...</option>'; 
+    let htmlVendas = '<option value="">Selecione do Estoque...</option>';
+    let htmlEncomendas = '<option value="">Selecione o Produto...</option>';
 
-    Object.values(estoqueAgrupado).sort((a, b) => String(b.codigo || "").localeCompare(String(a.codigo || ""))).forEach(e => { 
-        let exibeCodigo = e.codigo ? e.codigo + ' - ' : ''; 
-        if (e.totalQtd > 0) { 
-            htmlVendas += `<option value="${e.nome}">${exibeCodigo}${e.nome} (Total: ${e.totalQtd})</option>`; 
-        } 
+    // Produto com bônus de comissão ativo aparece destacado e primeiro dentro do próprio grupo
+    const mapaBonusVenda = {};
+    bonusComissaoGlobal.forEach(b => mapaBonusVenda[b.nomeProduto] = b.bonusPercentual);
+
+    // Ícone por tipo, pra não confundir "N029 Perfume" com "N029 Creme" (mesmo código Novera, produtos diferentes)
+    const iconesPorTipoVenda = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼' };
+    const iconeDoTipoVenda = (tipo) => iconesPorTipoVenda[String(tipo || '').toLowerCase().trim()] || '📦';
+
+    const itensPorTipoVenda = {};
+    Object.values(estoqueAgrupado).forEach(e => {
+        let exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
         htmlEncomendas += `<option value="${e.nome}">${exibeCodigo}${e.nome}</option>`;
-    }); 
+        if (e.totalQtd <= 0) return;
+        const tipoKey = e.tipo || 'Outros';
+        if (!itensPorTipoVenda[tipoKey]) itensPorTipoVenda[tipoKey] = [];
+        itensPorTipoVenda[tipoKey].push(e);
+    });
+
+    // A ordem dos grupos segue exatamente a ordem cadastrada em Parâmetros Globais > Tipos de Produtos Finais.
+    // Assim, pra colocar Perfume primeiro, basta reordenar aquele campo — nada fica preso no código.
+    // Qualquer tipo novo que você cadastrar no futuro e ainda não estiver naquela lista só vai pro fim, sem quebrar nada.
+    const ordemTiposVenda = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
+    const indiceTipoVenda = (tipo) => { const i = ordemTiposVenda.findIndex(t => t.toLowerCase() === String(tipo || '').toLowerCase()); return i === -1 ? 999 : i; };
+
+    Object.keys(itensPorTipoVenda).sort((a, b) => {
+        const idxA = indiceTipoVenda(a), idxB = indiceTipoVenda(b);
+        return idxA !== idxB ? idxA - idxB : a.localeCompare(b);
+    }).forEach(tipoKey => {
+        itensPorTipoVenda[tipoKey].sort((a, b) => {
+            const bonusA = mapaBonusVenda[a.nome] || 0, bonusB = mapaBonusVenda[b.nome] || 0;
+            if (bonusA !== bonusB) return bonusB - bonusA;
+            return String(b.codigo || "").localeCompare(String(a.codigo || ""));
+        });
+        const iconeGrupo = iconeDoTipoVenda(tipoKey);
+        htmlVendas += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
+        itensPorTipoVenda[tipoKey].forEach(e => {
+            const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
+            const bonusItem = mapaBonusVenda[e.nome];
+            const prefixoBonus = bonusItem ? '🔥 ' : iconeGrupo + ' ';
+            const sufixoBonus = bonusItem ? ` • +${bonusItem}% bônus` : '';
+            htmlVendas += `<option value="${e.nome}">${prefixoBonus}${exibeCodigo}${e.nome} (Total: ${e.totalQtd})${sufixoBonus}</option>`;
+        });
+        htmlVendas += `</optgroup>`;
+    });
     
     const fvClienteSelect = document.getElementById('f-v-cliente'); 
     const fvClienteAtual = fvClienteSelect.value; 
@@ -3625,7 +3863,7 @@ async function sincronizarDadosSilencioso() {
             renderizarCompras(); 
             renderizarProducao();
             if(typeof calcularRadarProducao === 'function') calcularRadarProducao();
-            if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado();
+            if (typeof renderizarEstoqueParado === 'function') renderizarEstoqueParado(); if (typeof renderizarMaceracaoVendedor === 'function') renderizarMaceracaoVendedor();
             if (document.getElementById('tab-logs').classList.contains('active')) renderizarLogs();
 
             // 4. Devolve a seleção para a tela de vendas
