@@ -2306,9 +2306,19 @@ function renderizarVendas() {
     const mapaBonusVenda = {};
     bonusComissaoGlobal.forEach(b => mapaBonusVenda[b.nomeProduto] = b.bonusPercentual);
 
-    // Ícone por tipo, pra não confundir "N029 Perfume" com "N029 Creme" (mesmo código Novera, produtos diferentes)
+    // Ícone do cabeçalho do grupo, só pra identificar o tipo (Perfume/Creme/etc.) — não repete em cada linha, pra não pesar o texto
     const iconesPorTipoVenda = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼' };
     const iconeDoTipoVenda = (tipo) => iconesPorTipoVenda[String(tipo || '').toLowerCase().trim()] || '📦';
+
+    // Ícone de cada linha = gênero (emoji já "nasce" na cor certa, não dá pra pintar emoji com CSS)
+    const iconeGeneroVenda = (codigo) => {
+        const rotuloRef = rotulosGlobal.find(r => r.codigo === codigo);
+        const genLow = rotuloRef && rotuloRef.genero ? String(rotuloRef.genero).toLowerCase().trim() : 'unissex';
+        if (genLow === 'feminino') return '🌸';
+        if (genLow === 'masculino') return '🔷';
+        if (genLow === 'infantil') return '🧸';
+        return '⚪';
+    };
 
     const itensPorTipoVenda = {};
     Object.values(estoqueAgrupado).forEach(e => {
@@ -2336,13 +2346,18 @@ function renderizarVendas() {
             return String(b.codigo || "").localeCompare(String(a.codigo || ""));
         });
         const iconeGrupo = iconeDoTipoVenda(tipoKey);
+        // Escapa o tipo pra usar num regex com segurança (evita erro se o nome do tipo tiver parênteses, etc.)
+        const tipoEscapado = tipoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const removerTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
+
         htmlVendas += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
         itensPorTipoVenda[tipoKey].forEach(e => {
             const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
             const bonusItem = mapaBonusVenda[e.nome];
-            const prefixoBonus = bonusItem ? '🔥 ' : iconeGrupo + ' ';
-            const sufixoBonus = bonusItem ? ` • +${bonusItem}% bônus` : '';
-            htmlVendas += `<option value="${e.nome}">${prefixoBonus}${exibeCodigo}${e.nome} (Total: ${e.totalQtd})${sufixoBonus}</option>`;
+            const iconeLinha = bonusItem ? '🔥' : iconeGeneroVenda(e.codigo);
+            const nomeCurto = e.nome.replace(removerTipoDoNome, ''); // tira "Perfume"/"Creme" repetido — o grupo já deixa isso claro
+            const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
+            htmlVendas += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeCurto} (${e.totalQtd}un)${sufixoBonus}</option>`;
         });
         htmlVendas += `</optgroup>`;
     });
