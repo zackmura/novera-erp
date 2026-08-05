@@ -2320,6 +2320,14 @@ function renderizarVendas() {
         return '⚪';
     };
 
+    // Abrevia o tipo em vez de tirar — numa lista longa o cabeçalho do grupo pode ficar fora da tela ao rolar
+    const abreviacoesPorTipoVenda = { 'perfume': 'Perf.', 'creme': 'Creme', 'home spray': 'H.Spray', 'vela': 'Vela', 'sabonete líquido': 'Sab.Líq.', 'sabonete liquido': 'Sab.Líq.' };
+    const abreviarTipoVenda = (tipo) => {
+        const chave = String(tipo || '').toLowerCase().trim();
+        if (abreviacoesPorTipoVenda[chave]) return abreviacoesPorTipoVenda[chave];
+        return tipo && tipo.length > 6 ? tipo.substring(0, 5) + '.' : (tipo || ''); // tipo novo/desconhecido: abrevia genérico
+    };
+
     const itensPorTipoVenda = {};
     Object.values(estoqueAgrupado).forEach(e => {
         let exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
@@ -2348,16 +2356,17 @@ function renderizarVendas() {
         const iconeGrupo = iconeDoTipoVenda(tipoKey);
         // Escapa o tipo pra usar num regex com segurança (evita erro se o nome do tipo tiver parênteses, etc.)
         const tipoEscapado = tipoKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const removerTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
+        const substituirTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
+        const tipoAbreviado = abreviarTipoVenda(tipoKey);
 
         htmlVendas += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
         itensPorTipoVenda[tipoKey].forEach(e => {
             const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
             const bonusItem = mapaBonusVenda[e.nome];
             const iconeLinha = bonusItem ? '🔥' : iconeGeneroVenda(e.codigo);
-            const nomeCurto = e.nome.replace(removerTipoDoNome, ''); // tira "Perfume"/"Creme" repetido — o grupo já deixa isso claro
+            const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' '); // "Perfume Fakhar" -> "Perf. Fakhar" (continua identificável mesmo se o cabeçalho do grupo sair da tela)
             const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
-            htmlVendas += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeCurto} (${e.totalQtd}un)${sufixoBonus}</option>`;
+            htmlVendas += `<option value="${e.nome}">${iconeLinha} ${exibeCodigo}${nomeAbreviado} (${e.totalQtd}un)${sufixoBonus}</option>`;
         });
         htmlVendas += `</optgroup>`;
     });
