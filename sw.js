@@ -1,4 +1,4 @@
-const CACHE_NAME = 'novera-erp-v8.8.0';
+const CACHE_NAME = 'novera-erp-v8.8.1';
 const urlsToCache = [
  
   './index.html',
@@ -16,6 +16,8 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  // skipWaiting: a versão nova assume na hora, sem esperar todas as abas/app fecharem
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -62,6 +64,6 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // assume o controle das abas abertas imediatamente
   );
 });
