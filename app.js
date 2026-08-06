@@ -2956,6 +2956,30 @@ function acertarCaixaVenda(id) {
     });
 }
 
+// No iPhone, o Safari ignora o "download" de imagens em base64 — a forma que funciona
+// de verdade lá é abrir a folha de compartilhamento nativa (a mesma do WhatsApp/Fotos).
+// No computador/Android, cai no download normal, que já funciona bem.
+async function baixarOuCompartilharImagem(base64image, nomeArquivo) {
+    try {
+        const blob = await (await fetch(base64image)).blob();
+        const arquivo = new File([blob], nomeArquivo, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+            await navigator.share({ files: [arquivo], title: nomeArquivo });
+            return;
+        }
+    } catch (e) {
+        if (e && e.name === 'AbortError') return; // usuário cancelou o compartilhamento, tudo bem
+    }
+    // Reserva: abre a imagem numa aba nova (dá pra segurar o dedo e "Salvar Imagem" mesmo no iPhone)
+    // ou baixa direto, se o navegador suportar.
+    const link = document.createElement('a');
+    link.download = nomeArquivo;
+    link.href = base64image;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.click();
+}
+
 async function montarRecibo() {
     const clienteReal = document.getElementById('recibo-cliente').value, clienteNomeExibicao = document.getElementById('recibo-nome-exibicao').value.trim() || clienteReal, checkboxes = document.querySelectorAll('.chk-item-recibo:checked');
     if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Deixe pelo menos um pedido marcado para o recibo.", "warning");
@@ -2966,7 +2990,7 @@ async function montarRecibo() {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => { const link = document.createElement('a'); link.download = `Recibo_Novera_${clienteNomeExibicao.replace(/\s+/g, '_')}.png`; link.href = base64image; link.click(); }; document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${clienteNomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -2978,7 +3002,7 @@ async function gerarReciboUnico(linha) {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => { const link = document.createElement('a'); link.download = `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`; link.href = base64image; link.click(); }; document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -3049,7 +3073,7 @@ async function montarCobranca() {
         const template = document.getElementById('cobranca-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem de Cobrança Pronta!"; document.getElementById('btn-baixar-img').onclick = () => { const link = document.createElement('a'); link.download = `Cobranca_Novera_${cliDisplay.replace(/\s+/g, '_')}.png`; link.href = base64image; link.click(); }; document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem de Cobrança Pronta!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Cobranca_Novera_${cliDisplay.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -3061,7 +3085,7 @@ async function gerarCobrancaUnica(linha) {
         const template = document.getElementById('cobranca-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem Pronta!"; document.getElementById('btn-baixar-img').onclick = () => { const link = document.createElement('a'); link.download = `Cobranca_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`; link.href = base64image; link.click(); }; document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem Pronta!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Cobranca_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar.", "error"); } finally { ocultarLoading(); }
 }
 
