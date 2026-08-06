@@ -3700,7 +3700,11 @@ function renderizarDashboard() {
 
     let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
-    let listaEncalhados = arrEncalhados.length ? arrEncalhados.map((p, i) => `<div style="display:flex; justify-content:space-between; gap:8px; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem; min-width:0; overflow-wrap:break-word;">#${i+1} ${p.nome}</span><strong style="color:#b91c1c; font-size:0.8rem; white-space:nowrap;">${p.vendido} un <span style="color:#999; font-weight:600;">(${p.estoque} sobrando)</span></strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto em estoque.</p>";
+    let listaEncalhados = arrEncalhados.length ? arrEncalhados.map((p, i) => `
+        <div style="border-bottom:1px dashed #e5e7eb; padding:6px 0;">
+            <div style="font-size:0.8rem; color:var(--brand-dark);">#${i+1} ${p.nome}</div>
+            <div style="font-size:0.72rem; color:#b91c1c; font-weight:800; margin-top:2px;">${p.vendido} un vendidas <span style="color:#999; font-weight:600;">(${p.estoque} sobrando)</span></div>
+        </div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto em estoque.</p>";
     let listaCliFracos = arrCliFracos.length ? arrCliFracos.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#6b7280; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
     let listaSumidos = arrSumidos.length ? arrSumidos.map((c, i) => `
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; border-bottom:1px dashed #ddd6fe; padding:7px 0;">
