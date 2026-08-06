@@ -329,6 +329,8 @@ function aplicarPermissoes() {
         // ESCONDE AS ABAS EXCLUSIVAS DA DIRETORIA (Encomendas agora é liberada pra equipe toda)
         if (btnSubSeparacao) btnSubSeparacao.style.display = 'none';
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = 'none';
+        const cardAcertoV = document.getElementById('card-acerto-comissao');
+        if (cardAcertoV) cardAcertoV.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -342,6 +344,8 @@ function aplicarPermissoes() {
         switchTab('dashboard'); // 👑 O Chefe sempre cai no Painel ao abrir o app!
 
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = '';
+        const cardAcertoA = document.getElementById('card-acerto-comissao');
+        if (cardAcertoA) cardAcertoA.style.display = 'block';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -2635,8 +2639,25 @@ function renderizarVendas() {
     const dlistPagos = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('recibo-cliente').innerHTML = '<option value="">Nenhum cliente...</option>' + dlistPagos.map(c => `<option value="${c}">${c}</option>`).join(''); 
     
-    const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
-    document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join(''); 
+    const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b));
+    document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    // 🤝 Popula o seletor do Acerto de Comissão em Lote (recurso exclusivo do Admin)
+    // 🛡️ Só entram VENDEDORES OFICIAIS da equipe — registros feitos em nome de cliente/admin (ex: "Amor") ficam de fora
+    const selAcerto = document.getElementById('ac-vendedor');
+    if (selAcerto && isAdmin) {
+        const vendedoresOficiais = usuariosGlobal.filter(u => u.cargo === 'Vendedor').map(u => normalizarNomeBusca(u.usuario));
+        const pendPorVendedor = {};
+        vendasGlobal.forEach(v => {
+            if (v.status === 'Pago' && !v.repasse_feito && v.socio && vendedoresOficiais.includes(normalizarNomeBusca(v.socio))) {
+                const s = String(v.socio).trim();
+                pendPorVendedor[s] = (pendPorVendedor[s] || 0) + 1;
+            }
+        });
+        const selAcertoAtual = selAcerto.value;
+        selAcerto.innerHTML = '<option value="">Selecione...</option>' + Object.keys(pendPorVendedor).sort((a, b) => a.localeCompare(b)).map(s => `<option value="${s}">${s} (${pendPorVendedor[s]} pendente${pendPorVendedor[s] > 1 ? 's' : ''})</option>`).join('');
+        selAcerto.value = selAcertoAtual;
+    } 
     
     // Mesma lista agrupada por tipo: Vendas mostra só o que TEM estoque; Encomendas mostra só o que está ZERADO (encomenda é pro que falta)
     let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: !isAdmin });
@@ -2656,11 +2677,35 @@ function renderizarVendas() {
     filtrarVendas(); 
 }
 
+// 🧹 Volta todos os filtros do histórico de vendas pro padrão de fábrica
+function limparFiltrosVendas() {
+    const elTipo = document.getElementById('f-v-tipo-data'); if (elTipo) elTipo.value = 'venda';
+    document.getElementById('f-v-dia').value = '';
+    document.getElementById('f-v-mes').value = '';
+    document.getElementById('f-v-status').value = '';
+    document.getElementById('f-v-socio').value = '';
+    document.getElementById('f-v-cliente').value = '';
+    const elCom = document.getElementById('f-v-comissao'); if (elCom) elCom.value = '';
+    filtrarVendas();
+}
+
 function filtrarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
-    const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda'; 
+    const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda';
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
     const elFComissao = document.getElementById('f-v-comissao'); const fComissao = elFComissao ? elFComissao.value : '';
+
+    // 🚨 Aviso visual de filtro ativo: muda a cara do botão de filtros pra ninguém esquecer que a visão está filtrada
+    const temFiltroAtivo = !!(fDia || fMes || fStatus || fSocio || fCliente || fComissao || fTipoData !== 'venda');
+    const btnToggleF = document.getElementById('btn-toggle-filtros-vendas');
+    if (btnToggleF) {
+        btnToggleF.innerHTML = temFiltroAtivo ? '⚠️ FILTROS ATIVOS — a lista está filtrada' : '🔍 Ocultar / Mostrar Filtros';
+        btnToggleF.style.background = temFiltroAtivo ? '#fef3c7' : '#fdf5f7';
+        btnToggleF.style.borderColor = temFiltroAtivo ? '#f59e0b' : '#f3d8e2';
+        btnToggleF.style.color = temFiltroAtivo ? '#92400e' : 'var(--primary-dark)';
+    }
+    const btnLimparF = document.getElementById('btn-limpar-filtros-vendas');
+    if (btnLimparF) btnLimparF.style.display = temFiltroAtivo ? 'block' : 'none';
 
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin', 'sem vendedor', '');
@@ -5213,6 +5258,82 @@ function voltarDaVisualizacao() {
 
     dadosCarregados = false;
     iniciarSessaoLocal(userAdmin, cargoAdmin, tokenAdmin); // já dispara a sincronização, pois dadosCarregados está false
+}
+
+// 🤝 ACERTO DE COMISSÃO EM LOTE (Docs & Lotes, exclusivo do Admin)
+// Lista tudo que o cliente JÁ PAGOU mas a comissão da vendedora ainda não foi acertada
+function prepararAcertoComissao() {
+    const vendedor = document.getElementById('ac-vendedor').value;
+    const lista = document.getElementById('acerto-comissao-lista');
+    const rodape = document.getElementById('acerto-comissao-rodape');
+    if (!lista || !rodape) return;
+    if (!vendedor) { lista.style.display = 'none'; rodape.style.display = 'none'; return; }
+
+    const pends = vendasGlobal.filter(v => v.status === 'Pago' && !v.repasse_feito && String(v.socio).trim() === vendedor);
+    if (!pends.length) {
+        lista.innerHTML = '<p style="font-size:0.8rem; color:#0369a1; font-weight:bold;">Nenhuma comissão pendente de acerto. Tudo em dia! 🎉</p>';
+        lista.style.display = 'block'; rodape.style.display = 'none'; return;
+    }
+
+    pends.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso));
+    let html = ''; let diaAtual = '';
+    pends.forEach(v => {
+        const dia = v.dataVendaDisplay || v.dataVendaIso;
+        if (dia !== diaAtual) {
+            diaAtual = dia;
+            html += `<div style="background:#e0f2fe; color:#0369a1; font-weight:900; font-size:0.7rem; padding:5px 10px; border-radius:6px; margin:10px 0 6px 0;">📅 VENDA DO DIA: ${dia}</div>`;
+        }
+        const com = parseFloat(v.valor_comissao) || 0;
+        const prodInfo = estoqueAgrupado[padronizarTexto(v.produto)];
+        const codBadge = prodInfo && prodInfo.codigo ? `<span style="background:var(--primary-dark); color:white; padding:1px 5px; border-radius:4px; font-size:0.6rem; margin-right:4px;">${prodInfo.codigo}</span>` : '';
+        html += `<label style="display:flex; align-items:center; gap:10px; padding:8px 5px; border-bottom:1px dashed #bae6fd; cursor:pointer;">
+            <input type="checkbox" class="chk-item-acerto" value="${v.linha}" data-comissao="${com}" checked onchange="atualizarTotalAcertoComissao()" style="width:20px; height:20px; accent-color:#0369a1; flex-shrink:0;">
+            <div style="flex:1; min-width:0; font-size:0.8rem; color:var(--brand-dark);">
+                <b>${v.qtd}x</b> ${codBadge}${v.produto}
+                <br><span style="font-size:0.7rem; color:#64748b;">Cli: ${v.cliente} · Venda: ${fmt(parseDinheiro(v.valor_venda))}</span>
+            </div>
+            <strong style="color:#0369a1; font-size:0.85rem; white-space:nowrap;">${fmt(com)}</strong>
+        </label>`;
+    });
+    lista.innerHTML = html;
+    lista.style.display = 'block';
+    rodape.style.display = 'block';
+    atualizarTotalAcertoComissao();
+}
+
+function atualizarTotalAcertoComissao() {
+    const marcados = document.querySelectorAll('.chk-item-acerto:checked');
+    let total = 0; marcados.forEach(c => total += parseFloat(c.dataset.comissao) || 0);
+    const el = document.getElementById('acerto-comissao-total');
+    if (el) el.innerText = fmt(total);
+}
+
+function confirmarAcertoComissaoLote() {
+    const vendedor = document.getElementById('ac-vendedor').value;
+    const marcados = document.querySelectorAll('.chk-item-acerto:checked');
+    if (!vendedor || marcados.length === 0) return mostrarAlerta("Aviso", "Selecione ao menos uma venda para acertar.", "warning");
+    let total = 0; const linhas = [];
+    marcados.forEach(c => { linhas.push(parseInt(c.value)); total += parseFloat(c.dataset.comissao) || 0; });
+
+    abrirConfirmacao("Acertar Comissões?", `Confirma o acerto de ${linhas.length} venda(s) de ${vendedor}, totalizando ${fmt(total)} de comissão repassada?`, "🤝", "#0369a1", "#082f49", "✔️ Confirmar Acerto", () => {
+        mostrarLoading("Acertando comissões...");
+        fetch(API_NOVERA, {
+            method: "POST", headers: cabecalhoAuth(),
+            body: JSON.stringify({ usuario: usuarioLogado, acao: "acertar_comissoes_lote", linhas: linhas, log_detalhe: `🤝 Acertou em lote ${linhas.length} comissão(ões) de ${vendedor} — total ${fmt(total)}` })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                mostrarAlerta("Acertado!", `${linhas.length} comissão(ões) de ${vendedor} marcadas como acertadas.`, "success");
+                document.getElementById('acerto-comissao-lista').style.display = 'none';
+                document.getElementById('acerto-comissao-rodape').style.display = 'none';
+                document.getElementById('ac-vendedor').value = '';
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Erro", res.erro || "Falha ao acertar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
 }
 
 // Função para o Admin confirmar o Acerto de Contas com o Vendedor

@@ -431,7 +431,8 @@
                 <!-- PAINEL FIXO EFEITO VIDRO (Filtros + Totais) -->
                 <div class="vendas-sticky-header">
                     
-                    <button class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 15px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">🔍 Ocultar / Mostrar Filtros</button>
+                    <button id="btn-toggle-filtros-vendas" class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 8px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">🔍 Ocultar / Mostrar Filtros</button>
+                    <button id="btn-limpar-filtros-vendas" class="btn-salvar" style="display: none; background: #fff; color: #b91c1c; border: 1px dashed #fca5a5; box-shadow: none; padding: 10px; font-size: 0.75rem; margin-top: 0; margin-bottom: 15px; width: 100%; font-weight: 800;" onclick="limparFiltrosVendas()">🧹 Limpar Filtros (voltar ao padrão)</button>
 
                     <div id="filtros-vendas-container" style="display: none;">
                         <div class="filtros-box" style="background: transparent; border: none; padding: 0; box-shadow: none; margin-bottom: 15px;">
@@ -508,6 +509,20 @@
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #25D366; color: white; padding: 12px; font-size:0.8rem;" onclick="copiarPendenciasWhats()">📋 Texto</button></div>
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #b45309; color: white; padding: 12px; font-size:0.8rem;" onclick="montarCobranca()">📸 Img</button></div>
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #2e7d32; color: white; padding: 12px; font-size:0.8rem;" onclick="darBaixaVendaLote()">💲 Pagar</button></div>
+                        </div>
+                    </div>
+
+                    <div class="filtro-box" id="card-acerto-comissao" style="background: #f0f9ff; border-color: #bae6fd; margin-top: 0; display: none;">
+                        <div class="section-title" style="margin-top:0; border-left-color: #0369a1; color: #0369a1;">🤝 Acerto de Comissão em Lote</div>
+                        <p style="font-size: 0.72rem; color: #0369a1; margin-top: 0; margin-bottom: 12px;">Escolha a vendedora pra ver tudo que o cliente <b>já pagou</b> mas a comissão dela ainda <b>não foi acertada</b>. Marque e acerte tudo de uma vez.</p>
+                        <div class="row" style="margin-bottom: 0;"><div class="col"><label style="color: #0369a1;">Vendedor(a)</label><select id="ac-vendedor" onchange="prepararAcertoComissao()"><option value="">Selecione...</option></select></div></div>
+                        <div id="acerto-comissao-lista" style="max-height: 300px; overflow-y: auto; margin-top: 15px; display: none;"></div>
+                        <div id="acerto-comissao-rodape" style="display: none; margin-top: 12px;">
+                            <div style="background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-size: 0.8rem; font-weight: 800; color: #0369a1;">💰 Total da comissão selecionada:</span>
+                                <strong id="acerto-comissao-total" style="font-size: 1.1rem; color: #0369a1;">R$ 0,00</strong>
+                            </div>
+                            <button class="btn-salvar" style="margin-top: 0; background: #0369a1; box-shadow: 0 4px 0 #075985;" onclick="confirmarAcertoComissaoLote()">🤝 Acertar Comissões Selecionadas</button>
                         </div>
                     </div>
                 </div>
