@@ -2995,10 +2995,11 @@ function prepararCobranca() {
         divNome.style.display = 'none'; container.style.display = 'none'; if (divBotoes) divBotoes.style.display = 'none'; return; 
     } 
     
+    const isAdmin = (usuarioCargo === 'Admin');
     let pends = [];
     if (cliente === 'todos') {
         divNome.style.display = 'none';
-        pends = vendasGlobal.filter(v => v.status === 'Pendente' || v.status === 'Parcelado');
+        pends = vendasGlobal.filter(v => (v.status === 'Pendente' || v.status === 'Parcelado') && (isAdmin || String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim()));
     } else {
         inputNome.value = cliente; 
         divNome.style.display = 'block'; 
@@ -4400,19 +4401,23 @@ function abrirMapaSeparacao(modo = 'pendentes') {
             
             let badgeData = modo === 'pendentes' ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 5px; border-radius:4px; font-size:0.6rem; margin-left:5px;">${v.dataVendaDisplay}</span>` : '';
             let obsHtml = v.observacao ? `<br><span style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${v.observacao}</span>` : '';
-            
+
             // Aviso de Logística: Mostra de onde você tem que tirar o produto!
             let localRetiradaAviso = `<br><span style="font-size:0.7rem; color:#15803d; font-weight:bold;">📍 Pegar de: ${v.local_estoque || 'Sede'}</span>`;
 
+            // Código Novera do produto, pra facilitar achar na prateleira
+            let prodInfoSep = estoqueAgrupado[padronizarTexto(v.produto)];
+            let codigoBadgeSep = prodInfoSep && prodInfoSep.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem; margin-right:5px;">${prodInfoSep.codigo}</span>` : '';
+
             html += `<label style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; opacity: ${opacity}; text-decoration: ${lineThrough};">
-                        <input type="checkbox" ${checkAttr} style="width: 22px; height: 22px; accent-color: #0ea5e9; cursor:pointer; flex-shrink: 0;" 
+                        <input type="checkbox" ${checkAttr} style="width: 22px; height: 22px; accent-color: #0ea5e9; cursor:pointer; flex-shrink: 0;"
                         onchange="
-                            this.parentElement.style.opacity = this.checked ? '0.4' : '1'; 
+                            this.parentElement.style.opacity = this.checked ? '0.4' : '1';
                             this.parentElement.style.textDecoration = this.checked ? 'line-through' : 'none';
                             toggleSeparacaoItem(${v.linha}, this.checked);
                         ">
                         <div style="font-size: 0.95rem; color: var(--brand-dark); line-height: 1.3;">
-                            <b style="color:#b45309; font-size:1.1rem;">${v.qtd}x</b> ${v.produto} ${badgeData}
+                            <b style="color:#b45309; font-size:1.1rem;">${v.qtd}x</b> ${codigoBadgeSep}${v.produto} ${badgeData}
                             <br><span style="font-size:0.75rem; color:#64748b;">(Cli: ${v.cliente})</span>
                             ${localRetiradaAviso}
                             ${obsHtml}
