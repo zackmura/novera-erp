@@ -513,6 +513,7 @@
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #2e7d32; color: white; padding: 12px; font-size:0.8rem;" onclick="darBaixaVendaLote()">💲 Pagar</button></div>
                         </div>
                         <button class="btn-salvar" id="btn-whats-cobranca" style="display:none; margin-top:10px; background:#25D366; box-shadow:0 4px 0 #1b9c4b;" onclick="cobrarNoWhatsApp()">📲 Cobrar direto no WhatsApp</button>
+                        <button class="btn-salvar" id="btn-whats-cadastrar" style="display:none; margin-top:10px; background:#fff; color:#128C7E; border:2px dashed #25D366; box-shadow:none; font-size:0.8rem;" onclick="cadastrarTelefoneCobranca()">📵 Cadastrar o WhatsApp desse cliente pra cobrar direto</button>
                     </div>
 
                     <div class="filtro-box" id="card-acerto-comissao" style="background: #f0f9ff; border-color: #bae6fd; margin-top: 0; display: none;">
@@ -732,7 +733,7 @@
         <div id="tab-clientes" class="tab-content">
             <div class="section-title" style="margin-top:0;">👥 Clientes</div>
             <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#7a4a5e; line-height:1.5;">
-                💡 Cadastre os clientes com telefone pra habilitar a <b>cobrança direto no WhatsApp</b>, e com aniversário pro bot avisar no Telegram no dia. 🎂
+                💡 Cadastre <b>seus clientes</b> com telefone pra habilitar a <b>cobrança direto no WhatsApp</b> — e com o aniversário, a Novera lembra a data pra você aproveitar e vender. 🎂 Aqui aparecem os clientes que você cadastrou e os que já compraram com você.
             </div>
 
             <div class="filtro-box" style="background:#fdf5f7; border-color:#f3d8e2;">
@@ -753,16 +754,18 @@
             <input type="text" id="busca-cadastro-clientes" placeholder="🔎 Buscar cliente..." oninput="renderizarClientes()" style="margin-bottom:12px;">
             <div id="lista-cadastro-clientes"></div>
 
-            <div class="section-title">🔀 Unificar Nomes Duplicados</div>
-            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 15px; margin-bottom:15px; font-size:0.75rem; color:#b91c1c; line-height:1.5;">
-                ⚠️ Achou o mesmo cliente escrito de dois jeitos (ex: "Amanda Zanotti" e "Amanda Zantti")? Escolha o <b>nome errado</b> e o <b>nome certo</b> — todas as vendas e encomendas do errado passam pro certo. <b>Não tem como desfazer.</b>
-            </div>
-            <div class="filtro-box" style="background:#fff; border-color:#fecaca;">
-                <div class="row">
-                    <div class="col"><label style="color:#b91c1c;">Nome ERRADO (some)</label><select id="mesclar-de"><option value="">Selecione...</option></select></div>
-                    <div class="col"><label style="color:#15803d;">Nome CERTO (fica)</label><select id="mesclar-para"><option value="">Selecione...</option></select></div>
+            <div id="secao-unificar-clientes" style="display:none;">
+                <div class="section-title">🔀 Unificar Nomes Duplicados</div>
+                <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 15px; margin-bottom:15px; font-size:0.75rem; color:#b91c1c; line-height:1.5;">
+                    ⚠️ Achou o mesmo cliente escrito de dois jeitos (ex: "Amanda Zanotti" e "Amanda Zantti")? Escolha o <b>nome errado</b> e o <b>nome certo</b> — todas as vendas e encomendas do errado passam pro certo. <b>Não tem como desfazer.</b>
                 </div>
-                <button class="btn-salvar" style="margin-top:5px; background:#b91c1c; box-shadow:0 4px 0 #7f1d1d;" onclick="mesclarClientesUI()">🔀 Unificar Agora</button>
+                <div class="filtro-box" style="background:#fff; border-color:#fecaca;">
+                    <div class="row">
+                        <div class="col"><label style="color:#b91c1c;">Nome ERRADO (some)</label><select id="mesclar-de"><option value="">Selecione...</option></select></div>
+                        <div class="col"><label style="color:#15803d;">Nome CERTO (fica)</label><select id="mesclar-para"><option value="">Selecione...</option></select></div>
+                    </div>
+                    <button class="btn-salvar" style="margin-top:5px; background:#b91c1c; box-shadow:0 4px 0 #7f1d1d;" onclick="mesclarClientesUI()">🔀 Unificar Agora</button>
+                </div>
             </div>
         </div>
 
@@ -1029,7 +1032,14 @@
         <h3 class="modal-title-alert" id="preview-title" style="margin-bottom: 15px; font-size: 1.1rem;">Pronto!</h3>
         <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Aperte e segure a imagem abaixo para compartilhar, ou clique no botão verde para baixar.</p>
         <div id="recibo-img-container" style="box-shadow: 0 10px 20px rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden; margin-bottom: 20px; background: #fff;"></div>
-        <div style="display: flex; gap: 10px;"><button class="btn-modal-cancel" onclick="document.getElementById('modal-recibo-preview').style.display='none'">Fechar</button><button class="btn-modal-confirm" id="btn-baixar-img" style="background: #25D366; box-shadow: 0 4px 0 #1b9c4b;">⬇️ Baixar / Compartilhar</button></div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-modal-confirm" id="btn-zap-img" style="display:none; background: #25D366; box-shadow: 0 4px 0 #1b9c4b;">📲 Enviar a Imagem (WhatsApp)</button>
+            <button class="btn-modal-confirm" id="btn-zap-texto" style="display:none; background: #128C7E; box-shadow: 0 4px 0 #0b5e54;">💬 Enviar como Texto (WhatsApp)</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-modal-cancel" onclick="document.getElementById('modal-recibo-preview').style.display='none'">Fechar</button>
+                <button class="btn-modal-confirm" id="btn-baixar-img" style="background: #966178; box-shadow: 0 4px 0 #7a4a5e;">⬇️ Baixar</button>
+            </div>
+        </div>
     </div>
 </div>
 

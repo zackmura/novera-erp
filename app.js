@@ -178,7 +178,7 @@ function switchTab(tabId) {
 
     // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
     if (usuarioCargo !== 'Admin') {
-        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado', 'alexa', 'clientes'];
+        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado', 'alexa'];
         if (abasProibidas.includes(tabId)) {
             tabId = 'vendas';
         }
@@ -265,6 +265,7 @@ function renderizarNavPorPerfil() {
         ['alexa', '🗣️', 'Alexa'],
     ] : [
         ['encomendas', '🎁', 'Encomendas'],
+        ['clientes', '👥', 'Clientes'],
         ['sugestaoproducao', '💡', 'Sugerir'],
     ];
 
@@ -2950,7 +2951,9 @@ function filtrarVendas() {
                 corBorda = "#4f46e5"; badgeClass = "status-parcelado";
             }
 
-            const btnAcaoExtra = isP ? `<button class="btn-acao" style="width:36px; height:36px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="width:36px; height:36px; background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`; 
+            // 📲 Nas vendas em aberto, além do sininho (imagem), um botão de cobrar essa venda direto no WhatsApp
+            const btnWhatsUnico = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#dcfce7; color:#15803d; border-color:#bbf7d0;" onclick="cobrarVendaNoWhatsApp(${v.linha})" title="Cobrar no WhatsApp">📲</button>` : '';
+            const btnAcaoExtra = (isP ? `<button class="btn-acao" style="width:36px; height:36px; background:#f0fdf4; color:#166534; border-color:#bbf7d0;" onclick="gerarReciboUnico(${v.linha})" title="Gerar Recibo Rápido">🧾</button>` : `<button class="btn-acao" style="width:36px; height:36px; background:#ffedd5; color:#b45309; border-color:#fde047;" onclick="gerarCobrancaUnica(${v.linha})" title="Gerar Cobrança Rápida">🔔</button>`) + btnWhatsUnico;
             const textoObservacao = v.observacao ? `<p style="font-size:0.65rem; color:#888; font-style:italic; margin: 0;">Obs: ${v.observacao}</p>` : ""; 
             const nomeHtml = formatarNomeProdutoHtml(v.produto, 'venda'); 
             
@@ -3192,6 +3195,39 @@ async function baixarOuCompartilharImagem(base64image, nomeArquivo) {
     link.click();
 }
 
+// Configura os botões do modal de prévia: Baixar, Enviar Imagem (folha de compartilhamento
+// nativa — o WhatsApp não aceita imagem via link direto) e Enviar Texto (esse sim vai direto
+// pro chat do cliente, se ele tiver telefone no cadastro; senão abre o WhatsApp pra escolher).
+function configurarBotoesPreview(base64image, nomeArquivo, clienteNome, textoZap) {
+    document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, nomeArquivo);
+
+    const btnImg = document.getElementById('btn-zap-img');
+    if (btnImg) {
+        let suportaShare = false;
+        try { suportaShare = !!(navigator.canShare && navigator.canShare({ files: [new File([new Blob()], 'x.png', { type: 'image/png' })] })); } catch (e) { }
+        btnImg.style.display = suportaShare ? 'block' : 'none';
+        btnImg.onclick = async () => {
+            try {
+                const blob = await (await fetch(base64image)).blob();
+                await navigator.share({ files: [new File([blob], nomeArquivo, { type: 'image/png' })], title: nomeArquivo });
+            } catch (e) { /* usuário cancelou o compartilhamento, tudo bem */ }
+        };
+    }
+
+    const btnTxt = document.getElementById('btn-zap-texto');
+    if (btnTxt) {
+        btnTxt.style.display = textoZap ? 'block' : 'none';
+        btnTxt.onclick = () => {
+            const cad = clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(clienteNome || ''));
+            const digitos = cad && cad.telefone ? String(cad.telefone).replace(/\D/g, '') : '';
+            const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
+            const urlZap = fone ? `https://wa.me/${fone}?text=${encodeURIComponent(textoZap)}` : `https://wa.me/?text=${encodeURIComponent(textoZap)}`;
+            const jan = window.open(urlZap, '_blank');
+            if (!jan) location.href = urlZap;
+        };
+    }
+}
+
 // 🧾 Gera o recibo direto de uma lista de vendas — atalho usado logo após o "Pagar" em lote,
 // pra não precisar ir no Lote Recibos e procurar o cliente de novo
 async function gerarReciboDeLinhas(linhas, clienteSugerido) {
@@ -3219,7 +3255,7 @@ async function gerarReciboDeLinhas(linhas, clienteSugerido) {
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
         document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`;
         document.getElementById('preview-title').innerText = "Recibo Pronto!";
-        document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`);
+        configurarBotoesPreview(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`, clienteSugerido, null);
         document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
@@ -3234,7 +3270,7 @@ async function montarRecibo() {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${clienteNomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; configurarBotoesPreview(base64image, `Recibo_Novera_${clienteNomeExibicao.replace(/\s+/g, '_')}.png`, clienteReal, null); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -3246,7 +3282,7 @@ async function gerarReciboUnico(linha) {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Recibo Pronto!"; configurarBotoesPreview(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`, pedido.cliente, null); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -3307,12 +3343,68 @@ function prepararCobranca() {
         }
     }
 
-    // 📲 Botão de WhatsApp: só aparece se o cliente for específico E tiver telefone no cadastro
+    // 📲 Botões de WhatsApp: com telefone cadastrado → botão verde de cobrar;
+    // sem telefone → botão tracejado que cadastra o número na hora (é assim que a carteira se enche sozinha)
     const btnWhatsCob = document.getElementById('btn-whats-cobranca');
-    if (btnWhatsCob) {
-        const cadCli = cliente !== 'todos' ? clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(cliente)) : null;
-        btnWhatsCob.style.display = (cadCli && String(cadCli.telefone || '').replace(/\D/g, '')) ? 'block' : 'none';
+    const btnWhatsCad = document.getElementById('btn-whats-cadastrar');
+    const cadCli = cliente !== 'todos' ? clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(cliente)) : null;
+    const temFone = !!(cadCli && String(cadCli.telefone || '').replace(/\D/g, ''));
+    if (btnWhatsCob) btnWhatsCob.style.display = temFone ? 'block' : 'none';
+    if (btnWhatsCad) btnWhatsCad.style.display = (cliente && cliente !== 'todos' && !temFone) ? 'block' : 'none';
+}
+
+// 📲 Cobra UMA venda específica direto no WhatsApp (botão do cartão da venda).
+// Se o cliente ainda não tem telefone, pede na hora, salva no cadastro e já abre a conversa.
+async function cobrarVendaNoWhatsApp(linha) {
+    const p = vendasGlobal.find(v => v.linha == linha);
+    if (!p) return;
+    const nomeTxt = formatarNomeProdutoTexto(p.produto);
+    const val = parseDinheiro(p.valor_venda);
+    const txt = `Olá ${p.cliente}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um lembrete carinhoso do seu pedido em aberto:\n\n📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n\nQualquer dúvida, é só chamar!`;
+
+    let cad = clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(p.cliente));
+    let digitos = cad && cad.telefone ? String(cad.telefone).replace(/\D/g, '') : '';
+
+    if (!digitos) {
+        const tel = await pedirNomeDocumento('', `📱 WhatsApp de ${p.cliente} (DDD + número)`);
+        if (tel === null) return;
+        digitos = String(tel).replace(/\D/g, '');
+        if (digitos.length < 10) return mostrarAlerta("Aviso", "Digite o DDD + número. Ex: 11 99999-8888", "warning");
+        // Salva no cadastro em segundo plano, sem travar a cobrança
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_telefone_cliente", nome: p.cliente, telefone: tel.trim() }) }).catch(() => {});
+        if (cad) cad.telefone = tel.trim(); else clientesGlobal.push({ linha: 0, nome: p.cliente, telefone: tel.trim(), aniversario: '', obs: '', criadoPor: usuarioLogado });
     }
+
+    const fone = digitos.length <= 11 ? '55' + digitos : digitos;
+    const urlZap = `https://wa.me/${fone}?text=${encodeURIComponent(txt)}`;
+    const jan = window.open(urlZap, '_blank');
+    if (!jan) location.href = urlZap; // alguns celulares bloqueiam popup depois do modal — vai direto então
+}
+
+// 📵 Captura o WhatsApp do cliente bem na hora em que a vendedora mais precisa dele: pra cobrar
+async function cadastrarTelefoneCobranca() {
+    const cliente = document.getElementById('cobranca-cliente').value;
+    if (!cliente || cliente === 'todos') return;
+    const tel = await pedirNomeDocumento('', `📱 WhatsApp de ${cliente} (DDD + número)`);
+    if (tel === null) return;
+    const digitos = String(tel).replace(/\D/g, '');
+    if (digitos.length < 10) return mostrarAlerta("Aviso", "Digite o DDD + número. Ex: 11 99999-8888", "warning");
+
+    mostrarLoading("Salvando telefone...");
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_telefone_cliente", nome: cliente, telefone: tel.trim() }) })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) {
+            // Atualiza a memória local na hora, pro botão verde acender sem esperar o sync
+            const cad = clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(cliente));
+            if (cad) cad.telefone = tel.trim();
+            else clientesGlobal.push({ linha: 0, nome: cliente, telefone: tel.trim(), aniversario: '', obs: '', criadoPor: usuarioLogado });
+            prepararCobranca();
+            mostrarAlerta("Salvo!", "WhatsApp cadastrado — agora é só cobrar direto! 📲", "success");
+        } else mostrarAlerta("Erro", res.erro || "Falha ao salvar.", "error");
+    })
+    .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => ocultarLoading());
 }
 // Monta o texto de cobrança dos pedidos marcados (usado pelo Copiar e pelo botão de WhatsApp)
 function montarTextoPendencias() {
@@ -3351,7 +3443,7 @@ async function montarCobranca() {
         const template = document.getElementById('cobranca-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem de Cobrança Pronta!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Cobranca_Novera_${cliDisplay.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem de Cobrança Pronta!"; configurarBotoesPreview(base64image, `Cobranca_Novera_${cliDisplay.replace(/\s+/g, '_')}.png`, cliReal, (montarTextoPendencias() || {}).txt || ''); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -3363,7 +3455,7 @@ async function gerarCobrancaUnica(linha) {
         const template = document.getElementById('cobranca-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
         const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
-        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem Pronta!"; document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Cobranca_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`); document.getElementById('modal-recibo-preview').style.display = 'flex';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`; document.getElementById('preview-title').innerText = "Imagem Pronta!"; const txtZapUnico = `Olá ${nomeExibicao}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um lembrete carinhoso do seu pedido em aberto:\n\n📅 ${pedido.dataVendaDisplay} | 📦 ${pedido.qtd}x ${formatarNomeProdutoTexto(pedido.produto)} | 💰 ${fmt(valor)}\n\nQualquer dúvida, é só chamar!`; configurarBotoesPreview(base64image, `Cobranca_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`, pedido.cliente, txtZapUnico); document.getElementById('modal-recibo-preview').style.display = 'flex';
     } catch (error) { mostrarAlerta("Erro", "Falha ao gerar.", "error"); } finally { ocultarLoading(); }
 }
 
@@ -5713,6 +5805,11 @@ function salvarConferencia() {
 function renderizarClientes() {
     const cont = document.getElementById('lista-cadastro-clientes');
     if (!cont) return;
+    const isAdmin = (usuarioCargo === 'Admin');
+
+    // A ferramenta de unificar nomes é cirurgia no histórico — só a Diretoria
+    const secUnificar = document.getElementById('secao-unificar-clientes');
+    if (secUnificar) secUnificar.style.display = isAdmin ? 'block' : 'none';
 
     const buscaEl = document.getElementById('busca-cadastro-clientes');
     const termo = buscaEl ? normalizarNomeBusca(buscaEl.value) : '';
@@ -5727,6 +5824,11 @@ function renderizarClientes() {
             const digitos = String(c.telefone || '').replace(/\D/g, '');
             const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
             const btnZap = fone ? `<a href="https://wa.me/${fone}" target="_blank" rel="noopener" class="btn-acao" style="width:36px; height:36px; background:#dcfce7; color:#15803d; border-color:#bbf7d0; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;" title="Abrir WhatsApp">📲</a>` : '';
+            // Vendedor só mexe nos clientes que ele mesmo cadastrou (o servidor também confere, isso aqui é só a vitrine)
+            const souDono = isAdmin || normalizarNomeBusca(c.criadoPor) === normalizarNomeBusca(usuarioLogado);
+            const btnEditar = souDono ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="editarCliente(${c.linha})" title="Editar">✏️</button>` : '';
+            const btnExcluirCli = souDono ? `<button class="btn-acao" style="width:36px; height:36px; background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="excluirCliente(${c.linha})" title="Excluir">🗑️</button>` : '';
+            const badgeDono = isAdmin && c.criadoPor ? ` · ✍️ ${c.criadoPor}` : '';
             return `
             <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid var(--primary-dark); border-radius:8px; padding:12px 15px; margin-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -5734,14 +5836,14 @@ function renderizarClientes() {
                         <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${c.nome}</h4>
                         <p style="margin:3px 0 0 0; font-size:0.72rem; color:#888;">
                             ${c.telefone ? `📱 ${c.telefone}` : '📵 sem telefone'}
-                            ${c.aniversario ? ` · 🎂 ${c.aniversario}` : ''}
+                            ${c.aniversario ? ` · 🎂 ${c.aniversario}` : ''}${badgeDono}
                             ${c.obs ? `<br>📝 ${c.obs}` : ''}
                         </p>
                     </div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
                         ${btnZap}
-                        <button class="btn-acao" style="width:36px; height:36px;" onclick="editarCliente(${c.linha})" title="Editar">✏️</button>
-                        <button class="btn-acao" style="width:36px; height:36px; background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="excluirCliente(${c.linha})" title="Excluir">🗑️</button>
+                        ${btnEditar}
+                        ${btnExcluirCli}
                     </div>
                 </div>
             </div>`;
