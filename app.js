@@ -11,6 +11,7 @@ let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro cli
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
 let sugestoesProducaoGlobal = []; // sugestões de fabricação enviadas pelos vendedores
+let clientesGlobal = []; // cadastro de clientes (nome, telefone, aniversário)
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -177,7 +178,7 @@ function switchTab(tabId) {
 
     // Cão de Guarda: Bloqueia apenas o que é sigiloso. (PAINEL LIBERADO AGORA!)
     if (usuarioCargo !== 'Admin') {
-        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado', 'alexa'];
+        const abasProibidas = ['rotulos', 'precificar', 'gastos', 'logs', 'usuarios', 'estoqueparado', 'alexa', 'clientes'];
         if (abasProibidas.includes(tabId)) {
             tabId = 'vendas';
         }
@@ -199,6 +200,7 @@ function switchTab(tabId) {
     if (tabId === 'maceracaovendedor') { renderizarMaceracaoVendedor(); }
     if (tabId === 'sugestaoproducao') { popularDatalistProdutosSugestao(); renderizarMinhasSugestoes(); }
     if (tabId === 'encomendas') { renderizarEncomendas(); }
+    if (tabId === 'clientes') { renderizarClientes(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
     if (tabId === 'vendas' && !document.getElementById('v-data').value) { document.getElementById('v-data').valueAsDate = new Date(); document.getElementById('e-data').valueAsDate = new Date(); }
 }
@@ -259,6 +261,7 @@ function renderizarNavPorPerfil() {
     const itensMais = isAdmin ? [
         ['estoqueparado', '🐌', 'Parado'],
         ['encomendas', '🎁', 'Encomendas'],
+        ['clientes', '👥', 'Clientes'],
         ['alexa', '🗣️', 'Alexa'],
     ] : [
         ['encomendas', '🎁', 'Encomendas'],
@@ -331,6 +334,8 @@ function aplicarPermissoes() {
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = 'none';
         const cardAcertoV = document.getElementById('card-acerto-comissao');
         if (cardAcertoV) cardAcertoV.style.display = 'none';
+        const btnConfV = document.getElementById('btn-conferencia-estoque');
+        if (btnConfV) btnConfV.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -346,6 +351,8 @@ function aplicarPermissoes() {
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = '';
         const cardAcertoA = document.getElementById('card-acerto-comissao');
         if (cardAcertoA) cardAcertoA.style.display = 'block';
+        const btnConfA = document.getElementById('btn-conferencia-estoque');
+        if (btnConfA) btnConfA.style.display = 'block';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -410,10 +417,12 @@ async function sincronizarDadosUnico() {
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
+            clientesGlobal = dados.clientes || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
-            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();          
+            if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
+            if (typeof renderizarClientes === 'function') renderizarClientes();
 
             estoqueAgrupado = {};
             estoqueGlobal.forEach(e => {
@@ -1364,13 +1373,20 @@ function calcularRadarProducao() {
     }
 }
 
-function renderizarEstoque() { 
-    const isAdmin = (usuarioCargo === 'Admin'); 
-    const tBusca = document.getElementById('busca-estoque').value.toLowerCase().trim(); 
-    const dFiltroLocal = document.getElementById('f-e-local'); 
-    const localSelecionado = dFiltroLocal ? dFiltroLocal.value.trim() : ""; 
+let limiteEstoqueLista = 40;
+let assinaturaFiltrosEstoque = '';
+function mostrarMaisEstoque() { limiteEstoqueLista += 60; renderizarEstoque(); }
+
+function renderizarEstoque() {
+    const isAdmin = (usuarioCargo === 'Admin');
+    const tBusca = document.getElementById('busca-estoque').value.toLowerCase().trim();
+    const dFiltroLocal = document.getElementById('f-e-local');
+    const localSelecionado = dFiltroLocal ? dFiltroLocal.value.trim() : "";
     const dFiltroGenero = document.getElementById('f-e-genero');
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
+
+    const assinaturaE = [tBusca, localSelecionado, generoSelecionado].join('|');
+    if (assinaturaE !== assinaturaFiltrosEstoque) { assinaturaFiltrosEstoque = assinaturaE; limiteEstoqueLista = 40; }
 
     let totalMacerandoPorProduto = {};
     let dataPrevistaPorProduto = {}; // nome padronizado -> data prevista mais próxima entre os lotes "Em Andamento"
@@ -1524,16 +1540,22 @@ function renderizarEstoque() {
     }); 
 
     let tiposOrdenados = Object.keys(gruposEstoque).sort();
-    tiposOrdenados.forEach(tipoChave => {
+    let eItensRender = 0, eGruposOcultos = 0, eItensOcultos = 0;
+    for (const tipoChave of tiposOrdenados) {
+        if (eItensRender >= limiteEstoqueLista) { eGruposOcultos++; eItensOcultos += gruposEstoque[tipoChave].itens.length; continue; }
         let tagValor = isAdmin ? ` | 💰 ${fmt(gruposEstoque[tipoChave].valorGrupo)}` : '';
         html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
                     <span>📦 CATEGORIA: ${tipoChave}</span>
                     <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">ESTOQUE: ${gruposEstoque[tipoChave].qtdGrupo} un ${tagValor}</span>
                  </div>`;
         html += `<div class="grid-estoque-grupo">${gruposEstoque[tipoChave].itens.join('')}</div>`;
-    });
+        eItensRender += gruposEstoque[tipoChave].itens.length;
+    }
+    if (eItensOcultos > 0) {
+        html += `<button class="btn-salvar" style="background:#fff; color:var(--primary-dark); border:2px dashed var(--primary); box-shadow:none; margin-top:20px; font-size:0.85rem;" onclick="mostrarMaisEstoque()">⬇️ Mostrar mais ${eGruposOcultos} categoria(s) — ${eItensOcultos} produto(s)</button>`;
+    }
 
-    lista.innerHTML = html; 
+    lista.innerHTML = html;
     document.getElementById('est-total-itens').innerText = somaItens; 
     if(document.getElementById('est-valor-total')) { document.getElementById('est-valor-total').innerText = isAdmin ? fmt(somaValor) : '---'; }
 }
@@ -2204,12 +2226,19 @@ function salvarGasto() {
         .finally(() => ocultarLoading());
 }
 
-function renderizarGastos() { 
-    const fSocio = document.getElementById('f-socio').value.toLowerCase(); 
-    const fIni = document.getElementById('f-data-ini').value; 
-    const fFim = document.getElementById('f-data-fim').value; 
-    const tBusca = document.getElementById('busca-gastos').value.toLowerCase().trim(); 
-    
+let limiteGastosLista = 30;
+let assinaturaFiltrosGastos = '';
+function mostrarMaisGastos() { limiteGastosLista += 60; renderizarGastos(); }
+
+function renderizarGastos() {
+    const fSocio = document.getElementById('f-socio').value.toLowerCase();
+    const fIni = document.getElementById('f-data-ini').value;
+    const fFim = document.getElementById('f-data-fim').value;
+    const tBusca = document.getElementById('busca-gastos').value.toLowerCase().trim();
+
+    const assinaturaG = [fSocio, fIni, fFim, tBusca].join('|');
+    if (assinaturaG !== assinaturaFiltrosGastos) { assinaturaFiltrosGastos = assinaturaG; limiteGastosLista = 30; }
+
     let filtrados = gastosGlobal.filter(g => { 
         let passSocio = fSocio === "" || String(g.socio).toLowerCase().includes(fSocio); 
         let passData = true; 
@@ -2264,7 +2293,9 @@ function renderizarGastos() {
             </div>`); 
         }); 
 
-        Object.keys(gruposGastos).forEach(data => {
+        let gItensRender = 0, gDiasOcultos = 0, gItensOcultos = 0;
+        for (const data of Object.keys(gruposGastos)) {
+            if (gItensRender >= limiteGastosLista) { gDiasOcultos++; gItensOcultos += gruposGastos[data].itens.length; continue; }
             html += `<div class="separador-data div-atrasado" style="margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
                         <span>📅 DESPESAS DO DIA: ${data}</span>
                         <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.3);">💸 GASTO TOTAL: ${fmt(gruposGastos[data].totalDia)}</span>
@@ -2272,8 +2303,12 @@ function renderizarGastos() {
             html += `<div class="grid-gastos-grupo">`;
             html += gruposGastos[data].itens.join('');
             html += `</div>`;
-        });
-    } 
+            gItensRender += gruposGastos[data].itens.length;
+        }
+        if (gItensOcultos > 0) {
+            html += `<button class="btn-salvar" style="background:#fff; color:#A05252; border:2px dashed #A05252; box-shadow:none; margin-top:20px; font-size:0.85rem;" onclick="mostrarMaisGastos()">⬇️ Mostrar mais ${gDiasOcultos} dia(s) — ${gItensOcultos} despesa(s) mais antiga(s)</button>`;
+        }
+    }
     
     document.getElementById('lista-gastos-cadastrados').innerHTML = html; 
     document.getElementById('g-total-dashboard').innerText = fmt(somaTotal); 
@@ -2282,18 +2317,24 @@ function renderizarGastos() {
 function abrirModalEditarGasto(linha) { const g = gastosGlobal.find(x => x.linha === linha); if (!g) return; document.getElementById('edit-g-linha').value = g.linha; document.getElementById('edit-g-data').value = g.dataIso; document.getElementById('edit-g-socio').value = g.socio; document.getElementById('edit-g-local').value = g.local; document.getElementById('edit-g-item').value = g.item; document.getElementById('edit-g-qtd').value = g.qtd; document.getElementById('edit-g-valor').value = safeFmt(g.valor); document.getElementById('edit-g-total').value = safeFmt(g.total); document.getElementById('modal-editar-gasto').style.display = 'flex'; }
 function salvarEdicaoGasto() { const linha = document.getElementById('edit-g-linha').value; const gOrig = gastosGlobal.find(x => x.linha == linha); const vTotal = parseDinheiro(document.getElementById('edit-g-total').value); const py = { usuario: usuarioLogado, acao: "atualizar_gasto", linha: linha, data: document.getElementById('edit-g-data').value, local: padronizarTexto(document.getElementById('edit-g-local').value), socio: padronizarTexto(document.getElementById('edit-g-socio').value), item: padronizarTexto(document.getElementById('edit-g-item').value), qtd: document.getElementById('edit-g-qtd').value, valor: parseDinheiro(document.getElementById('edit-g-valor').value), total: vTotal, log_detalhe: `✏️ Editou despesa [${gOrig ? gOrig.item : 'Item'}]: ${gOrig ? safeFmt(gOrig.total) : ''} -> ${fmtPlanilha(vTotal)}` }; document.getElementById('modal-editar-gasto').style.display = 'none'; mostrarLoading("Salvando..."); py.valor = fmtPlanilha(py.valor); py.total = fmtPlanilha(py.total); fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(() => { mostrarAlerta("Atualizado!", "Edição salva.", "success"); sincronizarDadosUnico(); }); }
 
+let limiteEncomendasLista = 20;
+let assinaturaBuscaEncomendas = '';
+function mostrarMaisEncomendas() { limiteEncomendasLista += 40; renderizarEncomendas(); }
+
 function renderizarEncomendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     const fila = document.getElementById('lista-encomendas-cards');
     const tBusca = document.getElementById('busca-encomendas').value.toLowerCase().trim();
+    if (tBusca !== assinaturaBuscaEncomendas) { assinaturaBuscaEncomendas = tBusca; limiteEncomendasLista = 20; }
     let pendentes = encomendasGlobal.filter(e => e.status !== 'Entregue');
     if (tBusca) { pendentes = pendentes.filter(e => (e.cliente + " " + e.item).toLowerCase().includes(tBusca)); }
     pendentes.sort((a, b) => new Date(b.dataPedido) - new Date(a.dataPedido));
     if (encomendasGlobal.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma encomenda ativa.</p>"; return; }
     if (pendentes.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Tudo Entregue ou Não Encontrado!</p>"; return; }
 
+    const encOcultas = Math.max(0, pendentes.length - limiteEncomendasLista);
     let html = "";
-    pendentes.forEach(e => {
+    pendentes.slice(0, limiteEncomendasLista).forEach(e => {
         let classBadge = e.status === 'Pendente' ? 'b-atrasado' : 'b-ok';
         let btnVender = e.status === 'Produzido' ? `<button class="btn-salvar" style="margin-top:5px; padding:10px; background:#2C2A2B; font-size:0.8rem; width:100%;" onclick="puxarVendaDeEncomenda(${e.linha})">🚀 Vender (PDV)</button>` : '';
         // Só Admin decide se já ficou pronto — o vendedor só cria/consulta/exclui a própria
@@ -2306,6 +2347,9 @@ function renderizarEncomendas() {
 
         html += `<div class="rotulo-card" style="flex-direction:column; align-items:stretch;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div class="rotulo-info"><h4>${e.cliente} <span class="badge-status ${classBadge}" style="margin-left:5px;">${e.status}</span></h4><p style="color:var(--primary); font-weight:800; font-size:0.7rem;">Pedido: ${e.dataDisplay}</p><p><b>${e.qtd}x</b> ${e.item}</p><p style="font-size:0.7rem; color:#888; font-style:italic;">Obs: ${e.obs}</p>${txtSocio}</div><div style="display:flex; gap:5px;">${toggleStatus}${btnExcluir}</div></div>${btnVender}</div>`;
     });
+    if (encOcultas > 0) {
+        html += `<button class="btn-salvar" style="background:#fff; color:var(--primary-dark); border:2px dashed var(--primary); box-shadow:none; margin-top:15px; font-size:0.85rem;" onclick="mostrarMaisEncomendas()">⬇️ Mostrar mais ${encOcultas} encomenda(s) antiga(s)</button>`;
+    }
     fila.innerHTML = html;
 }
 function salvarEncomenda() { const data = document.getElementById('e-data').value, cli = padronizarTexto(document.getElementById('e-cliente').value), item = padronizarTexto(document.getElementById('e-item').value), qtd = document.getElementById('e-qtd').value, obs = document.getElementById('e-obs').value; if (!data || !cli || !item) return mostrarAlerta("Atenção", "Preencha Data, Cliente e Item.", "warning"); mostrarLoading("Salvando..."); const msgLog = `📦 Nova encomenda de ${cli}: ${qtd}x [${item}]`; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_encomenda", data: data, cliente: cli, item: item, qtd: qtd, status: 'Pendente', obs: obs, log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Registrado", "Encomenda salva.", "success"); document.getElementById('e-item').value = ""; document.getElementById('e-obs').value = ""; sincronizarDadosUnico(); }); }
@@ -2706,8 +2750,9 @@ function renderizarVendas() {
     // Filtra a lista de clientes e devedores para o vendedor ver só os dele
     const listaVendasPermitidas = isAdmin ? vendasGlobal : vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
 
-    const dlist = [...new Set(listaVendasPermitidas.map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
-    document.getElementById('lista-clientes').innerHTML = dlist.map(c => `<option value="${c}">`).join(''); 
+    // Sugestões de cliente = quem já comprou + quem está no cadastro oficial (evita digitar nome novo com erro)
+    const dlist = [...new Set([...listaVendasPermitidas.map(v => String(v.cliente).trim()), ...clientesGlobal.map(c => String(c.nome || '').trim())].filter(n => n))].sort((a, b) => a.localeCompare(b));
+    document.getElementById('lista-clientes').innerHTML = dlist.map(c => `<option value="${c}">`).join('');
     
     const dlistPagos = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b));
     const selRecibo = document.getElementById('recibo-cliente'); const reciboAtual = selRecibo.value;
@@ -3251,9 +3296,9 @@ function prepararCobranca() {
         }); 
         container.innerHTML = html; 
     } 
-    container.style.display = 'block'; 
+    container.style.display = 'block';
     if (divBotoes) {
-        divBotoes.style.display = 'flex'; 
+        divBotoes.style.display = 'flex';
         // ESCONDE O BOTÃO DE GERAR IMAGEM E TEXTO SE FOR A LISTA DE TODOS (Evita enviar pra pessoa errada)
         const botoes = divBotoes.querySelectorAll('.col');
         if (botoes.length >= 3) {
@@ -3261,8 +3306,42 @@ function prepararCobranca() {
             botoes[1].style.display = cliente === 'todos' ? 'none' : 'block';
         }
     }
+
+    // 📲 Botão de WhatsApp: só aparece se o cliente for específico E tiver telefone no cadastro
+    const btnWhatsCob = document.getElementById('btn-whats-cobranca');
+    if (btnWhatsCob) {
+        const cadCli = cliente !== 'todos' ? clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(cliente)) : null;
+        btnWhatsCob.style.display = (cadCli && String(cadCli.telefone || '').replace(/\D/g, '')) ? 'block' : 'none';
+    }
 }
-function copiarPendenciasWhats() { const cliReal = document.getElementById('cobranca-cliente').value; if (!cliReal) return mostrarAlerta("Aviso", "Selecione um cliente para cobrar.", "warning"); const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal; const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning"); let txt = `Olá ${cliDisplay}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n`; let tot = 0; checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); txt += `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n`; tot += val; } }); txt += `\n*Total em aberto: ${fmt(tot)}*\n\nQualquer dúvida, é só chamar!`; copiarTextoSeguro(txt).then(() => mostrarAlerta("Copiado!", "Texto copiado.", "success")).catch(() => mostrarAlerta("Erro", "Não foi possível copiar. Copie manualmente.", "error")); }
+// Monta o texto de cobrança dos pedidos marcados (usado pelo Copiar e pelo botão de WhatsApp)
+function montarTextoPendencias() {
+    const cliReal = document.getElementById('cobranca-cliente').value;
+    if (!cliReal) { mostrarAlerta("Aviso", "Selecione um cliente para cobrar.", "warning"); return null; }
+    const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal;
+    const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked');
+    if (checkboxes.length === 0) { mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning"); return null; }
+    let txt = `Olá ${cliDisplay}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n`;
+    let tot = 0;
+    checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); txt += `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n`; tot += val; } });
+    txt += `\n*Total em aberto: ${fmt(tot)}*\n\nQualquer dúvida, é só chamar!`;
+    return { txt, cliReal };
+}
+
+function copiarPendenciasWhats() {
+    const m = montarTextoPendencias(); if (!m) return;
+    copiarTextoSeguro(m.txt).then(() => mostrarAlerta("Copiado!", "Texto copiado.", "success")).catch(() => mostrarAlerta("Erro", "Não foi possível copiar. Copie manualmente.", "error"));
+}
+
+// 📲 Abre o WhatsApp do cliente (do cadastro) já com a cobrança escrita
+function cobrarNoWhatsApp() {
+    const m = montarTextoPendencias(); if (!m) return;
+    const cad = clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(m.cliReal));
+    const digitos = cad && cad.telefone ? String(cad.telefone).replace(/\D/g, '') : '';
+    if (!digitos) return mostrarAlerta("Sem telefone", "Cadastre o telefone desse cliente na tela Clientes pra cobrar direto no WhatsApp.", "warning");
+    const fone = digitos.length <= 11 ? '55' + digitos : digitos; // completa o +55 se a pessoa salvou sem DDI
+    window.open(`https://wa.me/${fone}?text=${encodeURIComponent(m.txt)}`, '_blank');
+}
 
 async function montarCobranca() {
     const cliReal = document.getElementById('cobranca-cliente').value; if (!cliReal) return mostrarAlerta("Aviso", "Selecione um cliente devedor.", "warning"); const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal; const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked'); if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning");
@@ -3693,6 +3772,29 @@ function renderizarDashboard() {
         let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
         let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
 
+        // 🎯 Meta do mês: barra de progresso motivacional (só aparece se a Diretoria definiu meta pro vendedor)
+        let htmlMeta = '';
+        const meuCadastro = usuariosGlobal.find(u => String(u.usuario).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
+        const minhaMeta = meuCadastro ? (parseFloat(meuCadastro.meta_mensal) || 0) : 0;
+        if (minhaMeta > 0) {
+            const pctMeta = Math.min(100, (tVend / minhaMeta) * 100);
+            const bateu = tVend >= minhaMeta;
+            const faltam = Math.max(0, minhaMeta - tVend);
+            htmlMeta = `
+                <div class="dash-card" style="grid-column: span 2; padding: 18px; border: 2px solid ${bateu ? '#22c55e' : '#fbbf24'}; background: ${bateu ? '#f0fdf4' : '#fffbeb'};">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <h3 style="color:${bateu ? '#15803d' : '#b45309'}; font-size:0.8rem; font-weight:900; margin:0;">🎯 MINHA META DO MÊS</h3>
+                        <strong style="color:${bateu ? '#15803d' : '#b45309'}; font-size:1rem;">${pctMeta.toFixed(0)}%</strong>
+                    </div>
+                    <div style="background:#e5e7eb; border-radius:20px; height:16px; overflow:hidden;">
+                        <div style="width:${pctMeta.toFixed(1)}%; height:100%; border-radius:20px; background:${bateu ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#fbbf24,#f59e0b)'}; transition:width 0.6s ease;"></div>
+                    </div>
+                    <p style="font-size:0.72rem; color:${bateu ? '#15803d' : '#92400e'}; margin:8px 0 0 0; font-weight:700; text-align:center;">
+                        ${bateu ? `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — você é incrível!` : `${fmt(tVend)} de ${fmt(minhaMeta)} — faltam ${fmt(faltam)}, você consegue! 🔥`}
+                    </p>
+                </div>`;
+        }
+
         container.innerHTML = `
             <div class="dash-grid">
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
@@ -3703,6 +3805,7 @@ function renderizarDashboard() {
                         ${crescimentoIcon} ${crescimentoTxt} (Anterior: ${fmt(pVendMeus)})
                     </div>
                 </div>
+                ${htmlMeta}
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
                     <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO REPASSADA (PAGA)</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#2e7d32; margin:0;">${fmt(comAprovada)}</p>
@@ -3910,6 +4013,27 @@ function renderizarDashboard() {
     // 👻 Clientes que menos compraram no período (o inverso do Top 5)
     let arrCliFracos = Object.keys(mCli).map(k => ({ nome: k, val: mCli[k] })).sort((a, b) => a.val - b.val).slice(0, 5);
 
+    // ⏳ Previsão de ruptura: estoque atual ÷ ritmo de venda dos últimos 30 dias (independe do filtro de mês).
+    // Essencial porque a maceração demora: saber que vai acabar é útil ANTES de acabar o tempo de produzir.
+    const corte30 = new Date(); corte30.setDate(corte30.getDate() - 30);
+    const iso30 = corte30.toISOString().split('T')[0];
+    const vendidos30 = {};
+    vendasGlobal.forEach(v => {
+        if (v.status !== 'Presente' && v.dataVendaIso && v.dataVendaIso >= iso30 && v.produto) {
+            const k30 = padronizarTexto(v.produto);
+            vendidos30[k30] = (vendidos30[k30] || 0) + (parseInt(v.qtd) || 1);
+        }
+    });
+    let arrRuptura = Object.keys(estoqueAgrupado)
+        .map(k => {
+            const e = estoqueAgrupado[k];
+            const vel = (vendidos30[k] || 0) / 30;
+            return { nome: e.nome, estoque: e.totalQtd || 0, vel: vel, dias: vel > 0 ? Math.floor((e.totalQtd || 0) / vel) : null };
+        })
+        .filter(p => p.estoque > 0 && p.dias !== null)
+        .sort((a, b) => a.dias - b.dias)
+        .slice(0, 6);
+
     // 🕵️ Clientes Sumidos: já compraram alguma vez, mas estão há 45+ dias sem comprar nada.
     // Usa o histórico COMPLETO (ignora o filtro de mês, senão todo mundo fora do mês viraria "sumido"), mas respeita o filtro de Vendedor.
     const DIAS_CLIENTE_SUMIDO = 45;
@@ -3938,6 +4062,18 @@ function renderizarDashboard() {
             <div style="font-size:0.72rem; color:#b91c1c; font-weight:800; margin-top:2px;">${p.vendido} un vendidas <span style="color:#999; font-weight:600;">(${p.estoque} sobrando)</span></div>
         </div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto em estoque.</p>";
     let listaCliFracos = arrCliFracos.length ? arrCliFracos.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#6b7280; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados no período.</p>";
+    let listaRuptura = arrRuptura.length ? arrRuptura.map(p => {
+        const corR = p.dias <= 20 ? '#b91c1c' : p.dias <= 35 ? '#b45309' : '#15803d';
+        const iconeR = p.dias <= 20 ? '🚨' : p.dias <= 35 ? '⚠️' : '🟢';
+        return `<div style="border-bottom:1px dashed #fde68a; padding:6px 0;">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+                <span style="font-size:0.8rem; min-width:0; overflow-wrap:break-word;">${iconeR} ${p.nome}</span>
+                <strong style="color:${corR}; font-size:0.85rem; white-space:nowrap;">acaba em ~${p.dias} dia${p.dias === 1 ? '' : 's'}</strong>
+            </div>
+            <span style="font-size:0.65rem; color:#a16207;">${p.estoque} un em estoque · vende ${p.vel.toFixed(1).replace('.', ',')} por dia</span>
+        </div>`;
+    }).join('') : "<p style='color:#999; font-size:0.75rem;'>Nenhum produto com giro nos últimos 30 dias pra prever.</p>";
+
     let listaSumidos = arrSumidos.length ? arrSumidos.map((c, i) => `
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; border-bottom:1px dashed #ddd6fe; padding:7px 0;">
             <span style="font-size:0.82rem; font-weight:700; color:#4c1d95; min-width:0; overflow-wrap:break-word;">#${i+1} ${c.nome}</span>
@@ -4127,6 +4263,12 @@ function renderizarDashboard() {
                 <h3 style="color:#6b7280; font-size:0.75rem; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:10px;">👻 5 CLIENTES QUE MENOS COMPRAM</h3>
                 <div id="d-ranking-clientes-fracos">${listaCliFracos}</div>
                 <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Entre quem comprou algo no período.</p>
+            </div>
+
+            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fffbeb; border:1px solid #fde68a;">
+                <h3 style="color:#b45309; font-size:0.8rem; border-bottom:1px solid #fde68a; padding-bottom:5px; margin-bottom:10px;">⏳ PREVISÃO DE RUPTURA (RITMO DOS ÚLTIMOS 30 DIAS)</h3>
+                <div id="d-ranking-ruptura">${listaRuptura}</div>
+                <p style="font-size:0.6rem; color:#b45309; margin:8px 0 0 0; font-style:italic;">🚨 = menos de 20 dias. Lembre do tempo de maceração: o momento de produzir é AGORA, não quando zerar!</p>
             </div>
 
             <div class="dash-card" style="grid-column: span 2; padding:15px; background:#faf5ff; border:1px solid #ddd6fe;">
@@ -4434,11 +4576,12 @@ async function sincronizarDadosSilencioso() {
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
+            clientesGlobal = dados.clientes || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
-            
+
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
-           
+            if (typeof renderizarClientes === 'function') renderizarClientes();
 
             // Refaz o agrupamento de estoque com os dados novos
             estoqueAgrupado = {};
@@ -5310,15 +5453,16 @@ function salvarUsuario() {
     const cargo = document.getElementById('u-cargo').value;
     const senha = document.getElementById('u-senha').value;
     const comissao = parseFloat(document.getElementById('u-comissao').value) || 0;
+    const metaMensal = parseFloat(document.getElementById('u-meta') ? document.getElementById('u-meta').value : 0) || 0;
 
     if(!nome) return mostrarAlerta("Atenção", "Preencha o nome de usuário.", "warning");
     if(!id && !senha) return mostrarAlerta("Atenção", "Crie uma senha para o novo usuário.", "warning");
 
     const acao = id ? "atualizar_usuario" : "salvar_usuario";
     mostrarLoading("Salvando...");
-    const msgLog = id ? `✏️ Editou usuário: ${nome} (${cargo} - ${comissao}%)` : `👤 Novo membro: ${nome} (${cargo} - ${comissao}%)`;
+    const msgLog = id ? `✏️ Editou usuário: ${nome} (${cargo} - ${comissao}%${metaMensal ? ` - meta ${fmt(metaMensal)}` : ''})` : `👤 Novo membro: ${nome} (${cargo} - ${comissao}%)`;
 
-    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, log_detalhe: msgLog };
+    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, meta_mensal: metaMensal, log_detalhe: msgLog };
     if(!id) payload.senha_usuario = senha; 
 
     fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(payload) })
@@ -5339,7 +5483,8 @@ function prepararEdicaoUsuario(id) {
     document.getElementById('u-nome').value = u.usuario;
     document.getElementById('u-cargo').value = u.cargo;
     document.getElementById('u-comissao').value = u.comissao || 0;
-    
+    const uMetaEl = document.getElementById('u-meta'); if (uMetaEl) uMetaEl.value = u.meta_mensal || '';
+
     document.getElementById('div-u-senha').style.display = 'none';
     document.getElementById('btn-salvar-usuario').innerText = "💾 Salvar Alterações";
     document.getElementById('btn-cancelar-edicao-usuario').style.display = 'block';
@@ -5353,6 +5498,7 @@ function cancelarEdicaoUsuario() {
     document.getElementById('u-nome').value = "";
     document.getElementById('u-cargo').value = "Vendedor";
     document.getElementById('u-comissao').value = "";
+    const uMetaEl2 = document.getElementById('u-meta'); if (uMetaEl2) uMetaEl2.value = "";
     document.getElementById('u-senha').value = "";
     document.getElementById('div-u-senha').style.display = 'block';
     document.getElementById('btn-salvar-usuario').innerText = "➕ Cadastrar Usuário";
@@ -5492,6 +5638,203 @@ function confirmarAcertoComissaoLote() {
                 document.getElementById('ac-vendedor').value = '';
                 sincronizarDadosUnico();
             } else mostrarAlerta("Erro", res.erro || "Falha ao acertar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
+}
+
+// ==========================================
+// 📋 MÓDULO: CONFERÊNCIA DE ESTOQUE (ADMIN)
+// ==========================================
+let conferenciaAtual = [];
+
+function abrirModalConferencia() {
+    const sel = document.getElementById('conf-local');
+    const locais = [...new Set(estoqueGlobal.map(e => (String(e.local || 'Sede').trim() || 'Sede')))].sort((a, b) => a.localeCompare(b));
+    sel.innerHTML = '<option value="">Selecione...</option>' + locais.map(l => `<option value="${l}">${l}</option>`).join('');
+    document.getElementById('conf-lista').innerHTML = '';
+    document.getElementById('btn-salvar-conferencia').style.display = 'none';
+    document.getElementById('modal-conferencia').style.display = 'flex';
+}
+
+function prepararConferencia() {
+    const local = document.getElementById('conf-local').value;
+    const cont = document.getElementById('conf-lista');
+    const btn = document.getElementById('btn-salvar-conferencia');
+    if (!local) { cont.innerHTML = ''; btn.style.display = 'none'; return; }
+
+    const itens = estoqueGlobal
+        .filter(e => (String(e.local || 'Sede').trim() || 'Sede') === local)
+        .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+    conferenciaAtual = itens.map(e => ({ nome: e.nome, local: local, esperado: parseFloat(e.qtd) || 0 }));
+
+    if (!conferenciaAtual.length) { cont.innerHTML = '<p style="font-size:0.8rem; color:#999;">Nada registrado nesse local.</p>'; btn.style.display = 'none'; return; }
+
+    cont.innerHTML = `<p style="font-size:0.7rem; color:#0369a1; font-weight:800; margin:0 0 8px 0;">${conferenciaAtual.length} produto(s) em ${local}:</p>` + conferenciaAtual.map((it, i) => `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px dashed #E8DDE1;">
+            <div style="flex:1; min-width:0; font-size:0.8rem; color:var(--brand-dark);">${it.nome}<br><span style="font-size:0.65rem; color:#999;">Sistema diz: <b>${it.esperado} un</b></span></div>
+            <input type="number" id="conf-qtd-${i}" value="${it.esperado}" min="0" inputmode="numeric"
+                style="width:80px; flex:0 0 80px; text-align:center; padding:8px; font-weight:800;"
+                oninput="this.style.background = (parseFloat(this.value) === ${it.esperado}) ? '#fafafa' : '#fee2e2'">
+        </div>`).join('');
+    btn.style.display = 'block';
+}
+
+function salvarConferencia() {
+    const ajustes = [];
+    conferenciaAtual.forEach((it, i) => {
+        const el = document.getElementById('conf-qtd-' + i);
+        const real = el ? parseFloat(el.value) : NaN;
+        if (!isNaN(real) && real >= 0 && real !== it.esperado) ajustes.push({ nome: it.nome, local: it.local, qtd_real: real, qtd_antes: it.esperado });
+    });
+
+    if (!ajustes.length) {
+        document.getElementById('modal-conferencia').style.display = 'none';
+        return mostrarAlerta("Tudo certo!", "Nenhuma divergência — o estoque físico bateu 100% com o sistema! 🎉", "success");
+    }
+
+    abrirConfirmacao("Confirmar Ajustes?", `${ajustes.length} produto(s) com diferença serão corrigidos para a quantidade REAL que você contou. Fica registrado no log e avisa no Telegram.`, "📋", "#0369a1", "#082f49", "✔️ Ajustar Estoque", () => {
+        mostrarLoading("Ajustando estoque...");
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "ajustar_estoque_conferencia", ajustes: ajustes }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { mostrarAlerta("Conferido!", `${res.ajustados} produto(s) ajustado(s) pro valor real.`, "success"); document.getElementById('modal-conferencia').style.display = 'none'; sincronizarDadosUnico(); }
+            else mostrarAlerta("Erro", res.erro || "Falha ao ajustar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
+}
+
+// ==========================================
+// 👥 MÓDULO: CADASTRO DE CLIENTES (ADMIN)
+// ==========================================
+function renderizarClientes() {
+    const cont = document.getElementById('lista-cadastro-clientes');
+    if (!cont) return;
+
+    const buscaEl = document.getElementById('busca-cadastro-clientes');
+    const termo = buscaEl ? normalizarNomeBusca(buscaEl.value) : '';
+    const totalEl = document.getElementById('total-clientes-cadastrados');
+    if (totalEl) totalEl.innerText = `(${clientesGlobal.length})`;
+
+    const filtrados = clientesGlobal.filter(c => !termo || normalizarNomeBusca(c.nome).includes(termo) || String(c.telefone || '').includes(termo));
+    if (!filtrados.length) {
+        cont.innerHTML = `<p style='color:#999; font-size:0.8rem;'>${clientesGlobal.length ? 'Nenhum cliente encontrado na busca.' : 'Nenhum cliente cadastrado ainda. Cadastre o primeiro acima! 👆'}</p>`;
+    } else {
+        cont.innerHTML = filtrados.map(c => {
+            const digitos = String(c.telefone || '').replace(/\D/g, '');
+            const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
+            const btnZap = fone ? `<a href="https://wa.me/${fone}" target="_blank" rel="noopener" class="btn-acao" style="width:36px; height:36px; background:#dcfce7; color:#15803d; border-color:#bbf7d0; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;" title="Abrir WhatsApp">📲</a>` : '';
+            return `
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid var(--primary-dark); border-radius:8px; padding:12px 15px; margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div style="min-width:0;">
+                        <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${c.nome}</h4>
+                        <p style="margin:3px 0 0 0; font-size:0.72rem; color:#888;">
+                            ${c.telefone ? `📱 ${c.telefone}` : '📵 sem telefone'}
+                            ${c.aniversario ? ` · 🎂 ${c.aniversario}` : ''}
+                            ${c.obs ? `<br>📝 ${c.obs}` : ''}
+                        </p>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        ${btnZap}
+                        <button class="btn-acao" style="width:36px; height:36px;" onclick="editarCliente(${c.linha})" title="Editar">✏️</button>
+                        <button class="btn-acao" style="width:36px; height:36px; background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="excluirCliente(${c.linha})" title="Excluir">🗑️</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // 🔀 Popula os seletores de unificação com TODOS os nomes já usados (vendas + encomendas + cadastro)
+    const nomesTodos = [...new Set([
+        ...vendasGlobal.map(v => String(v.cliente || '').trim()),
+        ...encomendasGlobal.map(e => String(e.cliente || '').trim()),
+        ...clientesGlobal.map(c => String(c.nome || '').trim())
+    ].filter(n => n))].sort((a, b) => a.localeCompare(b));
+    ['mesclar-de', 'mesclar-para'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const atual = sel.value;
+        sel.innerHTML = '<option value="">Selecione...</option>' + nomesTodos.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n}</option>`).join('');
+        sel.value = atual;
+        iniciarComboBusca(id);
+    });
+}
+
+function limparFormCliente() {
+    document.getElementById('cad-cli-id').value = '';
+    document.getElementById('cad-cli-nome').value = '';
+    document.getElementById('cad-cli-telefone').value = '';
+    document.getElementById('cad-cli-aniversario').value = '';
+    document.getElementById('cad-cli-obs').value = '';
+    document.getElementById('btn-salvar-cliente').innerText = '💾 Salvar Cliente';
+    document.getElementById('btn-cancelar-edicao-cliente').style.display = 'none';
+}
+
+function editarCliente(linha) {
+    const c = clientesGlobal.find(x => x.linha == linha);
+    if (!c) return;
+    document.getElementById('cad-cli-id').value = c.linha;
+    document.getElementById('cad-cli-nome').value = c.nome;
+    document.getElementById('cad-cli-telefone').value = c.telefone || '';
+    document.getElementById('cad-cli-aniversario').value = c.aniversario || '';
+    document.getElementById('cad-cli-obs').value = c.obs || '';
+    document.getElementById('btn-salvar-cliente').innerText = '💾 Salvar Alterações';
+    document.getElementById('btn-cancelar-edicao-cliente').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function salvarCliente() {
+    const nome = document.getElementById('cad-cli-nome').value.trim();
+    if (!nome) return mostrarAlerta("Aviso", "Digite o nome do cliente.", "warning");
+    const aniv = document.getElementById('cad-cli-aniversario').value.trim();
+    if (aniv && !/^\d{2}\/\d{2}$/.test(aniv)) return mostrarAlerta("Aviso", "Aniversário no formato dia/mês. Ex: 25/12", "warning");
+    const linha = document.getElementById('cad-cli-id').value;
+
+    mostrarLoading("Salvando cliente...");
+    fetch(API_NOVERA, {
+        method: "POST", headers: cabecalhoAuth(),
+        body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_cliente", linha: linha || null, nome: nome, telefone: document.getElementById('cad-cli-telefone').value.trim(), aniversario: aniv, obs: document.getElementById('cad-cli-obs').value.trim() })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) { mostrarAlerta("Salvo!", `Cliente ${nome} ${linha ? 'atualizado' : 'cadastrado'}.`, "success"); limparFormCliente(); sincronizarDadosUnico(); }
+        else mostrarAlerta("Erro", res.erro || "Falha ao salvar.", "error");
+    })
+    .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => ocultarLoading());
+}
+
+function excluirCliente(linha) {
+    const c = clientesGlobal.find(x => x.linha == linha);
+    if (!c) return;
+    abrirConfirmacao("Excluir Cliente?", `O cadastro de "${c.nome}" será removido (as vendas dele continuam no histórico).`, "🗑️", "#A05252", "#803f3f", "🗑️ Excluir", () => {
+        mostrarLoading("Excluindo...");
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "excluir_registro", aba: "Cliente", linha: linha, log_detalhe: `👥 Excluiu cadastro do cliente: ${c.nome}` }) })
+        .then(r => r.json())
+        .then(res => { if (res.sucesso) { mostrarAlerta("Excluído!", "Cadastro removido.", "success"); sincronizarDadosUnico(); } else mostrarAlerta("Erro", res.erro || "Falha.", "error"); })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
+}
+
+function mesclarClientesUI() {
+    const de = document.getElementById('mesclar-de').value;
+    const para = document.getElementById('mesclar-para').value;
+    if (!de || !para) return mostrarAlerta("Aviso", "Escolha o nome errado e o nome certo.", "warning");
+    if (de === para) return mostrarAlerta("Aviso", "Os dois nomes são iguais.", "warning");
+    const qtdVendas = vendasGlobal.filter(v => String(v.cliente || '').trim() === de).length;
+
+    abrirConfirmacao("Unificar Clientes?", `TODAS as vendas e encomendas de "${de}" (${qtdVendas} venda(s)) vão passar para "${para}". Essa ação NÃO pode ser desfeita.`, "🔀", "#b91c1c", "#7f1d1d", "🔀 Unificar", () => {
+        mostrarLoading("Unificando...");
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "mesclar_clientes", nome_antigo: de, nome_novo: para }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { mostrarAlerta("Unificado!", `${res.vendas} venda(s) e ${res.encomendas} encomenda(s) transferidas para "${para}".`, "success"); document.getElementById('mesclar-de').value = ''; document.getElementById('mesclar-para').value = ''; sincronizarDadosUnico(); }
+            else mostrarAlerta("Erro", res.erro || "Falha ao unificar.", "error");
         })
         .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
         .finally(() => ocultarLoading());
