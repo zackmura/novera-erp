@@ -335,6 +335,8 @@ function aplicarPermissoes() {
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = 'none';
         const cardAcertoV = document.getElementById('card-acerto-comissao');
         if (cardAcertoV) cardAcertoV.style.display = 'none';
+        const btnQrV = document.getElementById('btn-qr-codes');
+        if (btnQrV) btnQrV.style.display = 'none';
         const btnConfV = document.getElementById('btn-conferencia-estoque');
         if (btnConfV) btnConfV.style.display = 'none';
         
@@ -352,6 +354,8 @@ function aplicarPermissoes() {
         if (filtroComissaoWrap) filtroComissaoWrap.style.display = '';
         const cardAcertoA = document.getElementById('card-acerto-comissao');
         if (cardAcertoA) cardAcertoA.style.display = 'block';
+        const btnQrA = document.getElementById('btn-qr-codes');
+        if (btnQrA) btnQrA.style.display = 'block';
         const btnConfA = document.getElementById('btn-conferencia-estoque');
         if (btnConfA) btnConfA.style.display = 'block';
 
@@ -1811,7 +1815,32 @@ function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => pad
 function toggleTodasCategorias(source) { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); checkboxes.forEach(cb => cb.checked = source.checked); }
 function verificarCategorias() { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); const todas = document.getElementById('cat-todas'); const marcadas = document.querySelectorAll('.chk-cat-tipo:checked').length; todas.checked = (marcadas === checkboxes.length); }
 
-async function gerarCatalogoPDFFrontend() { 
+// ✂️ Recorta a foto no formato exato do cartão (corte central, SEM distorcer) e devolve pronta.
+// O gerador de PDF estraga tanto object-fit quanto background cover — então entregamos já recortada.
+function carregarFotoRecortada(url, alvoW, alvoH) {
+    return new Promise((resolve) => {
+        let resolvido = false;
+        const fim = (r) => { if (!resolvido) { resolvido = true; resolve(r); } };
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const cv = document.createElement('canvas');
+                cv.width = alvoW * 2; cv.height = alvoH * 2; // 2x pra sair nítido no PDF
+                const ctx = cv.getContext('2d');
+                const escala = Math.max(cv.width / img.width, cv.height / img.height);
+                const w = img.width * escala, h = img.height * escala;
+                ctx.drawImage(img, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+                fim(cv.toDataURL('image/jpeg', 0.85));
+            } catch (e) { fim(null); }
+        };
+        img.onerror = () => fim(null);
+        setTimeout(() => fim(null), 8000); // foto que não carregar em 8s vira cartão NS
+        img.src = url;
+    });
+}
+
+async function gerarCatalogoPDFFrontend() {
     const checkboxes = document.querySelectorAll('.chk-cat-tipo:checked'); 
     if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Selecione pelo menos uma categoria.", "warning"); 
     const tiposSelecionados = Array.from(checkboxes).map(cb => String(cb.value).toLowerCase().trim()); 
@@ -1842,32 +1871,176 @@ async function gerarCatalogoPDFFrontend() {
         return mostrarAlerta("Aviso", "Nenhum produto atende a esses filtros.", "warning"); 
     } 
     
-    let html = `<div id="catalogo-export" style="padding: 30px; font-family: 'Montserrat', sans-serif; color: #2C2A2B; background: #fff;"><div style="text-align: center; border-bottom: 2px solid #E8DDE1; padding-bottom: 20px; margin-bottom: 30px;"><h1 style="color: #966178; font-family: 'Playfair Display', serif; margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 3px;">Novera Scent</h1><h2 style="font-size: 16px; font-weight: 500; margin: 5px 0 0 0; text-transform: uppercase; letter-spacing: 1px;">Catálogo de Produtos</h2></div><div style="display: flex; flex-direction: column; gap: 15px;">`; 
-    itensFiltrados.forEach(e => { 
-        let nomeSemTipo = e.nome.replace(new RegExp('^' + e.tipo + '\\s*', 'i'), '').trim().replace(/^[- ]+/, ""); 
-        let nomeCompleto = e.codigo ? `${e.codigo} - Inspiração: ${nomeSemTipo}` : `Inspiração: ${nomeSemTipo}`; 
-        let fotoUrls = e.foto ? e.foto.split(',') : []; 
-        let urlImg = fotoUrls[0] ? fotoUrls[0] : ''; 
-        let imgTag = urlImg ? `<img src="${urlImg}" crossorigin="anonymous" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #E8DDE1; flex-shrink: 0;">` : `<div style="width: 80px; height: 80px; background: #fdf5f7; border-radius: 8px; border: 1px solid #E8DDE1; display:flex; align-items:center; justify-content:center; color:#966178; font-weight:bold; font-size:20px; flex-shrink: 0;">NS</div>`; 
-        let qtdHtml = exibirQtd ? (e.totalQtd > 0 ? `<div style="font-size: 10px; color: #2e7d32; font-weight: 800; margin-top: 5px;">📦 Estoque: ${e.totalQtd} un</div>` : `<div style="font-size: 10px; color: #991b1b; font-weight: 800; margin-top: 5px;">🚫 ESGOTADO</div>`) : ""; 
-        html += `<div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #E8DDE1; border-radius: 12px; padding: 15px; page-break-inside: avoid;"><div style="display: flex; gap: 15px; align-items: center; overflow: hidden;">${imgTag}<div style="min-width: 0;"><p style="margin: 0 0 5px 0; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nomeCompleto}</p><span style="background: #fdf5f7; color: #966178; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">${e.tipo}</span>${qtdHtml}</div></div><div style="font-weight: 800; font-size: 18px; color: #966178; flex-shrink: 0; padding-left: 10px;">${safeFmt(e.preco)}</div></div>`; 
-    }); 
-    html += `</div><div style="text-align: center; margin-top: 30px; font-size: 10px; color: #888; border-top: 1px solid #E8DDE1; padding-top: 15px;">Atualizado em ${new Date().toLocaleDateString('pt-BR')}</div></div>`; 
-    let tempDiv = document.createElement('div'); 
-    tempDiv.innerHTML = html; 
-    tempDiv.style.position = 'absolute'; 
-    tempDiv.style.left = '-9999px'; 
-    document.body.appendChild(tempDiv); 
-    try { 
-        let opt = { margin: 10, filename: `Catalogo_Novera_${new Date().getTime()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; 
-        await html2pdf().set(opt).from(tempDiv.firstChild).save(); 
-        mostrarAlerta("Sucesso", "Catálogo gerado!", "success"); 
-    } catch(err) { 
-        mostrarAlerta("Erro", "Falha PDF.", "error"); 
-    } finally { 
-        document.body.removeChild(tempDiv); 
-        ocultarLoading(); 
-    } 
+    // ✂️ Pré-recorta todas as fotos no formato do cartão (retrato 110x150), sem distorção
+    mostrarLoading("Preparando as fotos...");
+    const FOTO_W = 110, FOTO_H = 150;
+    const mapaFotosCat = {};
+    await Promise.all(itensFiltrados.map(async (e) => {
+        const url = e.foto ? String(e.foto).split(',')[0].trim() : '';
+        if (url) mapaFotosCat[e.nome] = await carregarFotoRecortada(url, FOTO_W, FOTO_H);
+    }));
+    mostrarLoading("Montando o catálogo...");
+
+    // 📖 Agrupa por tipo na mesma ordem dos Parâmetros Globais (igual aos dropdowns de venda)
+    const ordemTiposCat = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+    const idxTipoCat = (t) => { const i = ordemTiposCat.indexOf(String(t || '').toLowerCase().trim()); return i === -1 ? 999 : i; };
+    const gruposCat = {};
+    itensFiltrados.forEach(e => {
+        const tKey = String(e.tipo || 'Outros').trim();
+        if (!gruposCat[tKey]) gruposCat[tKey] = [];
+        gruposCat[tKey].push(e);
+    });
+    const tiposOrdenados = Object.keys(gruposCat).sort((a, b) => {
+        const ia = idxTipoCat(a), ib = idxTipoCat(b);
+        return ia !== ib ? ia - ib : a.localeCompare(b);
+    });
+
+    const iconeGeneroCat = (gen) => {
+        const g = String(gen || '').toLowerCase().trim();
+        if (g === 'feminino') return '🌸 Feminino';
+        if (g === 'masculino') return '🔷 Masculino';
+        if (g === 'infantil') return '🧸 Infantil';
+        return '⚪ Unissex';
+    };
+
+    // Cartão estilo vitrine: foto RETRATO à esquerda (formato das fotos da Novera), infos à direita
+    const cardCatalogo = (e) => {
+        const nomeSemTipo = e.nome.replace(new RegExp('^' + e.tipo + '\\s*', 'i'), '').trim().replace(/^[- ]+/, "");
+        const fotoPronta = mapaFotosCat[e.nome] || null;
+        const imgTag = fotoPronta
+            ? `<img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0;">`
+            : `<div style="width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; background: linear-gradient(160deg, #fdf5f7, #f3e3e9); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 26px; color: #c9a2b4; letter-spacing: 2px;">NS</span></div>`;
+        const qtdHtml = exibirQtd ? (e.totalQtd > 0
+            ? `<div style="font-size: 9px; color: #2e7d32; font-weight: 800; margin-top: 5px;">📦 ${e.totalQtd} un disponíveis</div>`
+            : `<div style="font-size: 9px; color: #991b1b; font-weight: 800; margin-top: 5px;">🚫 SOB ENCOMENDA</div>`) : "";
+        return `<div style="flex: 1; min-width: 0; border: 1px solid #eadfe4; border-radius: 14px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
+            ${imgTag}
+            <div style="flex: 1; min-width: 0; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;">
+                ${e.codigo ? `<div style="font-size: 10px; font-weight: 800; color: #966178; letter-spacing: 2px;">${e.codigo}</div>` : ''}
+                <div style="font-size: 7px; color: #b8a0ab; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px;">Inspiração</div>
+                <div style="font-weight: 700; font-size: 12.5px; color: #2C2A2B; line-height: 1.25; margin: 2px 0 3px 0;">${nomeSemTipo}</div>
+                <div style="font-size: 9px; color: #999;">${iconeGeneroCat(e.genero)}</div>
+                <div style="font-weight: 800; font-size: 16px; color: #966178; margin-top: 5px;">${safeFmt(e.preco)}</div>
+                ${qtdHtml}
+            </div>
+        </div>`;
+    };
+
+    // 🧱 Monta os BLOCOS do catálogo (cabeçalhos e linhas de 2 cartões) como peças independentes.
+    // Usamos padding em vez de margin pra medição de altura sair exata.
+    const blocosCat = [];
+    blocosCat.push(`<div style="text-align: center; padding-bottom: 16px; border-bottom: 2px solid #E8DDE1; margin-bottom: 6px;">
+        <h1 style="color: #966178; font-family: 'Playfair Display', serif; margin: 0; font-size: 30px; text-transform: uppercase; letter-spacing: 5px;">Novera Scent</h1>
+        <h2 style="font-size: 12px; font-weight: 600; margin: 6px 0 0 0; text-transform: uppercase; letter-spacing: 3px; color: #b8a0ab;">Catálogo de Produtos</h2>
+    </div>`);
+
+    tiposOrdenados.forEach(tipoKey => {
+        const itensGrupo = gruposCat[tipoKey].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+        const nomeGrupo = tipoKey.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        blocosCat.push({ cabecalho: true, html: `<div style="text-align: center; padding: 16px 0 12px 0;">
+            <div style="font-family: 'Playfair Display', serif; font-size: 18px; color: #966178; letter-spacing: 4px; text-transform: uppercase;">— ${nomeGrupo}${nomeGrupo.toLowerCase().endsWith('s') ? '' : 's'} —</div>
+        </div>` });
+        for (let i = 0; i < itensGrupo.length; i += 2) {
+            blocosCat.push(`<div style="display: flex; gap: 12px; padding-bottom: 12px;">${cardCatalogo(itensGrupo[i])}${itensGrupo[i + 1] ? cardCatalogo(itensGrupo[i + 1]) : `<div style="flex: 1;"></div>`}</div>`);
+        }
+    });
+
+    blocosCat.push(`<div style="text-align: center; padding-top: 14px; font-size: 9px; color: #999; border-top: 1px solid #E8DDE1; letter-spacing: 1px;">✦ &nbsp;Catálogo atualizado em ${new Date().toLocaleDateString('pt-BR')} · Preços sujeitos a alteração&nbsp; ✦</div>`);
+
+    // 📄 ARQUITETURA À PROVA DE CORTE: cada página A4 é uma "caixa" física de tamanho exato,
+    // preenchida só com os blocos que cabem inteiros. Depois fotografamos página por página
+    // (imagens pequenas — some também o limite de altura do navegador que engolia o fim do catálogo).
+    const PAG_W = 210 * 96 / 25.4, PAG_H = 297 * 96 / 25.4, PAG_PAD = 30;
+    const areaUtilPagina = PAG_H - 2 * PAG_PAD;
+    const brandTopoHtml = `<div style="text-align:center; font-family:'Playfair Display', serif; color:#c9a2b4; font-size:11px; letter-spacing:5px; text-transform:uppercase; padding-bottom:14px;">Novera Scent</div>`;
+
+    const hostCat = document.createElement('div');
+    hostCat.style.cssText = 'position:absolute; left:-99999px; top:0;';
+    document.body.appendChild(hostCat);
+
+    // Bancada de medição com a MESMA largura útil das páginas
+    const estagioCat = document.createElement('div');
+    estagioCat.style.cssText = `width:${PAG_W - 2 * PAG_PAD}px; font-family:'Montserrat', sans-serif; color:#2C2A2B; background:#fff;`;
+    hostCat.appendChild(estagioCat);
+
+    const paginasCat = [];
+    let paginaAtualCat = null, alturaUsadaCat = 0;
+    const novaPaginaCat = () => {
+        const p = document.createElement('div');
+        p.style.cssText = `width:${PAG_W}px; height:${PAG_H}px; padding:${PAG_PAD}px; box-sizing:border-box; background:#fff; font-family:'Montserrat', sans-serif; color:#2C2A2B; overflow:hidden;`;
+        alturaUsadaCat = 0;
+        if (paginasCat.length > 0) { // páginas seguintes ganham a marca discreta no topo
+            const marca = document.createElement('div');
+            marca.innerHTML = brandTopoHtml;
+            estagioCat.appendChild(marca.firstElementChild);
+            const noBrand = estagioCat.lastElementChild;
+            alturaUsadaCat = noBrand.offsetHeight;
+            p.appendChild(noBrand);
+        }
+        paginasCat.push(p);
+        hostCat.appendChild(p);
+        paginaAtualCat = p;
+    };
+
+    blocosCat.forEach(b => {
+        const ehCabecalho = typeof b === 'object' && b.cabecalho;
+        const htmlBloco = typeof b === 'object' ? b.html : b;
+        const molde = document.createElement('div');
+        molde.innerHTML = htmlBloco;
+        const no = molde.firstElementChild;
+        estagioCat.appendChild(no);
+        const alturaBloco = no.offsetHeight;
+        // Cabeçalho de seção "reserva" espaço pra 1ª linha não ficar órfã dele no fim da página
+        const alturaNecessaria = alturaBloco + (ehCabecalho ? 175 : 0);
+        if (!paginaAtualCat || (alturaUsadaCat + alturaNecessaria > areaUtilPagina && alturaBloco < areaUtilPagina)) novaPaginaCat();
+        paginaAtualCat.appendChild(no);
+        alturaUsadaCat += alturaBloco;
+    });
+
+    try {
+        const nomeArquivoPdf = `Catalogo_Novera_${new Date().getTime()}.pdf`;
+
+        // A biblioteca empacotada NÃO expõe o jsPDF por fora — então extraímos o "motor" PDF de
+        // dentro dela (worker .toPdf().get('pdf')): a página 1 já sai pronta e ganhamos o objeto
+        // pra colar as demais páginas, uma foto por folha. Sem fatiamento = sem corte, nunca.
+        mostrarLoading(`Gerando página 1 de ${paginasCat.length}...`);
+        const pdfCat = await html2pdf().set({
+            margin: 0,
+            image: { type: 'jpeg', quality: 0.92 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: [] }
+        }).from(paginasCat[0]).toPdf().get('pdf');
+
+        // Arredondamento às vezes gera uma folha em branco extra na página 1 — remove
+        while (pdfCat.internal.getNumberOfPages() > 1) pdfCat.deletePage(pdfCat.internal.getNumberOfPages());
+
+        for (let i = 1; i < paginasCat.length; i++) {
+            mostrarLoading(`Gerando página ${i + 1} de ${paginasCat.length}...`);
+            const canvasPag = await html2canvas(paginasCat[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            pdfCat.addPage();
+            pdfCat.addImage(canvasPag.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+        }
+        const blobPdf = pdfCat.output('blob');
+
+        const arquivoPdf = new File([blobPdf], nomeArquivoPdf, { type: 'application/pdf' });
+        // iPhone e afins: folha de compartilhamento nativa (WhatsApp, Salvar em Arquivos...); senão, download normal
+        if (navigator.canShare && navigator.canShare({ files: [arquivoPdf] })) {
+            try { await navigator.share({ files: [arquivoPdf], title: 'Catálogo Novera Scent' }); } catch (e) { /* cancelou, tudo bem */ }
+        } else {
+            const urlBlob = URL.createObjectURL(blobPdf);
+            const linkPdf = document.createElement('a');
+            linkPdf.href = urlBlob; linkPdf.download = nomeArquivoPdf; linkPdf.click();
+            setTimeout(() => URL.revokeObjectURL(urlBlob), 30000);
+        }
+        mostrarAlerta("Sucesso", `Catálogo gerado com ${paginasCat.length} página(s)!`, "success");
+    } catch(err) {
+        console.error('Erro no catálogo:', err);
+        mostrarAlerta("Erro", "Falha ao gerar o PDF.", "error");
+    } finally {
+        document.body.removeChild(hostCat);
+        ocultarLoading();
+    }
 }
 
 function renderizarCompras() {
