@@ -62,6 +62,18 @@ body {
 .banner-bonus-pulso { animation: pulsoBonus 2s ease-in-out infinite; }
 .fogo-pulso { animation: fogoBalanca 0.9s ease-in-out infinite; }
 
+/* ⬆️ Botão flutuante de voltar ao topo: só aparece depois que a pessoa rolou a tela pra baixo */
+#btn-voltar-topo {
+    position: fixed; bottom: calc(95px + env(safe-area-inset-bottom)); right: 16px;
+    width: 46px; height: 46px; border-radius: 50%; border: none;
+    background: var(--primary-dark); color: #fff; font-size: 1.25rem; line-height: 1;
+    box-shadow: 0 6px 18px rgba(150, 97, 120, 0.45); cursor: pointer; z-index: 998;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease;
+    transform: translateY(8px);
+}
+#btn-voltar-topo.visivel { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#btn-voltar-topo:active { transform: scale(0.9); }
+
 .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; }
 
 .section-title { font-size: 0.85rem; color: var(--primary-dark); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 25px 0 15px; border-left: 4px solid var(--primary); padding-left: 10px; display: flex; justify-content: space-between; align-items: center;}
@@ -243,6 +255,9 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         box-shadow: inset 4px 0 0 var(--primary-dark);
     }
     .nav-item-more.active .icon { transform: none; }
+
+    /* No desktop a barra fica na lateral, então o botão de topo pode descer mais */
+    #btn-voltar-topo { bottom: 25px; right: 25px; }
 
     /* 2. O CARTÃO BRANCO DO SISTEMA */
     .card {

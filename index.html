@@ -462,6 +462,7 @@
                                 <div class="col"><label>Vendedor</label><select id="f-v-socio" onchange="filtrarVendas()"><option value="">Todos</option></select></div>
                             </div>
                             <div class="row">
+                                <div class="col"><label>📦 Produto</label><input type="text" id="f-v-produto" list="f-lista-produtos" placeholder="Buscar produto..." oninput="filtrarVendas()"><datalist id="f-lista-produtos"></datalist></div>
                                 <div class="col" id="filtro-comissao-wrap">
                                     <label>🤝 Status da Comissão</label>
                                     <select id="f-v-comissao" onchange="filtrarVendas()">
@@ -852,6 +853,7 @@
 
     </div>
 
+    <button id="btn-voltar-topo" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="Voltar ao topo">⬆️</button>
     <div class="nav-more-overlay" id="nav-more-overlay" onclick="fecharMaisMenu()"></div>
     <nav class="bottom-nav">
         <a class="nav-item" id="nav-rotulos" onclick="switchTab('rotulos')"><span class="icon">🏷️</span><span>Essênc.</span></a>

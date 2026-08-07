@@ -1965,6 +1965,79 @@ let sugestaoComprasAtual = [];
 // Compara nomes ignorando maiúsculas e acentos ("Essência" bate com "essencia")
 function normalizarNomeBusca(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }
 
+// 🔎 Transforma um <select> gigante num campo de busca com lista: toca, vê tudo, digita pra filtrar,
+// toca no nome pra escolher. Ao sair do campo, o texto volta a mostrar o que está selecionado —
+// impossível "esquecer filtrado". O select original continua existindo (escondido) como fonte da verdade,
+// então nada do código existente muda.
+function iniciarComboBusca(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel || sel.dataset.combo) return; // já transformado
+    sel.dataset.combo = '1';
+
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = '🔎 Toque pra buscar...';
+    inp.autocomplete = 'off';
+    const painel = document.createElement('div');
+    painel.style.cssText = 'position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid var(--border-color); border-radius:10px; max-height:230px; overflow-y:auto; z-index:5000; display:none; box-shadow:0 10px 25px rgba(0,0,0,0.15); margin-top:4px;';
+
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(inp);
+    wrap.appendChild(painel);
+    wrap.appendChild(sel);
+    sel.style.display = 'none';
+
+    const rotuloAtual = () => { const op = sel.options[sel.selectedIndex]; return (op && op.value) ? op.textContent : ''; };
+
+    const renderPainel = (termo) => {
+        const t = normalizarNomeBusca(termo);
+        let html = '';
+        [...sel.options].forEach(op => {
+            const especial = !op.value || op.value === 'todos'; // "Nenhum..." e "TODOS OS DEVEDORES" sempre aparecem
+            if (!t || especial || normalizarNomeBusca(op.textContent).includes(t)) {
+                html += `<div class="combo-op" data-v="${String(op.value).replace(/"/g, '&quot;')}" style="padding:11px 14px; font-size:0.85rem; font-weight:600; cursor:pointer; border-bottom:1px solid #f3f4f6; ${op.value ? 'color:var(--brand-dark);' : 'color:#999;'}">${op.textContent}</div>`;
+            }
+        });
+        painel.innerHTML = html || `<div style="padding:11px 14px; font-size:0.8rem; color:#999;">Nada encontrado…</div>`;
+        painel.style.display = 'block';
+    };
+
+    inp.addEventListener('focus', () => { inp.select(); renderPainel(''); });
+    inp.addEventListener('input', () => renderPainel(inp.value));
+    inp.addEventListener('blur', () => setTimeout(() => { painel.style.display = 'none'; inp.value = rotuloAtual(); }, 250));
+    painel.addEventListener('mousedown', (e) => {
+        const alvo = e.target.closest('.combo-op');
+        if (!alvo) return;
+        e.preventDefault(); // segura o blur até terminarmos a escolha
+        sel.value = alvo.dataset.v;
+        inp.value = rotuloAtual();
+        painel.style.display = 'none';
+        inp.blur();
+        sel.dispatchEvent(new Event('change'));
+    });
+
+    // Se o select mudar por fora (sync recriou as opções / código limpou a seleção), o texto acompanha
+    sel.addEventListener('change', () => { if (document.activeElement !== inp) inp.value = rotuloAtual(); });
+    inp.value = rotuloAtual();
+}
+
+// ✍️ Em TODO campo com lista de sugestões do sistema: tocar no campo já seleciona o texto inteiro.
+// Assim é só digitar por cima pra buscar outra coisa — sem precisar apagar letra por letra.
+document.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (el && el.tagName === 'INPUT' && el.getAttribute('list') && el.value && !el.readOnly) {
+        setTimeout(() => { try { el.select(); } catch (err) {} }, 0);
+    }
+});
+
+// ⬆️ Mostra o botão de "voltar ao topo" só depois que a pessoa desceu uma boa rolagem
+window.addEventListener('scroll', () => {
+    const btnTopo = document.getElementById('btn-voltar-topo');
+    if (btnTopo) btnTopo.classList.toggle('visivel', window.scrollY > 500);
+}, { passive: true });
+
 // Procura nas Despesas o gasto mais recente cujo nome "lembra" a essência (os nomes nem sempre batem exatos)
 function buscarUltimoPrecoEssencia(nomeEssencia) {
     const alvo = normalizarNomeBusca(nomeEssencia);
@@ -2636,11 +2709,15 @@ function renderizarVendas() {
     const dlist = [...new Set(listaVendasPermitidas.map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
     document.getElementById('lista-clientes').innerHTML = dlist.map(c => `<option value="${c}">`).join(''); 
     
-    const dlistPagos = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b)); 
-    document.getElementById('recibo-cliente').innerHTML = '<option value="">Nenhum cliente...</option>' + dlistPagos.map(c => `<option value="${c}">${c}</option>`).join(''); 
-    
+    const dlistPagos = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pago').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b));
+    const selRecibo = document.getElementById('recibo-cliente'); const reciboAtual = selRecibo.value;
+    selRecibo.innerHTML = '<option value="">Nenhum cliente...</option>' + dlistPagos.map(c => `<option value="${c}">${c}</option>`).join('');
+    selRecibo.value = reciboAtual;
+
     const dlistPendentes = [...new Set(listaVendasPermitidas.filter(v => v.status === 'Pendente' || v.status === 'Parcelado').map(v => String(v.cliente).trim()))].sort((a, b) => a.localeCompare(b));
-    document.getElementById('cobranca-cliente').innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join('');
+    const selCobranca = document.getElementById('cobranca-cliente'); const cobrancaAtual = selCobranca.value;
+    selCobranca.innerHTML = '<option value="">Nenhum devedor...</option><option value="todos">🌟 TODOS OS DEVEDORES</option>' + dlistPendentes.map(c => `<option value="${c}">${c}</option>`).join('');
+    selCobranca.value = cobrancaAtual;
 
     // 🤝 Popula o seletor do Acerto de Comissão em Lote (recurso exclusivo do Admin)
     // 🛡️ Só entram VENDEDORES OFICIAIS da equipe — registros feitos em nome de cliente/admin (ex: "Amor") ficam de fora
@@ -2657,7 +2734,16 @@ function renderizarVendas() {
         const selAcertoAtual = selAcerto.value;
         selAcerto.innerHTML = '<option value="">Selecione...</option>' + Object.keys(pendPorVendedor).sort((a, b) => a.localeCompare(b)).map(s => `<option value="${s}">${s} (${pendPorVendedor[s]} pendente${pendPorVendedor[s] > 1 ? 's' : ''})</option>`).join('');
         selAcerto.value = selAcertoAtual;
-    } 
+    }
+
+    // 🔎 Ativa a busca com lista nos seletores grandes (idempotente: só transforma na primeira vez)
+    iniciarComboBusca('recibo-cliente');
+    iniciarComboBusca('cobranca-cliente');
+    iniciarComboBusca('ac-vendedor');
+
+    // 📦 Sugestões do filtro de produto do histórico (só produtos que a pessoa pode ver)
+    const dlProdFiltro = document.getElementById('f-lista-produtos');
+    if (dlProdFiltro) dlProdFiltro.innerHTML = [...new Set(listaVendasPermitidas.map(v => String(v.produto || '').trim()).filter(p => p))].sort((a, b) => a.localeCompare(b)).map(p => `<option value="${p}">`).join(''); 
     
     // Mesma lista agrupada por tipo: Vendas mostra só o que TEM estoque; Encomendas mostra só o que está ZERADO (encomenda é pro que falta)
     let htmlVendas = '<option value="">Selecione do Estoque...</option>' + montarOptionsAgrupadasPorTipo(Object.values(estoqueAgrupado).filter(e => e.totalQtd > 0), { comBonus: !isAdmin });
@@ -2685,18 +2771,30 @@ function limparFiltrosVendas() {
     document.getElementById('f-v-status').value = '';
     document.getElementById('f-v-socio').value = '';
     document.getElementById('f-v-cliente').value = '';
+    const elProd = document.getElementById('f-v-produto'); if (elProd) elProd.value = '';
     const elCom = document.getElementById('f-v-comissao'); if (elCom) elCom.value = '';
     filtrarVendas();
 }
 
+// 📜 Paginação da lista de vendas: mostra os dias mais recentes e um botão "Mostrar mais" pro resto.
+// Deixa a tela leve mesmo com centenas de vendas — os totais continuam somando TUDO que foi filtrado.
+let limiteVendasLista = 30;
+let assinaturaFiltrosVendas = '';
+function mostrarMaisVendas() { limiteVendasLista += 60; filtrarVendas(); }
+
 function filtrarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     const fTipoData = document.getElementById('f-v-tipo-data') ? document.getElementById('f-v-tipo-data').value : 'venda';
-    const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase(), fCliente = document.getElementById('f-v-cliente').value.toLowerCase();
+    const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase().trim(), fCliente = normalizarNomeBusca(document.getElementById('f-v-cliente').value); // trim + sem acento: "Cleo " acha "Cléo"
     const elFComissao = document.getElementById('f-v-comissao'); const fComissao = elFComissao ? elFComissao.value : '';
+    const elFProduto = document.getElementById('f-v-produto'); const fProduto = elFProduto ? normalizarNomeBusca(elFProduto.value) : '';
+
+    // Mudou qualquer filtro? Volta a paginação pro começo (senão "Mostrar mais" de uma busca vaza pra outra)
+    const assinaturaAtual = [fTipoData, fDia, fMes, fStatus, fSocio, fCliente, fProduto, fComissao].join('|');
+    if (assinaturaAtual !== assinaturaFiltrosVendas) { assinaturaFiltrosVendas = assinaturaAtual; limiteVendasLista = 30; }
 
     // 🚨 Aviso visual de filtro ativo: muda a cara do botão de filtros pra ninguém esquecer que a visão está filtrada
-    const temFiltroAtivo = !!(fDia || fMes || fStatus || fSocio || fCliente || fComissao || fTipoData !== 'venda');
+    const temFiltroAtivo = !!(fDia || fMes || fStatus || fSocio || fCliente || fComissao || fProduto || fTipoData !== 'venda');
     const btnToggleF = document.getElementById('btn-toggle-filtros-vendas');
     if (btnToggleF) {
         btnToggleF.innerHTML = temFiltroAtivo ? '⚠️ FILTROS ATIVOS — a lista está filtrada' : '🔍 Ocultar / Mostrar Filtros';
@@ -2729,8 +2827,20 @@ function filtrarVendas() {
         if (fMes) { const mesAlvo = dataAlvoIso ? dataAlvoIso.split('-')[1] : null; if (mesAlvo && mesAlvo !== fMes) pM = false; }
         if (fStatus && v.status !== fStatus) pS = false;
         if (fSocio && String(v.socio || '').toLowerCase() !== fSocio) pSo = false;
-        if (fCliente && !String(v.cliente || '').toLowerCase().includes(fCliente)) pC = false; 
-        return pD && pM && pS && pSo && pC; 
+        if (fCliente && !normalizarNomeBusca(v.cliente).includes(fCliente)) pC = false;
+        if (fProduto) {
+            // Aceita nome ("watani") OU código Novera ("N040", "040", "40")
+            const casaNome = normalizarNomeBusca(v.produto).includes(fProduto);
+            let casaCodigo = false;
+            const digitosBusca = fProduto.replace(/\D/g, '');
+            if (digitosBusca && fProduto.replace(/[n\d\s]/g, '') === '') { // busca é só código (N + números), não "40ml"
+                const prodRefF = estoqueAgrupado[padronizarTexto(v.produto)];
+                const codF = prodRefF && prodRefF.codigo ? String(prodRefF.codigo).replace(/\D/g, '') : '';
+                casaCodigo = !!codF && parseInt(codF) === parseInt(digitosBusca);
+            }
+            if (!casaNome && !casaCodigo) return false;
+        }
+        return pD && pM && pS && pSo && pC;
     });
     
     filtradas.sort((a, b) => new Date(b.dataVendaIso) - new Date(a.dataVendaIso)); 
@@ -2874,8 +2984,15 @@ function filtrarVendas() {
         });
 
         let datasOrdenadas = Object.keys(gruposVendas).sort((a, b) => new Date(b) - new Date(a));
-        
-        datasOrdenadas.forEach(dataChave => {
+
+        let itensRenderizados = 0, diasOcultos = 0, itensOcultos = 0;
+        for (const dataChave of datasOrdenadas) {
+            // Estourou o limite da página? Só conta o que ficou de fora (dias inteiros, pra não cortar grupo no meio)
+            if (itensRenderizados >= limiteVendasLista) {
+                diasOcultos++;
+                itensOcultos += gruposVendas[dataChave].itens.length;
+                continue;
+            }
             const diaRecolhido = diasVendasRecolhidos.has(dataChave);
             html += `<div class="separador-data div-futuro" style="background: var(--primary-dark); margin: 25px 0 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; cursor: pointer;" onclick="toggleDiaVendas('${dataChave}')" title="Clique para recolher/expandir">
                         <span><span class="seta-dia-vendas${diaRecolhido ? ' recolhida' : ''}" id="seta-dia-${dataChave}">▼</span>📅 VENDAS DO DIA: ${gruposVendas[dataChave].display}</span>
@@ -2884,7 +3001,12 @@ function filtrarVendas() {
             html += `<div class="grid-vendas-grupo" id="grupo-dia-${dataChave}" style="${diaRecolhido ? 'display:none !important;' : ''}">`;
             html += gruposVendas[dataChave].itens.join('');
             html += `</div>`;
-        });
+            itensRenderizados += gruposVendas[dataChave].itens.length;
+        }
+
+        if (itensOcultos > 0) {
+            html += `<button class="btn-salvar" style="background:#fff; color:var(--primary-dark); border:2px dashed var(--primary); box-shadow:none; margin-top:20px; font-size:0.85rem;" onclick="mostrarMaisVendas()">⬇️ Mostrar mais ${diasOcultos} dia(s) — ${itensOcultos} venda(s) mais antiga(s)</button>`;
+        }
     }
 
     document.getElementById('lista-vendas-cadastradas').innerHTML = html; 
@@ -3025,6 +3147,38 @@ async function baixarOuCompartilharImagem(base64image, nomeArquivo) {
     link.click();
 }
 
+// 🧾 Gera o recibo direto de uma lista de vendas — atalho usado logo após o "Pagar" em lote,
+// pra não precisar ir no Lote Recibos e procurar o cliente de novo
+async function gerarReciboDeLinhas(linhas, clienteSugerido) {
+    let nomeExibicao = await pedirNomeDocumento(clienteSugerido, "Nome no Recibo");
+    if (nomeExibicao === null) return;
+    mostrarLoading("Gerando Recibo...");
+    document.getElementById('rec-cli-nome').innerText = nomeExibicao;
+    document.getElementById('rec-data-emissao').innerText = new Date().toLocaleDateString('pt-BR');
+    let htmlItens = "", somaTotal = 0;
+    linhas.forEach(l => {
+        const pedido = vendasGlobal.find(v => v.linha == l);
+        if (pedido) {
+            const valor = parseDinheiro(pedido.valor_venda); somaTotal += valor;
+            const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso;
+            const txtPago = `Pago: ${pedido.dataPgtoDisplay || new Date().toLocaleDateString('pt-BR')}`;
+            const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo');
+            htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`;
+        }
+    });
+    document.getElementById('rec-itens-lista').innerHTML = htmlItens;
+    document.getElementById('rec-total').innerText = fmt(somaTotal);
+    try {
+        const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
+        await new Promise(r => setTimeout(r, 200));
+        const canvas = await html2canvas(template, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); const base64image = canvas.toDataURL("image/png"); template.style.display = 'none';
+        document.getElementById('recibo-img-container').innerHTML = `<img src="${base64image}" style="width: 100%; height: auto; display: block; border-radius:8px; border:1px solid #E8DDE1;">`;
+        document.getElementById('preview-title').innerText = "Recibo Pronto!";
+        document.getElementById('btn-baixar-img').onclick = () => baixarOuCompartilharImagem(base64image, `Recibo_Novera_${nomeExibicao.replace(/\s+/g, '_')}.png`);
+        document.getElementById('modal-recibo-preview').style.display = 'flex';
+    } catch (error) { mostrarAlerta("Erro", "Falha ao gerar a imagem.", "error"); } finally { ocultarLoading(); }
+}
+
 async function montarRecibo() {
     const clienteReal = document.getElementById('recibo-cliente').value, clienteNomeExibicao = document.getElementById('recibo-nome-exibicao').value.trim() || clienteReal, checkboxes = document.querySelectorAll('.chk-item-recibo:checked');
     if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Deixe pelo menos um pedido marcado para o recibo.", "warning");
@@ -3157,7 +3311,15 @@ function darBaixaVendaLote() {
     abrirConfirmacao("Confirmar Pagamento?", `Marcar ${linhas.length} venda(s) de ${cliNome} como RECEBIDA(S) hoje?`, "💰", "#2e7d32", "#1b5e20", "💲 Confirmar", () => {
         mostrarLoading("Salvando...");
         const msgLog = `💰 Recebeu pagamento em lote de ${cliNome} - Total: ${fmt(totalLote)}`;
-        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_venda_lote", linhas: linhas, status: "Pago", log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Recebido!", "Baixa em lote concluída.", "success"); sincronizarDadosUnico(); });
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_venda_lote", linhas: linhas, status: "Pago", log_detalhe: msgLog }) }).then(() => {
+            sincronizarDadosUnico();
+            // 🧾 Atalho esperto: acabou de dar baixa? Já oferece o recibo dessas mesmas vendas, sem procurar de novo
+            if (clientesSet.size === 1) {
+                abrirConfirmacao("Recebido! Gerar Recibo?", `Baixa de ${linhas.length} venda(s) de ${cliNome} concluída (${fmt(totalLote)}). Quer já gerar o recibo delas?`, "🧾", "#966178", "#7a4a5e", "🧾 Gerar Recibo", () => { gerarReciboDeLinhas(linhas, cliNome); });
+            } else {
+                mostrarAlerta("Recebido!", "Baixa em lote concluída.", "success");
+            }
+        });
     });
 }
 
