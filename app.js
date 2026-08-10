@@ -5002,13 +5002,14 @@ function abrirMapaSeparacao(modo = 'pendentes') {
 
     const divConteudo = document.getElementById('conteudo-separacao');
     
+    let html = '';
     if (vendasSeparacao.length === 0) {
-        divConteudo.innerHTML = `<div style="text-align:center; padding: 30px 10px; color:#64748b;">
+        html = `<div style="text-align:center; padding: 20px 10px; color:#64748b;">
             <span style="font-size:3rem; display:block; margin-bottom:10px;">🎉</span>
             <b>Tudo pronto!</b><br>Nenhum item pendente de separação pela Sede em: <b>${tituloFiltro}</b>.
         </div>`;
-        document.getElementById('modal-separacao').style.display = 'flex';
-        return;
+    } else {
+        html = `<h4 style="margin:0 0 15px 0; color:#0369a1; text-align:center; font-weight:900;">${tituloFiltro}</h4>`;
     }
 
     // Agrupa por vendedor, mas mantendo CADA PEDIDO INDIVIDUAL
@@ -5018,8 +5019,6 @@ function abrirMapaSeparacao(modo = 'pendentes') {
         if (!mapaVendedores[vendedor]) mapaVendedores[vendedor] = [];
         mapaVendedores[vendedor].push(v);
     });
-
-    let html = `<h4 style="margin:0 0 15px 0; color:#0369a1; text-align:center; font-weight:900;">${tituloFiltro}</h4>`;
     
     for (let vend in mapaVendedores) {
         html += `<div style="margin-bottom: 15px; border: 1px solid #bae6fd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
@@ -5065,6 +5064,34 @@ function abrirMapaSeparacao(modo = 'pendentes') {
         });
         html += `   </div>
                  </div>`;
+    }
+
+    // 🎁 ENCOMENDAS DA EQUIPE: quem está separando na Sede já enxerga os pedidos especiais —
+    // as "Produzidas" estão prontas pra separar/entregar; as pendentes aparecem só pra contexto
+    const encsSeparacao = encomendasGlobal.slice().sort((a, b) => {
+        const pa = a.status === 'Produzido' ? 0 : 1, pb = b.status === 'Produzido' ? 0 : 1;
+        return pa !== pb ? pa - pb : new Date(a.dataPedido) - new Date(b.dataPedido);
+    });
+    if (encsSeparacao.length) {
+        html += `<div style="margin-top: 20px; border: 1px solid #f3d8e2; border-radius: 8px; overflow: hidden;">
+            <div style="background: #fdf5f7; padding: 10px 15px; font-weight: 900; color: var(--primary-dark); border-bottom: 1px solid #f3d8e2; display:flex; justify-content:space-between; align-items:center;">
+                <span>🎁 Encomendas da Equipe</span>
+                <span style="font-size:0.7rem; background:#fff; padding:3px 8px; border-radius:12px;">${encsSeparacao.length} aberta(s)</span>
+            </div>
+            <div style="padding: 12px 15px; background: #fff;">`;
+        encsSeparacao.forEach(en => {
+            const pronta = en.status === 'Produzido';
+            const badgeEnc = pronta
+                ? `<span style="background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase;">✅ Produzida — separar e entregar</span>`
+                : `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase;">⏳ Aguardando produção</span>`;
+            const prodInfoEnc = estoqueAgrupado[padronizarTexto(en.item)];
+            const codEnc = prodInfoEnc && prodInfoEnc.codigo ? `<span style="background:var(--primary-dark); color:white; padding:1px 5px; border-radius:4px; font-size:0.65rem; margin-right:4px;">${prodInfoEnc.codigo}</span>` : '';
+            html += `<div style="padding:8px 0; border-bottom:1px dashed #f3d8e2; font-size:0.85rem; color:var(--brand-dark); line-height:1.5; ${pronta ? '' : 'opacity:0.65;'}">
+                <b style="color:#b45309;">${en.qtd}x</b> ${codEnc}${en.item} ${badgeEnc}
+                <br><span style="font-size:0.72rem; color:#64748b;">Cli: ${en.cliente} · Vendedor: ${en.socio || '—'} · Pedido em ${en.dataDisplay || '?'}</span>
+            </div>`;
+        });
+        html += `</div></div>`;
     }
 
     divConteudo.innerHTML = html;
