@@ -1498,12 +1498,16 @@ function renderizarEstoque() {
             corCustoVal = "#166534"; htmlSaudeEstoque = `<span class="badge-estoque badge-saudavel" style="margin:0;">✔️ Seguro</span>`;
         }
         
+        // Vendedor não precisa de leitura de gestão ("Seguro"/"Crítico" é assunto de reposição) —
+        // pra ele ficam só os avisos úteis de venda: "Chega em Xd" e "Sem Estoque Livre"
+        if (!isAdmin && (htmlSaudeEstoque.includes('Crítico') || htmlSaudeEstoque.includes('Seguro'))) htmlSaudeEstoque = '';
+
         let htmlInfoProducao = qtdMacerando > 0 ? `<p style="font-size: 0.65rem; color: #a16207; font-weight: 700; margin: 3px 0 0 0;">Macerando: +${qtdMacerando}</p>` : "";
         let badgeEncomenda = qtdEncomendada > 0 ? `<div style="background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:bold; margin-top:8px; border:1px solid #fca5a5; display:inline-block;">📦 ${qtdEncomendada} Reservado(s)</div>` : '';
 
         let locaisHtml = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">`;
         for(let loc in e.locais) {
-            if(e.locais[loc] > 0) { const idadeLoc = badgeIdadeEstoque(e.locaisDatas ? e.locaisDatas[loc] : null); locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b>${idadeLoc}</span>`; }
+            if(e.locais[loc] > 0) { const idadeLoc = isAdmin ? badgeIdadeEstoque(e.locaisDatas ? e.locaisDatas[loc] : null) : ''; locaisHtml += `<span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:0.65rem; font-weight:700; border:1px solid #e5e7eb;">📍 ${loc}: <b style="color:var(--primary-dark);">${e.locais[loc]}</b>${idadeLoc}</span>`; }
         }
         locaisHtml += `</div>`;
         if (qtdExibicao <= 0) locaisHtml = "";
@@ -1532,8 +1536,8 @@ function renderizarEstoque() {
             <div class="prod-actions">
                 <div style="text-align: right;">
                     <div style="display:flex; justify-content: flex-end;">${htmlSaudeEstoque}</div>
-                    <div style="font-size:0.7rem; color:#888; margin-top:5px;">Físico Total: ${qtdExibicao}</div>
-                    <div class="custo-val" style="color:${corCustoVal}; font-size: 1.1rem; font-weight:900;">Livre: ${qtdLivre} un</div>
+                    ${isAdmin ? `<div style="font-size:0.7rem; color:#888; margin-top:5px;">Físico Total: ${qtdExibicao}</div>` : ''}
+                    <div class="custo-val" style="color:${corCustoVal}; font-size: 1.1rem; font-weight:900;">${isAdmin ? 'Livre' : 'Disponível'}: ${qtdLivre} un</div>
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
