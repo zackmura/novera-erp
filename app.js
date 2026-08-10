@@ -2511,10 +2511,12 @@ function renderizarEncomendas() {
     pendentes.slice(0, limiteEncomendasLista).forEach(e => {
         let classBadge = e.status === 'Pendente' ? 'b-atrasado' : 'b-ok';
         let btnVender = e.status === 'Produzido' ? `<button class="btn-salvar" style="margin-top:5px; padding:10px; background:#2C2A2B; font-size:0.8rem; width:100%;" onclick="puxarVendaDeEncomenda(${e.linha})">🚀 Vender (PDV)</button>` : '';
+        // 'Atendida' = o sistema já lançou a venda sozinho: sem botões de status, só consulta/exclusão
+        if (e.status === 'Atendida') btnVender = `<p style="margin:5px 0 0 0; font-size:0.72rem; color:#15803d; font-weight:800;">🛒 Venda lançada automaticamente — já está no Mapa de Separação!</p>`;
         // Só Admin decide se já ficou pronto — o vendedor só cria/consulta/exclui a própria
-        let toggleStatus = isAdmin ? (e.status === 'Pendente'
-            ? `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="mudarStatusEncomenda(${e.linha}, 'Produzido')" title="Marcar Produzido">✔️</button>`
-            : `<button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="mudarStatusEncomenda(${e.linha}, 'Pendente')" title="Desfazer">↩️</button>`) : '';
+        let toggleStatus = '';
+        if (isAdmin && e.status === 'Pendente') toggleStatus = `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="mudarStatusEncomenda(${e.linha}, 'Produzido')" title="Marcar Produzido">✔️</button>`;
+        else if (isAdmin && e.status === 'Produzido') toggleStatus = `<button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="mudarStatusEncomenda(${e.linha}, 'Pendente')" title="Desfazer">↩️</button>`;
         const podeExcluir = isAdmin || String(e.socio || '').toLowerCase().trim() === usuarioLogado.toLowerCase().trim();
         const btnExcluir = podeExcluir ? `<button class="btn-acao" onclick="prepararExclusaoRegistro('Encomendas', ${e.linha}, 'Pedido de ${e.cliente}')">🗑️</button>` : '';
         const txtSocio = e.socio ? `<p style="font-size:0.65rem; color:#888; margin:2px 0 0 0;">👤 Anotado por: ${e.socio}</p>` : '';
@@ -5068,7 +5070,7 @@ function abrirMapaSeparacao(modo = 'pendentes') {
 
     // 🎁 ENCOMENDAS DA EQUIPE: quem está separando na Sede já enxerga os pedidos especiais —
     // as "Produzidas" estão prontas pra separar/entregar; as pendentes aparecem só pra contexto
-    const encsSeparacao = encomendasGlobal.slice().sort((a, b) => {
+    const encsSeparacao = encomendasGlobal.filter(en => en.status !== 'Atendida').sort((a, b) => {
         const pa = a.status === 'Produzido' ? 0 : 1, pb = b.status === 'Produzido' ? 0 : 1;
         return pa !== pb ? pa - pb : new Date(a.dataPedido) - new Date(b.dataPedido);
     });
