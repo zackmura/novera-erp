@@ -5,31 +5,32 @@ let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
 let KEY_IMGBB = localStorage.getItem('novera_imgbb_key') || "";
 
 // 🌙 MODO ESCURO — aplicado logo no topo do arquivo pra não "piscar" claro antes de escurecer.
-// Sem escolha salva, segue o tema do sistema operacional automaticamente (prefers-color-scheme).
+// Sem escolha salva, segue o tema do celular/PC automaticamente; o botão 🌙 fixa a preferência.
+function temaEscuroAtivo() {
+    const salvo = localStorage.getItem('novera_tema'); // 'dark' | 'light' | null (= automático)
+    if (salvo === 'dark') return true;
+    if (salvo === 'light') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
 function aplicarTemaSalvo() {
-    const tema = localStorage.getItem('novera_tema'); // 'dark' | 'light' | null (= automático)
-    if (tema === 'dark' || tema === 'light') document.documentElement.setAttribute('data-theme', tema);
-    else document.documentElement.removeAttribute('data-theme');
+    const escuro = temaEscuroAtivo();
+    document.documentElement.classList.toggle('tema-escuro', escuro);
+    const btn = document.getElementById('btn-modo-escuro');
+    if (btn) btn.innerText = escuro ? '☀️' : '🌙';
 }
 aplicarTemaSalvo();
 
 function alternarModoEscuro() {
-    const seguindoSistema = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const temaAtual = document.documentElement.getAttribute('data-theme') || (seguindoSistema ? 'dark' : 'light');
-    const novoTema = temaAtual === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('novera_tema', novoTema);
-    document.documentElement.setAttribute('data-theme', novoTema);
-    const btn = document.getElementById('btn-modo-escuro');
-    if (btn) btn.innerText = novoTema === 'dark' ? '☀️' : '🌙';
+    localStorage.setItem('novera_tema', temaEscuroAtivo() ? 'light' : 'dark');
+    aplicarTemaSalvo();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('btn-modo-escuro');
-    if (!btn) return;
-    const seguindoSistema = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const escuroAgora = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && seguindoSistema);
-    btn.innerText = escuroAgora ? '☀️' : '🌙';
-});
+// Se a pessoa deixou no automático, acompanha o celular trocando de tema (ex: escurece à noite)
+if (window.matchMedia) {
+    try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTemaSalvo); } catch (e) { }
+}
+document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
 // ==========================================
 // 🔄 PWA: ATUALIZAÇÃO AUTOMÁTICA (sem precisar fechar e abrir de novo)

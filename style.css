@@ -32,39 +32,132 @@ body {
 .nav-item.active .icon { filter: grayscale(0%) opacity(1); transform: translateY(-3px) scale(1.1); }
 
 /* ==========================================
-   🌙 MODO ESCURO
-   Escurece o "chassi" do app (fundo, menu, cabeçalho, modais). As telas de conteúdo
-   (.card, cartões de venda/estoque/painel, campos de formulário) permanecem claras de
-   propósito: são montadas dinamicamente com centenas de cores de texto fixas no código,
-   e escurecer o fundo delas sem revisar cada uma tornaria muitos textos ilegíveis. É o
-   mesmo formato usado por apps como o Notion — "moldura" escura, "papel" de conteúdo claro.
-   Ativa sozinho pelo tema do celular/PC (prefers-color-scheme) ou pelo botão 🌙 no topo.
+   🌙 MODO ESCURO COMPLETO
+   O JS coloca a classe .tema-escuro no <html> (pela escolha do botão 🌙 ou seguindo o
+   tema do celular/PC). SEM a classe, nada daqui se aplica: o modo claro continua sendo
+   exatamente o visual original. Os textos com cor fixa escrita no código são vencidos
+   por remapeamento com !important (que ganha de estilo inline).
    ========================================== */
 :root {
     --shell-bg: var(--bg-color); --shell-nav-bg: rgba(255, 255, 255, 0.95); --shell-nav-border: rgba(184, 124, 150, 0.1);
     --shell-header-border: var(--border-color); --shell-more-bg: #ffffff; --shell-overlay: rgba(0,0,0,0.6);
     --shell-desktop-bg: #f4f7f6; --shell-sidebar-bg: #ffffff; --shell-sidebar-border: #e8dde1;
-    --shell-input-bg: #fafafa;
 }
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-        --shell-bg: #17141a; --shell-nav-bg: rgba(30, 26, 35, 0.95); --shell-nav-border: rgba(255,255,255,0.08);
-        --shell-header-border: rgba(255,255,255,0.1); --shell-more-bg: #241f2b; --shell-overlay: rgba(0,0,0,0.75);
-        --shell-desktop-bg: #100e13; --shell-sidebar-bg: #1c1822; --shell-sidebar-border: rgba(255,255,255,0.08);
-    }
-}
-:root[data-theme="dark"] {
-    --shell-bg: #17141a; --shell-nav-bg: rgba(30, 26, 35, 0.95); --shell-nav-border: rgba(255,255,255,0.08);
-    --shell-header-border: rgba(255,255,255,0.1); --shell-more-bg: #241f2b; --shell-overlay: rgba(0,0,0,0.75);
-    --shell-desktop-bg: #100e13; --shell-sidebar-bg: #1c1822; --shell-sidebar-border: rgba(255,255,255,0.08);
+html.tema-escuro {
+    /* 🍇 Paleta "Novera Noite": ameixa e rosé, não preto — a marca continua presente no escuro */
+    --bg-color: #241b2b; --card-bg: #2e2335; --text-main: #ded5e4;
+    --border-color: #4d3c56; --brand-dark: #f0eaf4; --primary-dark: #d8a3bd;
+    --shell-bg: #1d1522; --shell-nav-bg: rgba(40, 30, 47, 0.96); --shell-nav-border: rgba(216, 163, 189, 0.15);
+    --shell-header-border: rgba(216, 163, 189, 0.18); --shell-more-bg: #332639; --shell-overlay: rgba(20, 12, 24, 0.78);
+    --shell-desktop-bg: #191220; --shell-sidebar-bg: #281e2f; --shell-sidebar-border: rgba(216, 163, 189, 0.12);
 }
 body { background: var(--shell-bg); }
 .header { border-bottom-color: var(--shell-header-border); }
 .bottom-nav { background: var(--shell-nav-bg); border-top-color: var(--shell-nav-border); }
-.nav-more-panel { background: var(--shell-more-bg); }
-.nav-more-overlay { background: var(--shell-overlay); }
-.modal-overlay-alert { background: var(--shell-overlay); }
+html.tema-escuro .nav-more-panel { background: var(--shell-more-bg); box-shadow: 0 -5px 25px rgba(0,0,0,0.5); }
+html.tema-escuro .nav-more-overlay { background: var(--shell-overlay); }
+html.tema-escuro .modal-overlay-alert { background: var(--shell-overlay); }
+html.tema-escuro .nav-item-more { color: #b7a8bf; }
 #nav-mais, .app-version { color: inherit; }
+
+/* Superfícies principais no escuro */
+html.tema-escuro .card { box-shadow: 0 15px 35px rgba(0,0,0,0.4); border-color: rgba(216, 163, 189, 0.08); }
+html.tema-escuro .rotulo-card { background: #372a3e; border-color: rgba(216, 163, 189, 0.15); }
+html.tema-escuro .dash-card { background: #372a3e; }
+html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea { background: #372a3e; color: #f0eaf4; border-color: #4d3c56; }
+html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: #3d2f45; }
+html.tema-escuro input[readonly] { background: #4d3c56; color: #e3c3d3; }
+html.tema-escuro .sub-nav-container { background: #372a3e; }
+html.tema-escuro .sub-nav-btn { color: #c4b2c9; }
+html.tema-escuro .sub-nav-btn.active { background: #4d3c56; color: #f3d8e2; box-shadow: none; }
+html.tema-escuro .loading-overlay { background: rgba(29, 21, 34, 0.9); }
+/* Gráficos desenham texto escuro — ganham um "papel" claro pra continuarem legíveis */
+html.tema-escuro canvas { background: #f6f1f7; border-radius: 8px; }
+
+/* Fundos claros escritos direto no código viram superfícies ameixa equivalentes */
+html.tema-escuro [style*="background:#fff"], html.tema-escuro [style*="background: #fff"],
+html.tema-escuro [style*="background:#ffffff"], html.tema-escuro [style*="background: #ffffff"],
+html.tema-escuro [style*="background-color: #ffffff"], html.tema-escuro [style*="background-color:#fff"] { background: #372a3e !important; }
+html.tema-escuro [style*="background:#fdf5f7"], html.tema-escuro [style*="background: #fdf5f7"],
+html.tema-escuro [style*="background:#fff9e6"], html.tema-escuro [style*="background: #fff9e6"],
+html.tema-escuro [style*="background:#f0f9ff"], html.tema-escuro [style*="background: #f0f9ff"],
+html.tema-escuro [style*="background:#fafafa"], html.tema-escuro [style*="background: #fafafa"],
+html.tema-escuro [style*="background:#f8fafc"], html.tema-escuro [style*="background: #f8fafc"] { background: #3a2c42 !important; }
+
+/* Bordas claras escritas no código ficam discretas no escuro (sem linhas neon) */
+html.tema-escuro [style*="border:1px solid #E8DDE1"], html.tema-escuro [style*="border: 1px solid #E8DDE1"],
+html.tema-escuro [style*="border:1px solid #e5e7eb"], html.tema-escuro [style*="border: 1px solid #e5e7eb"],
+html.tema-escuro [style*="border:1px solid #f3d8e2"], html.tema-escuro [style*="border: 1px solid #f3d8e2"],
+html.tema-escuro [style*="border:1px solid #eadfe4"], html.tema-escuro [style*="border: 1px solid #eadfe4"] { border-color: #4d3c56 !important; }
+html.tema-escuro [style*="border:1px solid #ffeeba"], html.tema-escuro [style*="border: 1px solid #ffeeba"],
+html.tema-escuro [style*="border:1px solid #fde047"], html.tema-escuro [style*="border: 1px solid #fde047"],
+html.tema-escuro [style*="border:1px solid #fde68a"], html.tema-escuro [style*="border: 1px solid #fde68a"],
+html.tema-escuro [style*="border:1px solid #fef08a"], html.tema-escuro [style*="border: 1px solid #fef08a"] { border-color: #6b5a26 !important; }
+html.tema-escuro [style*="border:1px solid #fecaca"], html.tema-escuro [style*="border: 1px solid #fecaca"],
+html.tema-escuro [style*="border:1px solid #fca5a5"], html.tema-escuro [style*="border: 1px solid #fca5a5"] { border-color: #6b3232 !important; }
+html.tema-escuro [style*="border:1px solid #bae6fd"], html.tema-escuro [style*="border: 1px solid #bae6fd"],
+html.tema-escuro [style*="border:1px solid #bfdbfe"], html.tema-escuro [style*="border: 1px solid #bfdbfe"] { border-color: #2c5a75 !important; }
+html.tema-escuro [style*="border:1px solid #86efac"], html.tema-escuro [style*="border: 1px solid #86efac"],
+html.tema-escuro [style*="border:1px solid #bbf7d0"], html.tema-escuro [style*="border: 1px solid #bbf7d0"],
+html.tema-escuro [style*="border:1px solid #c8e6c9"], html.tema-escuro [style*="border: 1px solid #c8e6c9"] { border-color: #2c6440 !important; }
+html.tema-escuro [style*="border:1px solid #ddd6fe"], html.tema-escuro [style*="border: 1px solid #ddd6fe"],
+html.tema-escuro [style*="border:1px solid #d8b4fe"], html.tema-escuro [style*="border: 1px solid #d8b4fe"],
+html.tema-escuro [style*="border:1px solid #c4b5fd"], html.tema-escuro [style*="border: 1px solid #c4b5fd"] { border-color: #533d75 !important; }
+
+/* Textos com cor fixa escrita no código: remapeados pra tons claros com calor de ameixa */
+html.tema-escuro [style*="color:#2C2A2B"], html.tema-escuro [style*="color: #2C2A2B"],
+html.tema-escuro [style*="color:#4A4A4A"], html.tema-escuro [style*="color: #4A4A4A"],
+html.tema-escuro [style*="color:#333"], html.tema-escuro [style*="color: #333"] { color: #f0eaf4 !important; }
+html.tema-escuro [style*="color:#666"], html.tema-escuro [style*="color: #666"],
+html.tema-escuro [style*="color:#888"], html.tema-escuro [style*="color: #888"],
+html.tema-escuro [style*="color:#999"], html.tema-escuro [style*="color: #999"],
+html.tema-escuro [style*="color:#aaa"], html.tema-escuro [style*="color: #aaa"] { color: #b7a8bf !important; }
+html.tema-escuro [style*="color:#64748b"], html.tema-escuro [style*="color: #64748b"],
+html.tema-escuro [style*="color:#4b5563"], html.tema-escuro [style*="color: #4b5563"],
+html.tema-escuro [style*="color:#475569"], html.tema-escuro [style*="color: #475569"] { color: #adb4c8 !important; }
+html.tema-escuro [style*="color:#7a4a5e"], html.tema-escuro [style*="color: #7a4a5e"],
+html.tema-escuro [style*="color:#966178"], html.tema-escuro [style*="color: #966178"] { color: #e3c3d3 !important; }
+html.tema-escuro [style*="color:#92400e"], html.tema-escuro [style*="color: #92400e"],
+html.tema-escuro [style*="color:#b45309"], html.tema-escuro [style*="color: #b45309"],
+html.tema-escuro [style*="color:#a16207"], html.tema-escuro [style*="color: #a16207"] { color: #ecc08b !important; }
+html.tema-escuro [style*="color:#0369a1"], html.tema-escuro [style*="color: #0369a1"],
+html.tema-escuro [style*="color:#1e40af"], html.tema-escuro [style*="color: #1e40af"] { color: #7cc4ee !important; }
+html.tema-escuro [style*="color:#15803d"], html.tema-escuro [style*="color: #15803d"],
+html.tema-escuro [style*="color:#166534"], html.tema-escuro [style*="color: #166534"],
+html.tema-escuro [style*="color:#2e7d32"], html.tema-escuro [style*="color: #2e7d32"] { color: #6ede8f !important; }
+html.tema-escuro [style*="color:#991b1b"], html.tema-escuro [style*="color: #991b1b"],
+html.tema-escuro [style*="color:#b91c1c"], html.tema-escuro [style*="color: #b91c1c"] { color: #ff8a8a !important; }
+html.tema-escuro [style*="color:#7c3aed"], html.tema-escuro [style*="color: #7c3aed"],
+html.tema-escuro [style*="color:#7e22ce"], html.tema-escuro [style*="color: #7e22ce"],
+html.tema-escuro [style*="color:#4c1d95"], html.tema-escuro [style*="color: #4c1d95"] { color: #c5a3ff !important; }
+
+/* Faixas e selos coloridos (amarelo/azul/verde/vermelho/roxo) viram a versão escura da mesma
+   cor, com um toque de ameixa pra conversar com o resto do tema */
+html.tema-escuro [style*="background:#fef3c7"], html.tema-escuro [style*="background: #fef3c7"],
+html.tema-escuro [style*="background:#fffbeb"], html.tema-escuro [style*="background: #fffbeb"],
+html.tema-escuro [style*="background:#fef08a"], html.tema-escuro [style*="background: #fef08a"],
+html.tema-escuro [style*="background:#fff7ed"], html.tema-escuro [style*="background: #fff7ed"],
+html.tema-escuro [style*="background:#ffedd5"], html.tema-escuro [style*="background: #ffedd5"] { background: #453516 !important; }
+html.tema-escuro [style*="background:#fee2e2"], html.tema-escuro [style*="background: #fee2e2"],
+html.tema-escuro [style*="background:#fef2f2"], html.tema-escuro [style*="background: #fef2f2"] { background: #4a2429 !important; }
+html.tema-escuro [style*="background:#e0f2fe"], html.tema-escuro [style*="background: #e0f2fe"],
+html.tema-escuro [style*="background:#eff6ff"], html.tema-escuro [style*="background: #eff6ff"] { background: #223a4f !important; }
+html.tema-escuro [style*="background:#dcfce7"], html.tema-escuro [style*="background: #dcfce7"],
+html.tema-escuro [style*="background:#e8f5e9"], html.tema-escuro [style*="background: #e8f5e9"],
+html.tema-escuro [style*="background:#f0fdf4"], html.tema-escuro [style*="background: #f0fdf4"] { background: #21402c !important; }
+html.tema-escuro [style*="background:#faf5ff"], html.tema-escuro [style*="background: #faf5ff"],
+html.tema-escuro [style*="background:#f3e8ff"], html.tema-escuro [style*="background: #f3e8ff"],
+html.tema-escuro [style*="background:#e9d5ff"], html.tema-escuro [style*="background: #e9d5ff"] { background: #3a2a52 !important; }
+
+/* Selos de status por classe (Pago/Pendente/etc.) */
+html.tema-escuro .b-atrasado { background: #4a2429; color: #ffa3a3; border-color: #6b3232; }
+html.tema-escuro .b-hoje { background: #453516; color: #ffd88f; border-color: #6b5a26; }
+html.tema-escuro .b-futuro { background: #223a4f; color: #93cff2; border-color: #2c5a75; }
+html.tema-escuro .b-ok { background: #21402c; color: #8fe6a8; border-color: #2c6440; }
+html.tema-escuro .status-presente { background: #3a2a52; color: #d0b3ff; border-color: #533d75; }
+html.tema-escuro .badge-critico { background: #4a2429; color: #ffa3a3; border-color: #6b3232; }
+html.tema-escuro .badge-saudavel { background: #21402c; color: #8fe6a8; border-color: #2c6440; }
+html.tema-escuro .badge-produzindo { background: #453516; color: #ffd88f; border-color: #6b5a26; }
 
 /* Fica ABAIXO da .bottom-nav (z-index 1000): escurece só o conteúdo, deixando a barra e o painel "Mais" clicáveis */
 .nav-more-overlay { display: none; position: fixed; inset: 0; background: rgba(44, 42, 43, 0.35); z-index: 999; }
@@ -297,7 +390,7 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     /* 2. O CARTÃO BRANCO DO SISTEMA */
     .card {
         box-shadow: 0 5px 25px rgba(184, 124, 150, 0.08); border-radius: 20px;
-        padding: 40px 50px; background: #ffffff; min-height: 85vh;
+        padding: 40px 50px; background: var(--card-bg); min-height: 85vh;
     }
 
     /* 3. CABEÇALHO */
