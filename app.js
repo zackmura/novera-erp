@@ -2500,7 +2500,8 @@ function renderizarEncomendas() {
     const fila = document.getElementById('lista-encomendas-cards');
     const tBusca = document.getElementById('busca-encomendas').value.toLowerCase().trim();
     if (tBusca !== assinaturaBuscaEncomendas) { assinaturaBuscaEncomendas = tBusca; limiteEncomendasLista = 20; }
-    let pendentes = encomendasGlobal.filter(e => e.status !== 'Entregue');
+    // 'Atendida' = já virou venda automaticamente: sai da lista (fica no banco só como histórico)
+    let pendentes = encomendasGlobal.filter(e => e.status !== 'Entregue' && e.status !== 'Atendida');
     if (tBusca) { pendentes = pendentes.filter(e => (e.cliente + " " + e.item).toLowerCase().includes(tBusca)); }
     pendentes.sort((a, b) => new Date(b.dataPedido) - new Date(a.dataPedido));
     if (encomendasGlobal.length === 0) { fila.innerHTML = "<p style='text-align:center; color:#999; font-size:0.8rem;'>Nenhuma encomenda ativa.</p>"; return; }
@@ -2511,8 +2512,6 @@ function renderizarEncomendas() {
     pendentes.slice(0, limiteEncomendasLista).forEach(e => {
         let classBadge = e.status === 'Pendente' ? 'b-atrasado' : 'b-ok';
         let btnVender = e.status === 'Produzido' ? `<button class="btn-salvar" style="margin-top:5px; padding:10px; background:#2C2A2B; font-size:0.8rem; width:100%;" onclick="puxarVendaDeEncomenda(${e.linha})">🚀 Vender (PDV)</button>` : '';
-        // 'Atendida' = o sistema já lançou a venda sozinho: sem botões de status, só consulta/exclusão
-        if (e.status === 'Atendida') btnVender = `<p style="margin:5px 0 0 0; font-size:0.72rem; color:#15803d; font-weight:800;">🛒 Venda lançada automaticamente — já está no Mapa de Separação!</p>`;
         // Só Admin decide se já ficou pronto — o vendedor só cria/consulta/exclui a própria
         let toggleStatus = '';
         if (isAdmin && e.status === 'Pendente') toggleStatus = `<button class="btn-acao" style="background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="mudarStatusEncomenda(${e.linha}, 'Produzido')" title="Marcar Produzido">✔️</button>`;
