@@ -44,12 +44,12 @@ body {
     --shell-desktop-bg: #f4f7f6; --shell-sidebar-bg: #ffffff; --shell-sidebar-border: #e8dde1;
 }
 html.tema-escuro {
-    /* 🍇 Paleta "Novera Noite": ameixa e rosé, não preto — a marca continua presente no escuro */
-    --bg-color: #241b2b; --card-bg: #2e2335; --text-main: #ded5e4;
-    --border-color: #4d3c56; --brand-dark: #f0eaf4; --primary-dark: #d8a3bd;
-    --shell-bg: #1d1522; --shell-nav-bg: rgba(40, 30, 47, 0.96); --shell-nav-border: rgba(216, 163, 189, 0.15);
-    --shell-header-border: rgba(216, 163, 189, 0.18); --shell-more-bg: #332639; --shell-overlay: rgba(20, 12, 24, 0.78);
-    --shell-desktop-bg: #191220; --shell-sidebar-bg: #281e2f; --shell-sidebar-border: rgba(216, 163, 189, 0.12);
+    /* 🍇 Paleta "Novera Noite": ameixa e rosé em tons suaves — escuro sem ficar pesado */
+    --bg-color: #322842; --card-bg: #3b3050; --text-main: #e6def0;
+    --border-color: #5e4d75; --brand-dark: #f5f0fa; --primary-dark: #e0aec7;
+    --shell-bg: #2a2138; --shell-nav-bg: rgba(59, 47, 78, 0.97); --shell-nav-border: rgba(224, 174, 199, 0.22);
+    --shell-header-border: rgba(224, 174, 199, 0.22); --shell-more-bg: #453757; --shell-overlay: rgba(24, 16, 32, 0.75);
+    --shell-desktop-bg: #251d33; --shell-sidebar-bg: #372c49; --shell-sidebar-border: rgba(224, 174, 199, 0.18);
 }
 body { background: var(--shell-bg); }
 .header { border-bottom-color: var(--shell-header-border); }
@@ -60,49 +60,58 @@ html.tema-escuro .modal-overlay-alert { background: var(--shell-overlay); }
 html.tema-escuro .nav-item-more { color: #b7a8bf; }
 #nav-mais, .app-version { color: inherit; }
 
-/* Superfícies principais no escuro */
-html.tema-escuro .card { box-shadow: 0 15px 35px rgba(0,0,0,0.4); border-color: rgba(216, 163, 189, 0.08); }
-html.tema-escuro .rotulo-card { background: #372a3e; border-color: rgba(216, 163, 189, 0.15); }
-html.tema-escuro .dash-card { background: #372a3e; }
-html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea { background: #372a3e; color: #f0eaf4; border-color: #4d3c56; }
-html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: #3d2f45; }
-html.tema-escuro input[readonly] { background: #4d3c56; color: #e3c3d3; }
-html.tema-escuro .sub-nav-container { background: #372a3e; }
-html.tema-escuro .sub-nav-btn { color: #c4b2c9; }
-html.tema-escuro .sub-nav-btn.active { background: #4d3c56; color: #f3d8e2; box-shadow: none; }
-html.tema-escuro .loading-overlay { background: rgba(29, 21, 34, 0.9); }
+/* Superfícies principais no escuro: a borda mantém o tom do fundo, e o "miolo" é mais clarinho */
+html.tema-escuro .card { box-shadow: 0 15px 35px rgba(0,0,0,0.35); border-color: rgba(224, 174, 199, 0.1); }
+html.tema-escuro .rotulo-card { background: #453a5c; border-color: rgba(224, 174, 199, 0.2); }
+html.tema-escuro .dash-card { background: #453a5c; }
+html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea { background: #453a5c; color: #f5f0fa; border-color: #5e4d75; }
+html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: #4d4166; }
+html.tema-escuro input[readonly] { background: #5e4d75; color: #ecd0dd; }
+html.tema-escuro .sub-nav-container { background: #453a5c; }
+html.tema-escuro .sub-nav-btn { color: #d3c5db; }
+html.tema-escuro .sub-nav-btn.active { background: #5e4d75; color: #ffe4ef; box-shadow: none; }
+html.tema-escuro .loading-overlay { background: rgba(42, 33, 56, 0.9); }
 /* Gráficos desenham texto escuro — ganham um "papel" claro pra continuarem legíveis */
 html.tema-escuro canvas { background: #f6f1f7; border-radius: 8px; }
+
+/* 🧭 Menus com presença no escuro: rótulos mais claros e ícones mais vivos */
+html.tema-escuro .nav-item { color: #cfc2d8; }
+html.tema-escuro .nav-item .icon { filter: grayscale(60%) opacity(0.85) brightness(1.35); }
+html.tema-escuro .nav-item.active { color: #ffd7e6; }
+html.tema-escuro .nav-item.active .icon { filter: grayscale(0%) opacity(1) brightness(1.15); transform: translateY(-3px) scale(1.15); }
+html.tema-escuro .nav-item-more { color: #cfc2d8; }
+html.tema-escuro .nav-item-more .icon { filter: grayscale(60%) opacity(0.85) brightness(1.35); }
+html.tema-escuro .nav-item-more.active { color: #ffd7e6; }
 
 /* Fundos claros escritos direto no código viram superfícies ameixa equivalentes */
 html.tema-escuro [style*="background:#fff"], html.tema-escuro [style*="background: #fff"],
 html.tema-escuro [style*="background:#ffffff"], html.tema-escuro [style*="background: #ffffff"],
-html.tema-escuro [style*="background-color: #ffffff"], html.tema-escuro [style*="background-color:#fff"] { background: #372a3e !important; }
+html.tema-escuro [style*="background-color: #ffffff"], html.tema-escuro [style*="background-color:#fff"] { background: #453a5c !important; }
 html.tema-escuro [style*="background:#fdf5f7"], html.tema-escuro [style*="background: #fdf5f7"],
 html.tema-escuro [style*="background:#fff9e6"], html.tema-escuro [style*="background: #fff9e6"],
 html.tema-escuro [style*="background:#f0f9ff"], html.tema-escuro [style*="background: #f0f9ff"],
 html.tema-escuro [style*="background:#fafafa"], html.tema-escuro [style*="background: #fafafa"],
-html.tema-escuro [style*="background:#f8fafc"], html.tema-escuro [style*="background: #f8fafc"] { background: #3a2c42 !important; }
+html.tema-escuro [style*="background:#f8fafc"], html.tema-escuro [style*="background: #f8fafc"] { background: #4a3d61 !important; }
 
 /* Bordas claras escritas no código ficam discretas no escuro (sem linhas neon) */
 html.tema-escuro [style*="border:1px solid #E8DDE1"], html.tema-escuro [style*="border: 1px solid #E8DDE1"],
 html.tema-escuro [style*="border:1px solid #e5e7eb"], html.tema-escuro [style*="border: 1px solid #e5e7eb"],
 html.tema-escuro [style*="border:1px solid #f3d8e2"], html.tema-escuro [style*="border: 1px solid #f3d8e2"],
-html.tema-escuro [style*="border:1px solid #eadfe4"], html.tema-escuro [style*="border: 1px solid #eadfe4"] { border-color: #4d3c56 !important; }
+html.tema-escuro [style*="border:1px solid #eadfe4"], html.tema-escuro [style*="border: 1px solid #eadfe4"] { border-color: #5e4d75 !important; }
 html.tema-escuro [style*="border:1px solid #ffeeba"], html.tema-escuro [style*="border: 1px solid #ffeeba"],
 html.tema-escuro [style*="border:1px solid #fde047"], html.tema-escuro [style*="border: 1px solid #fde047"],
 html.tema-escuro [style*="border:1px solid #fde68a"], html.tema-escuro [style*="border: 1px solid #fde68a"],
-html.tema-escuro [style*="border:1px solid #fef08a"], html.tema-escuro [style*="border: 1px solid #fef08a"] { border-color: #6b5a26 !important; }
+html.tema-escuro [style*="border:1px solid #fef08a"], html.tema-escuro [style*="border: 1px solid #fef08a"] { border-color: #7d6a30 !important; }
 html.tema-escuro [style*="border:1px solid #fecaca"], html.tema-escuro [style*="border: 1px solid #fecaca"],
-html.tema-escuro [style*="border:1px solid #fca5a5"], html.tema-escuro [style*="border: 1px solid #fca5a5"] { border-color: #6b3232 !important; }
+html.tema-escuro [style*="border:1px solid #fca5a5"], html.tema-escuro [style*="border: 1px solid #fca5a5"] { border-color: #7d3f3f !important; }
 html.tema-escuro [style*="border:1px solid #bae6fd"], html.tema-escuro [style*="border: 1px solid #bae6fd"],
-html.tema-escuro [style*="border:1px solid #bfdbfe"], html.tema-escuro [style*="border: 1px solid #bfdbfe"] { border-color: #2c5a75 !important; }
+html.tema-escuro [style*="border:1px solid #bfdbfe"], html.tema-escuro [style*="border: 1px solid #bfdbfe"] { border-color: #38688a !important; }
 html.tema-escuro [style*="border:1px solid #86efac"], html.tema-escuro [style*="border: 1px solid #86efac"],
 html.tema-escuro [style*="border:1px solid #bbf7d0"], html.tema-escuro [style*="border: 1px solid #bbf7d0"],
-html.tema-escuro [style*="border:1px solid #c8e6c9"], html.tema-escuro [style*="border: 1px solid #c8e6c9"] { border-color: #2c6440 !important; }
+html.tema-escuro [style*="border:1px solid #c8e6c9"], html.tema-escuro [style*="border: 1px solid #c8e6c9"] { border-color: #38744e !important; }
 html.tema-escuro [style*="border:1px solid #ddd6fe"], html.tema-escuro [style*="border: 1px solid #ddd6fe"],
 html.tema-escuro [style*="border:1px solid #d8b4fe"], html.tema-escuro [style*="border: 1px solid #d8b4fe"],
-html.tema-escuro [style*="border:1px solid #c4b5fd"], html.tema-escuro [style*="border: 1px solid #c4b5fd"] { border-color: #533d75 !important; }
+html.tema-escuro [style*="border:1px solid #c4b5fd"], html.tema-escuro [style*="border: 1px solid #c4b5fd"] { border-color: #644a8c !important; }
 
 /* Textos com cor fixa escrita no código: remapeados pra tons claros com calor de ameixa */
 html.tema-escuro [style*="color:#2C2A2B"], html.tema-escuro [style*="color: #2C2A2B"],
@@ -137,27 +146,27 @@ html.tema-escuro [style*="background:#fef3c7"], html.tema-escuro [style*="backgr
 html.tema-escuro [style*="background:#fffbeb"], html.tema-escuro [style*="background: #fffbeb"],
 html.tema-escuro [style*="background:#fef08a"], html.tema-escuro [style*="background: #fef08a"],
 html.tema-escuro [style*="background:#fff7ed"], html.tema-escuro [style*="background: #fff7ed"],
-html.tema-escuro [style*="background:#ffedd5"], html.tema-escuro [style*="background: #ffedd5"] { background: #453516 !important; }
+html.tema-escuro [style*="background:#ffedd5"], html.tema-escuro [style*="background: #ffedd5"] { background: #524020 !important; }
 html.tema-escuro [style*="background:#fee2e2"], html.tema-escuro [style*="background: #fee2e2"],
-html.tema-escuro [style*="background:#fef2f2"], html.tema-escuro [style*="background: #fef2f2"] { background: #4a2429 !important; }
+html.tema-escuro [style*="background:#fef2f2"], html.tema-escuro [style*="background: #fef2f2"] { background: #572f34 !important; }
 html.tema-escuro [style*="background:#e0f2fe"], html.tema-escuro [style*="background: #e0f2fe"],
-html.tema-escuro [style*="background:#eff6ff"], html.tema-escuro [style*="background: #eff6ff"] { background: #223a4f !important; }
+html.tema-escuro [style*="background:#eff6ff"], html.tema-escuro [style*="background: #eff6ff"] { background: #2c485f !important; }
 html.tema-escuro [style*="background:#dcfce7"], html.tema-escuro [style*="background: #dcfce7"],
 html.tema-escuro [style*="background:#e8f5e9"], html.tema-escuro [style*="background: #e8f5e9"],
-html.tema-escuro [style*="background:#f0fdf4"], html.tema-escuro [style*="background: #f0fdf4"] { background: #21402c !important; }
+html.tema-escuro [style*="background:#f0fdf4"], html.tema-escuro [style*="background: #f0fdf4"] { background: #2b4d37 !important; }
 html.tema-escuro [style*="background:#faf5ff"], html.tema-escuro [style*="background: #faf5ff"],
 html.tema-escuro [style*="background:#f3e8ff"], html.tema-escuro [style*="background: #f3e8ff"],
-html.tema-escuro [style*="background:#e9d5ff"], html.tema-escuro [style*="background: #e9d5ff"] { background: #3a2a52 !important; }
+html.tema-escuro [style*="background:#e9d5ff"], html.tema-escuro [style*="background: #e9d5ff"] { background: #473563 !important; }
 
 /* Selos de status por classe (Pago/Pendente/etc.) */
-html.tema-escuro .b-atrasado { background: #4a2429; color: #ffa3a3; border-color: #6b3232; }
-html.tema-escuro .b-hoje { background: #453516; color: #ffd88f; border-color: #6b5a26; }
-html.tema-escuro .b-futuro { background: #223a4f; color: #93cff2; border-color: #2c5a75; }
-html.tema-escuro .b-ok { background: #21402c; color: #8fe6a8; border-color: #2c6440; }
-html.tema-escuro .status-presente { background: #3a2a52; color: #d0b3ff; border-color: #533d75; }
-html.tema-escuro .badge-critico { background: #4a2429; color: #ffa3a3; border-color: #6b3232; }
-html.tema-escuro .badge-saudavel { background: #21402c; color: #8fe6a8; border-color: #2c6440; }
-html.tema-escuro .badge-produzindo { background: #453516; color: #ffd88f; border-color: #6b5a26; }
+html.tema-escuro .b-atrasado { background: #572f34; color: #ffa3a3; border-color: #7d3f3f; }
+html.tema-escuro .b-hoje { background: #524020; color: #ffd88f; border-color: #7d6a30; }
+html.tema-escuro .b-futuro { background: #2c485f; color: #93cff2; border-color: #38688a; }
+html.tema-escuro .b-ok { background: #2b4d37; color: #8fe6a8; border-color: #38744e; }
+html.tema-escuro .status-presente { background: #473563; color: #d0b3ff; border-color: #644a8c; }
+html.tema-escuro .badge-critico { background: #572f34; color: #ffa3a3; border-color: #7d3f3f; }
+html.tema-escuro .badge-saudavel { background: #2b4d37; color: #8fe6a8; border-color: #38744e; }
+html.tema-escuro .badge-produzindo { background: #524020; color: #ffd88f; border-color: #7d6a30; }
 
 /* Fica ABAIXO da .bottom-nav (z-index 1000): escurece só o conteúdo, deixando a barra e o painel "Mais" clicáveis */
 .nav-more-overlay { display: none; position: fixed; inset: 0; background: rgba(44, 42, 43, 0.35); z-index: 999; }

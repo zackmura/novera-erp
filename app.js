@@ -32,6 +32,24 @@ if (window.matchMedia) {
 }
 document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
+// 📸 REGRA DE OURO DAS IMAGENS: recibo, cobrança, etiqueta, QR e catálogo saem SEMPRE no visual
+// claro Novera (identidade da marca), não importa o tema do app. A "foto" é tirada de um clone
+// da página — aqui tiramos o tema escuro do clone antes do clique.
+function removerTemaEscuroDoClone(docClone) {
+    try { docClone.documentElement.classList.remove('tema-escuro'); } catch (e) { }
+}
+if (window.html2canvas) {
+    const html2canvasOriginal = window.html2canvas;
+    window.html2canvas = (el, opts = {}) => {
+        const oncloneOriginal = opts.onclone;
+        opts.onclone = (docClone, elClone) => {
+            removerTemaEscuroDoClone(docClone);
+            if (oncloneOriginal) oncloneOriginal(docClone, elClone);
+        };
+        return html2canvasOriginal(el, opts);
+    };
+}
+
 // ==========================================
 // 🔄 PWA: ATUALIZAÇÃO AUTOMÁTICA (sem precisar fechar e abrir de novo)
 // ==========================================
@@ -2076,7 +2094,7 @@ async function gerarCatalogoPDFFrontend() {
         const pdfCat = await html2pdf().set({
             margin: 0,
             image: { type: 'jpeg', quality: 0.92 },
-            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', onclone: removerTemaEscuroDoClone },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: [] }
         }).from(paginasCat[0]).toPdf().get('pdf');
@@ -5345,7 +5363,7 @@ async function gerarEtiquetaPDF() {
             margin: 0,
             filename: `Etiqueta_Caixa_Amostras_${new Date().getTime()}.pdf`,
             image: { type: 'jpeg', quality: 1.0 },
-            html2canvas: { scale: 4, useCORS: true, scrollY: 0, windowY: 0 },
+            html2canvas: { scale: 4, useCORS: true, scrollY: 0, windowY: 0, onclone: removerTemaEscuroDoClone },
             jsPDF: { unit: 'mm', format: [110, 85], orientation: 'landscape' },
             pagebreak: { mode: ['avoid-all'] }
         };
@@ -5805,7 +5823,7 @@ async function gerarPdfQrCodes() {
             margin: 0, 
             filename: `Novera_Etiquetas_${new Date().getTime()}.pdf`,
             image: { type: 'jpeg', quality: 1.0 },
-            html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, scrollY: 0, windowY: 0 },
+            html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true, scrollY: 0, windowY: 0, onclone: removerTemaEscuroDoClone },
             jsPDF: { unit: 'mm', format: [pW, pH], orientation: pW > pH ? 'landscape' : 'portrait' }
         };
         
