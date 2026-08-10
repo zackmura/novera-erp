@@ -5929,20 +5929,53 @@ function prepararConferencia() {
     const btn = document.getElementById('btn-salvar-conferencia');
     if (!local) { cont.innerHTML = ''; btn.style.display = 'none'; return; }
 
+    // 📂 Agrupa por categoria pra bater com a prateleira: tipos na ordem dos Parâmetros Globais,
+    // e Perfume ainda se divide por gênero (Feminino / Masculino / Unissex / Infantil)
+    const ordemTiposConf = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+    const idxTipoConf = (t) => { const i = ordemTiposConf.indexOf(String(t || '').toLowerCase().trim()); return i === -1 ? 999 : i; };
+    const categoriaDe = (e) => {
+        const tipoStr = String(e.tipo || 'Outros').trim();
+        if (tipoStr.toLowerCase().includes('perfume')) {
+            const ag = estoqueAgrupado[padronizarTexto(e.nome)];
+            return `${tipoStr} ${String((ag && ag.genero) || 'Unissex').trim()}`;
+        }
+        return tipoStr;
+    };
+
     const itens = estoqueGlobal
         .filter(e => (String(e.local || 'Sede').trim() || 'Sede') === local)
-        .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+        .sort((a, b) => {
+            const ia = idxTipoConf(a.tipo), ib = idxTipoConf(b.tipo);
+            if (ia !== ib) return ia - ib;
+            const ca = categoriaDe(a), cb = categoriaDe(b);
+            if (ca !== cb) return ca.localeCompare(cb);
+            const codA = String(a.codigo || 'zzz'), codB = String(b.codigo || 'zzz');
+            if (codA !== codB) return codA.localeCompare(codB);
+            return String(a.nome).localeCompare(String(b.nome));
+        });
     conferenciaAtual = itens.map(e => ({ nome: e.nome, local: local, esperado: parseFloat(e.qtd) || 0 }));
 
     if (!conferenciaAtual.length) { cont.innerHTML = '<p style="font-size:0.8rem; color:#999;">Nada registrado nesse local.</p>'; btn.style.display = 'none'; return; }
 
-    cont.innerHTML = `<p style="font-size:0.7rem; color:#0369a1; font-weight:800; margin:0 0 8px 0;">${conferenciaAtual.length} produto(s) em ${local}:</p>` + conferenciaAtual.map((it, i) => `
+    let htmlConf = `<p style="font-size:0.7rem; color:#0369a1; font-weight:800; margin:0 0 8px 0;">${conferenciaAtual.length} produto(s) em ${local}:</p>`;
+    let catAtualConf = '';
+    itens.forEach((e, i) => {
+        const cat = categoriaDe(e);
+        if (cat !== catAtualConf) {
+            catAtualConf = cat;
+            htmlConf += `<div style="background:#eff6ff; color:#0369a1; font-weight:900; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; padding:6px 10px; border-radius:6px; margin:14px 0 4px 0;">📂 ${cat}</div>`;
+        }
+        const esperado = parseFloat(e.qtd) || 0;
+        const codBadge = e.codigo ? `<span style="background:var(--primary-dark); color:white; padding:1px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${e.codigo}</span>` : '';
+        htmlConf += `
         <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px dashed #E8DDE1;">
-            <div style="flex:1; min-width:0; font-size:0.8rem; color:var(--brand-dark);">${it.nome}<br><span style="font-size:0.65rem; color:#999;">Sistema diz: <b>${it.esperado} un</b></span></div>
-            <input type="number" id="conf-qtd-${i}" value="${it.esperado}" min="0" inputmode="numeric"
+            <div style="flex:1; min-width:0; font-size:0.8rem; color:var(--brand-dark);">${codBadge}${e.nome}<br><span style="font-size:0.65rem; color:#999;">Sistema diz: <b>${esperado} un</b></span></div>
+            <input type="number" id="conf-qtd-${i}" value="${esperado}" min="0" inputmode="numeric"
                 style="width:80px; flex:0 0 80px; text-align:center; padding:8px; font-weight:800;"
-                oninput="this.style.background = (parseFloat(this.value) === ${it.esperado}) ? '#fafafa' : '#fee2e2'">
-        </div>`).join('');
+                oninput="this.style.background = (parseFloat(this.value) === ${esperado}) ? '#fafafa' : '#fee2e2'">
+        </div>`;
+    });
+    cont.innerHTML = htmlConf;
     btn.style.display = 'block';
 }
 
