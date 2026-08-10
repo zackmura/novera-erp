@@ -12,6 +12,7 @@ let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
 let sugestoesProducaoGlobal = []; // sugestões de fabricação enviadas pelos vendedores
 let clientesGlobal = []; // cadastro de clientes (nome, telefone, aniversário)
+let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe só as dele)
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -423,6 +424,7 @@ async function sincronizarDadosUnico() {
             bonusComissaoGlobal = dados.bonusComissao || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
+            conquistasGlobal = dados.conquistas || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -4065,6 +4067,74 @@ function renderizarDashboard() {
                 </div>`;
         }
 
+        // 🎖️ PATENTE DE CARREIRA: baseada no acumulado da vida toda — nunca reseta, só sobe
+        const carreiraTotal = minhasVendasHist.reduce((s, v) => s + (v.status !== 'Presente' ? parseDinheiro(v.valor_venda) : 0), 0);
+        const PATENTES = [['🌱', 'Iniciante', 0], ['🥉', 'Bronze', 1000], ['🥈', 'Prata', 5000], ['🥇', 'Ouro', 15000], ['💎', 'Diamante', 50000]];
+        let patenteIdx = 0;
+        PATENTES.forEach((p, i) => { if (carreiraTotal >= p[2]) patenteIdx = i; });
+        const patenteAtual = PATENTES[patenteIdx];
+        const proximaPatente = PATENTES[patenteIdx + 1] || null;
+        let htmlPatente = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: linear-gradient(135deg, #1e293b, #334155); border: none;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <h3 style="color:#94a3b8; font-size:0.65rem; font-weight:800; margin:0; letter-spacing:1px;">MINHA PATENTE DE CARREIRA</h3>
+                        <p style="color:#fff; font-size:1.3rem; font-weight:900; margin:4px 0 0 0;">${patenteAtual[0]} ${patenteAtual[1]}</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="color:#94a3b8; font-size:0.6rem; display:block;">Total da carreira</span>
+                        <span style="color:#fbbf24; font-size:1rem; font-weight:900;">${fmt(carreiraTotal)}</span>
+                    </div>
+                </div>
+                ${proximaPatente ? `
+                <div style="background:rgba(255,255,255,0.12); border-radius:20px; height:10px; overflow:hidden; margin-top:10px;">
+                    <div style="width:${Math.min(100, (carreiraTotal / proximaPatente[2]) * 100).toFixed(1)}%; height:100%; background:linear-gradient(90deg,#fbbf24,#f59e0b); border-radius:20px;"></div>
+                </div>
+                <p style="color:#cbd5e1; font-size:0.62rem; margin:6px 0 0 0; text-align:center;">Faltam <b style="color:#fbbf24;">${fmt(Math.max(0, proximaPatente[2] - carreiraTotal))}</b> pra patente ${proximaPatente[0]} ${proximaPatente[1]}!</p>` : `
+                <p style="color:#cbd5e1; font-size:0.62rem; margin:8px 0 0 0; text-align:center;">💎 Patente máxima alcançada — você é lenda! 👏</p>`}
+            </div>`;
+
+        // 🔥 SEQUÊNCIA DE DIAS VENDENDO (streak): tolera o "ainda não vendi hoje" contando até ontem
+        const diasComVendaStreak = new Set(minhasVendasHist.filter(v => v.status !== 'Presente').map(v => v.dataVendaIso));
+        const hojeIsoStreak = new Date().toISOString().split('T')[0];
+        const vendeuHoje = diasComVendaStreak.has(hojeIsoStreak);
+        let streakDias = 0;
+        const cursorStreak = new Date();
+        if (!vendeuHoje) cursorStreak.setDate(cursorStreak.getDate() - 1);
+        while (diasComVendaStreak.has(cursorStreak.toISOString().split('T')[0])) { streakDias++; cursorStreak.setDate(cursorStreak.getDate() - 1); }
+        let htmlStreak = '';
+        if (streakDias >= 2) {
+            htmlStreak = `
+            <div class="dash-card" style="grid-column: span 2; padding: 14px; background: ${vendeuHoje ? '#fff7ed' : '#fef2f2'}; border: 2px solid ${vendeuHoje ? '#fdba74' : '#fca5a5'}; text-align:center;">
+                <p style="margin:0; font-size:1rem; font-weight:900; color:${vendeuHoje ? '#c2410c' : '#b91c1c'};">🔥 ${streakDias} dia${streakDias > 1 ? 's' : ''} seguido${streakDias > 1 ? 's' : ''} vendendo!</p>
+                <p style="margin:4px 0 0 0; font-size:0.68rem; color:${vendeuHoje ? '#9a3412' : '#991b1b'}; font-weight:700;">${vendeuHoje ? 'Corrente viva — continue amanhã! 💪' : '⚠️ Ainda sem venda hoje… uma vendinha salva a corrente!'}</p>
+            </div>`;
+        }
+
+        // 🏛️ SALA DE TROFÉUS: tudo que já foi conquistado na carreira, gravado pra sempre
+        const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const minhasConquistas = conquistasGlobal
+            .filter(c => normalizarNomeBusca(c.usuario) === normalizarNomeBusca(usuarioLogado))
+            .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+        let htmlSala = '';
+        if (minhasConquistas.length) {
+            const chips = minhasConquistas.map(c => {
+                let mesTxt = '';
+                if (c.mes) { const [aM, mM] = c.mes.split('-'); mesTxt = `${mesesAbrev[parseInt(mM) - 1] || ''}/${String(aM).slice(2)}`; }
+                return `<div title="${c.titulo}${mesTxt ? ' — ' + mesTxt : ''}" style="display:flex; flex-direction:column; align-items:center; background:#fffbeb; padding:8px 10px; border-radius:10px; border:1px solid #fde68a; min-width:70px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                    <span style="font-size:1.5rem;">${c.emoji || '🏆'}</span>
+                    <span style="font-size:0.55rem; font-weight:900; color:#92400e; margin-top:3px; text-align:center; line-height:1.2;">${c.titulo}</span>
+                    ${mesTxt ? `<span style="font-size:0.5rem; color:#b45309; margin-top:2px;">${mesTxt}</span>` : ''}
+                </div>`;
+            }).join('');
+            htmlSala = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fff; border-bottom: 3px solid #b45309;">
+                <h3 style="color:#92400e; font-size:0.75rem; border-bottom:1px dashed #fde68a; padding-bottom:5px; margin-bottom:12px; text-align:center;">🏛️ MINHA SALA DE TROFÉUS (${minhasConquistas.length})</h3>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">${chips}</div>
+                <p style="font-size:0.6rem; color:#b45309; margin:10px 0 0 0; text-align:center; font-style:italic;">Troféu ganho é seu pra sempre. 🏆</p>
+            </div>`;
+        }
+
         container.innerHTML = `
             <div class="dash-grid">
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
@@ -4088,7 +4158,10 @@ function renderizarDashboard() {
                 </div>
                 
                 ${htmlProjecao}
+                ${htmlStreak}
                 ${htmlBadges}
+                ${htmlSala}
+                ${htmlPatente}
                 ${htmlRanking}
                 ${htmlCrm}
                 
@@ -4847,6 +4920,7 @@ async function sincronizarDadosSilencioso() {
             bonusComissaoGlobal = dados.bonusComissao || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
+            conquistasGlobal = dados.conquistas || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
