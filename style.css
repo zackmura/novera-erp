@@ -31,6 +31,41 @@ body {
 .nav-item.active { color: var(--primary-dark); }
 .nav-item.active .icon { filter: grayscale(0%) opacity(1); transform: translateY(-3px) scale(1.1); }
 
+/* ==========================================
+   🌙 MODO ESCURO
+   Escurece o "chassi" do app (fundo, menu, cabeçalho, modais). As telas de conteúdo
+   (.card, cartões de venda/estoque/painel, campos de formulário) permanecem claras de
+   propósito: são montadas dinamicamente com centenas de cores de texto fixas no código,
+   e escurecer o fundo delas sem revisar cada uma tornaria muitos textos ilegíveis. É o
+   mesmo formato usado por apps como o Notion — "moldura" escura, "papel" de conteúdo claro.
+   Ativa sozinho pelo tema do celular/PC (prefers-color-scheme) ou pelo botão 🌙 no topo.
+   ========================================== */
+:root {
+    --shell-bg: var(--bg-color); --shell-nav-bg: rgba(255, 255, 255, 0.95); --shell-nav-border: rgba(184, 124, 150, 0.1);
+    --shell-header-border: var(--border-color); --shell-more-bg: #ffffff; --shell-overlay: rgba(0,0,0,0.6);
+    --shell-desktop-bg: #f4f7f6; --shell-sidebar-bg: #ffffff; --shell-sidebar-border: #e8dde1;
+    --shell-input-bg: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --shell-bg: #17141a; --shell-nav-bg: rgba(30, 26, 35, 0.95); --shell-nav-border: rgba(255,255,255,0.08);
+        --shell-header-border: rgba(255,255,255,0.1); --shell-more-bg: #241f2b; --shell-overlay: rgba(0,0,0,0.75);
+        --shell-desktop-bg: #100e13; --shell-sidebar-bg: #1c1822; --shell-sidebar-border: rgba(255,255,255,0.08);
+    }
+}
+:root[data-theme="dark"] {
+    --shell-bg: #17141a; --shell-nav-bg: rgba(30, 26, 35, 0.95); --shell-nav-border: rgba(255,255,255,0.08);
+    --shell-header-border: rgba(255,255,255,0.1); --shell-more-bg: #241f2b; --shell-overlay: rgba(0,0,0,0.75);
+    --shell-desktop-bg: #100e13; --shell-sidebar-bg: #1c1822; --shell-sidebar-border: rgba(255,255,255,0.08);
+}
+body { background: var(--shell-bg); }
+.header { border-bottom-color: var(--shell-header-border); }
+.bottom-nav { background: var(--shell-nav-bg); border-top-color: var(--shell-nav-border); }
+.nav-more-panel { background: var(--shell-more-bg); }
+.nav-more-overlay { background: var(--shell-overlay); }
+.modal-overlay-alert { background: var(--shell-overlay); }
+#nav-mais, .app-version { color: inherit; }
+
 /* Fica ABAIXO da .bottom-nav (z-index 1000): escurece só o conteúdo, deixando a barra e o painel "Mais" clicáveis */
 .nav-more-overlay { display: none; position: fixed; inset: 0; background: rgba(44, 42, 43, 0.35); z-index: 999; }
 .nav-more-panel {
@@ -207,14 +242,14 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
    MODO DESKTOP (Telas maiores que 992px - Computadores)
    ========================================== */
 @media (min-width: 992px) {
-    body { background: #f4f7f6; padding: 0; margin: 0; display: block; }
+    body { background: var(--shell-desktop-bg); padding: 0; margin: 0; display: block; }
     .app-container { display: block; margin-left: 230px; padding: 30px; max-width: 1600px; }
 
     /* 1. MENU LATERAL */
     .bottom-nav {
         position: fixed; top: 0; left: 0; width: 230px; height: 100vh;
         flex-direction: column; justify-content: flex-start;
-        background: #ffffff; border-top: none; border-right: 1px solid #e8dde1;
+        background: var(--shell-sidebar-bg); border-top: none; border-right: 1px solid var(--shell-sidebar-border);
         padding: 30px 15px; box-shadow: 2px 0 15px rgba(0,0,0,0.03); z-index: 1000;
         transform: none; border-radius: 0; box-sizing: border-box;
         gap: 2px;

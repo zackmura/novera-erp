@@ -4,6 +4,68 @@ const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
 let KEY_IMGBB = localStorage.getItem('novera_imgbb_key') || "";
 
+// 🌙 MODO ESCURO — aplicado logo no topo do arquivo pra não "piscar" claro antes de escurecer.
+// Sem escolha salva, segue o tema do sistema operacional automaticamente (prefers-color-scheme).
+function aplicarTemaSalvo() {
+    const tema = localStorage.getItem('novera_tema'); // 'dark' | 'light' | null (= automático)
+    if (tema === 'dark' || tema === 'light') document.documentElement.setAttribute('data-theme', tema);
+    else document.documentElement.removeAttribute('data-theme');
+}
+aplicarTemaSalvo();
+
+function alternarModoEscuro() {
+    const seguindoSistema = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const temaAtual = document.documentElement.getAttribute('data-theme') || (seguindoSistema ? 'dark' : 'light');
+    const novoTema = temaAtual === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('novera_tema', novoTema);
+    document.documentElement.setAttribute('data-theme', novoTema);
+    const btn = document.getElementById('btn-modo-escuro');
+    if (btn) btn.innerText = novoTema === 'dark' ? '☀️' : '🌙';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btn-modo-escuro');
+    if (!btn) return;
+    const seguindoSistema = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const escuroAgora = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && seguindoSistema);
+    btn.innerText = escuroAgora ? '☀️' : '🌙';
+});
+
+// ==========================================
+// 🔄 PWA: ATUALIZAÇÃO AUTOMÁTICA (sem precisar fechar e abrir de novo)
+// ==========================================
+// Antes disso o service worker nem era registrado — então um app instalado (celular/tablet/PC)
+// que ficasse aberto o dia todo nunca puxava o código novo sozinho, só ao fechar e reabrir.
+// Agora: registra o worker, verifica por atualização periodicamente e sempre que a pessoa volta
+// pro app, e recarrega sozinho assim que uma versão nova estiver pronta — mas só quando ela NÃO
+// estiver no meio de algo (reaproveita a mesma checagem do "pausa a sincronização ao editar").
+if ('serviceWorker' in navigator) {
+    let atualizacaoPendente = false;
+
+    const tentarAplicarAtualizacao = () => {
+        if (!atualizacaoPendente) return;
+        if (typeof usuarioEstaOcupado === 'function' && usuarioEstaOcupado()) {
+            setTimeout(tentarAplicarAtualizacao, 15000); // tenta de novo em breve, sem incomodar
+            return;
+        }
+        window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        atualizacaoPendente = true;
+        tentarAplicarAtualizacao();
+    });
+
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(registro => {
+            // Verifica por versão nova ao abrir, ao voltar pro app, e a cada 20 minutos enquanto aberto
+            const verificarAgora = () => registro.update().catch(() => {});
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verificarAgora(); });
+            setInterval(verificarAgora, 20 * 60 * 1000);
+        }).catch(err => console.error('Falha ao registrar o service worker:', err));
+    });
+}
+
 let rotulosGlobal = [], estoqueGlobal = [], gastosGlobal = [], vendasGlobal = [];
 let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
 let logsGlobal = [];
