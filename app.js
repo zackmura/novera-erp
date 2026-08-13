@@ -4,13 +4,10 @@ const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
 let KEY_IMGBB = localStorage.getItem('novera_imgbb_key') || "";
 
-// 🌙 MODO ESCURO — aplicado logo no topo do arquivo pra não "piscar" claro antes de escurecer.
-// Sem escolha salva, segue o tema do celular/PC automaticamente; o botão 🌙 fixa a preferência.
+// 🌙 MODO ESCURO — o padrão de TODO MUNDO é o claro (identidade Novera).
+// O escuro só liga pra quem escolher no botão 🌙 do topo, e a escolha fica salva no aparelho.
 function temaEscuroAtivo() {
-    const salvo = localStorage.getItem('novera_tema'); // 'dark' | 'light' | null (= automático)
-    if (salvo === 'dark') return true;
-    if (salvo === 'light') return false;
-    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    return localStorage.getItem('novera_tema') === 'dark';
 }
 
 function aplicarTemaSalvo() {
@@ -26,10 +23,6 @@ function alternarModoEscuro() {
     aplicarTemaSalvo();
 }
 
-// Se a pessoa deixou no automático, acompanha o celular trocando de tema (ex: escurece à noite)
-if (window.matchMedia) {
-    try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTemaSalvo); } catch (e) { }
-}
 document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
 // 📸 REGRA DE OURO DAS IMAGENS: recibo, cobrança, etiqueta, QR e catálogo saem SEMPRE no visual
@@ -511,6 +504,7 @@ async function sincronizarDadosUnico() {
 
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
             if (typeof renderizarClientes === 'function') renderizarClientes();
+            if (typeof verificarNovasConquistasUI === 'function') verificarNovasConquistasUI();
 
             estoqueAgrupado = {};
             estoqueGlobal.forEach(e => {
@@ -4209,10 +4203,10 @@ function renderizarDashboard() {
                 </div>`;
             }).join('');
             htmlSala = `
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fff; border-bottom: 3px solid #b45309;">
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fff; border-bottom: 3px solid #b45309; cursor: pointer;" onclick="abrirModalSalaTrofeus()" title="Toque para ver os detalhes de cada conquista">
                 <h3 style="color:#92400e; font-size:0.75rem; border-bottom:1px dashed #fde68a; padding-bottom:5px; margin-bottom:12px; text-align:center;">🏛️ MINHA SALA DE TROFÉUS (${minhasConquistas.length})</h3>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">${chips}</div>
-                <p style="font-size:0.6rem; color:#b45309; margin:10px 0 0 0; text-align:center; font-style:italic;">Troféu ganho é seu pra sempre. 🏆</p>
+                <p style="font-size:0.6rem; color:#b45309; margin:10px 0 0 0; text-align:center; font-style:italic;">👆 Toque para ver os detalhes de cada conquista</p>
             </div>`;
         }
 
@@ -4896,16 +4890,156 @@ function abrirModalRelatorios() { document.getElementById('modal-relatorios').st
 function exportarExcel() { const dMes = document.getElementById('d-filtro-mes').value; const dAno = document.getElementById('d-filtro-ano').value; let pfx = dAno && dMes ? `${dAno}-${dMes}` : dAno; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); if (vDash.length === 0) return mostrarAlerta("Aviso", "Nenhuma venda neste período.", "warning"); let csvContent = "data:text/csv;charset=utf-8,Data,Cliente,Produto,Socio,Quantidade,Valor,Status,Custo Und,Custo Total,Lucro,Markup,Data Pagamento,Observacao\n"; vDash.forEach(v => { let obsLimpa = v.observacao ? v.observacao.replace(/\n/g, ' ').replace(/"/g, '""') : ''; let row = [v.dataVendaDisplay, `"${v.cliente}"`, `"${v.produto}"`, v.socio, v.qtd, `"${v.valor_venda}"`, v.status, `"${v.custo_und}"`, `"${v.custo_total}"`, `"${v.lucro}"`, `"${v.markup}"`, v.dataPgtoDisplay || "", `"${obsLimpa}"`]; csvContent += row.join(",") + "\n"; }); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Vendas_Novera_${pfx || 'Tudo'}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
 function copiarFechamento() { const dMesSel = document.getElementById('d-filtro-mes'); const dMesText = dMesSel.options[dMesSel.selectedIndex].text; const dAno = document.getElementById('d-filtro-ano').value || 'Todo o Período'; let lReal = document.getElementById('d-lucro-real').innerText; let entradas = document.getElementById('d-receitas').innerText; let saidas = document.getElementById('d-gastos').innerText; let aReceber = document.getElementById('d-receber').innerText; let patrimonio = document.getElementById('d-patrimonio').innerText; let txt = `📊 *FECHAMENTO NOVERA SCENT* 📊\n🗓️ Período: ${dMesText} ${dAno}\n\n👑 *Patrimônio Total:* ${patrimonio}\n\n📈 *Entradas (Pagas):* ${entradas}\n📉 *Saídas (Gastos):* ${saidas}\n⏳ *A Receber (Fiado):* ${aReceber}\n💰 *Caixa Líquido:* ${lReal}\n\n🤝 *Divisão de Lucros Projetada:*\n`; const fM = document.getElementById('d-filtro-mes').value; const fA = document.getElementById('d-filtro-ano').value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); let mSoc = {}; vDash.forEach(v => { const luc = parseDinheiro(v.lucro); if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); let sociosText = ""; for (let s in mSoc) { sociosText += `▪️ ${s}: ${fmt(mSoc[s])}\n`; } txt += sociosText || "Nenhum lucro.\n"; txt += `\n✨ _Bora pra cima!_ 🚀`; copiarTextoSeguro(txt).then(() => { mostrarAlerta("Copiado!", "Resumo do fechamento copiado.", "success"); }).catch(err => { mostrarAlerta("Erro", "Falha ao copiar texto.", "error"); }); }
 
+// 🏆 FESTA DE CONQUISTA: quando um troféu NOVO chega na sincronização, abre o modal bonitão.
+// A memória de "já vi" fica no aparelho — na primeira vez, marca tudo como visto sem festa
+// (senão choveria troféu retroativo na cara da vendedora rsrs).
+function verificarNovasConquistasUI() {
+    if (!usuarioLogado || !Array.isArray(conquistasGlobal)) return;
+    const minhas = conquistasGlobal.filter(c => normalizarNomeBusca(c.usuario) === normalizarNomeBusca(usuarioLogado));
+    if (!minhas.length) return;
+    const chaveLS = 'novera_conquistas_vistas_' + usuarioLogado.toLowerCase().trim();
+    const chaveDe = (c) => `${c.badgeId}|${c.mes || ''}`;
+    let vistas = null;
+    try { vistas = JSON.parse(localStorage.getItem(chaveLS) || 'null'); } catch (e) { }
+    if (!Array.isArray(vistas)) {
+        localStorage.setItem(chaveLS, JSON.stringify(minhas.map(chaveDe)));
+        return;
+    }
+    const setVistas = new Set(vistas);
+    const novas = minhas.filter(c => !setVistas.has(chaveDe(c)));
+    if (!novas.length) return;
+    novas.forEach(c => setVistas.add(chaveDe(c)));
+    localStorage.setItem(chaveLS, JSON.stringify([...setVistas]));
+    mostrarFestaConquista(novas);
+}
+
+function mostrarFestaConquista(novas) {
+    const antigo = document.getElementById('modal-festa-conquista');
+    if (antigo) antigo.remove();
+    const chips = novas.map(c => `
+        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 14px; margin:6px 0; display:flex; align-items:center; gap:12px;">
+            <span style="font-size:1.9rem; flex-shrink:0;">${c.emoji || '🏆'}</span>
+            <span style="font-weight:800; color:#92400e; font-size:0.85rem; text-align:left;">${c.titulo}</span>
+        </div>`).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-festa-conquista';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.3s ease;';
+    overlay.innerHTML = `
+        <div style="background:linear-gradient(160deg, #ffffff, #fdf5f7); border-radius:24px; max-width:360px; width:100%; padding:28px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #fde68a;">
+            <div style="font-size:1.4rem; letter-spacing:6px;">🎊 ✨ 🎊</div>
+            <div class="fogo-pulso" style="font-size:4rem; display:inline-block; margin:4px 0;">🏆</div>
+            <h3 style="margin:6px 0 2px 0; color:#b45309; font-size:1.2rem; font-weight:900; text-transform:uppercase; letter-spacing:1px;">Conquista Desbloqueada!</h3>
+            <p style="margin:0 0 14px 0; color:#966178; font-size:0.8rem; font-weight:700;">Parabéns, ${usuarioLogado}! 👏</p>
+            ${chips}
+            <p style="margin:12px 0 16px 0; color:#999; font-size:0.7rem; font-style:italic;">Guardado pra sempre na sua 🏛️ Sala de Troféus.</p>
+            <button style="width:100%; background:linear-gradient(90deg,#f59e0b,#b45309); color:#fff; border:none; padding:14px; border-radius:12px; font-weight:900; font-size:0.9rem; cursor:pointer; font-family:'Montserrat', sans-serif; text-transform:uppercase; letter-spacing:1px; box-shadow:0 6px 18px rgba(245,158,11,0.4);" onclick="document.getElementById('modal-festa-conquista').remove()">Bora vender mais! 🚀</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+// 📖 O "porquê" de cada troféu — o critério que a vendedora cumpriu pra ganhar
+function descricaoConquista(badgeId) {
+    const mapa = {
+        itens10: 'Vendeu 10 ou mais itens dentro de um mesmo mês.',
+        itens20: 'Vendeu 20 ou mais itens dentro de um mesmo mês. Ritmo acelerado!',
+        itens50: 'Vendeu 50 ou mais itens num único mês. Máquina de vendas!',
+        vip2k: 'Faturou R$ 2.000 ou mais em vendas dentro de um mesmo mês.',
+        streak3: 'Vendeu por 3 dias seguidos, sem quebrar a corrente.',
+        streak7: 'Vendeu por 7 dias seguidos. Uma semana inteira de fogo!',
+        streak15: 'Vendeu por 15 dias seguidos. Constância de campeã!',
+        streak30: 'Vendeu por 30 dias seguidos. Um mês inteiro sem falhar!',
+        patente_bronze: 'Alcançou R$ 1.000 vendidos no total da carreira.',
+        patente_prata: 'Alcançou R$ 5.000 vendidos no total da carreira.',
+        patente_ouro: 'Alcançou R$ 15.000 vendidos no total da carreira.',
+        patente_diamante: 'Alcançou R$ 50.000 vendidos no total da carreira. Lenda!',
+        coroa_ouro: 'Foi quem mais vendeu na equipe no mês. A número 1! 👑',
+        coroa_prata: 'Ficou em 2º lugar em vendas na equipe no mês.',
+        coroa_bronze: 'Ficou em 3º lugar em vendas na equipe no mês.',
+        mes_sem_fiado: 'Fechou o mês com 5+ vendas e todas recebidas — zero fiado pendente.'
+    };
+    return mapa[badgeId] || 'Conquista especial da Novera.';
+}
+
+// 🏛️ Museu da carreira: modal com a lista detalhada de todos os troféus (o porquê, o dia, o mês)
+function abrirModalSalaTrofeus() {
+    const antigo = document.getElementById('modal-sala-trofeus');
+    if (antigo) antigo.remove();
+    const mesesAbrevM = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const minhas = conquistasGlobal
+        .filter(c => normalizarNomeBusca(c.usuario) === normalizarNomeBusca(usuarioLogado))
+        .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+    if (!minhas.length) return;
+
+    const linhas = minhas.map(c => {
+        let quandoTxt = '';
+        if (c.data) {
+            const [dParte, hParte] = String(c.data).split(' ');
+            const pedacos = (dParte || '').split('-');
+            if (pedacos.length === 3) quandoTxt = `${pedacos[2]}/${pedacos[1]}/${pedacos[0]}${hParte ? ` às ${hParte.substring(0, 5)}` : ''}`;
+        }
+        let mesChip = '';
+        if (c.mes) {
+            const [aM, mM] = c.mes.split('-');
+            mesChip = `<span style="background:#fde68a; color:#92400e; padding:2px 8px; border-radius:10px; font-size:0.58rem; font-weight:900;">${mesesAbrevM[parseInt(mM) - 1] || ''}/${String(aM).slice(2)}</span>`;
+        } else {
+            mesChip = `<span style="background:#e9d5ff; color:#7e22ce; padding:2px 8px; border-radius:10px; font-size:0.58rem; font-weight:900;">CARREIRA</span>`;
+        }
+        return `
+        <div style="display:flex; gap:12px; align-items:flex-start; background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:12px 14px; margin-bottom:8px;">
+            <span style="font-size:2.1rem; flex-shrink:0; line-height:1;">${c.emoji || '🏆'}</span>
+            <div style="flex:1; min-width:0; text-align:left;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <strong style="color:#92400e; font-size:0.85rem;">${c.titulo}</strong>
+                    ${mesChip}
+                </div>
+                <p style="margin:4px 0 0 0; font-size:0.72rem; color:#4A4A4A; line-height:1.4;">${descricaoConquista(c.badgeId)}</p>
+                ${quandoTxt ? `<p style="margin:4px 0 0 0; font-size:0.62rem; color:#b45309; font-weight:700;">🗓️ Conquistado em ${quandoTxt}</p>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-sala-trofeus';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99998; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:linear-gradient(160deg, #ffffff, #fdf5f7); border-radius:24px; max-width:400px; width:100%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #fde68a; overflow:hidden;">
+            <div style="padding:20px 20px 12px 20px; text-align:center; position:relative;">
+                <button onclick="document.getElementById('modal-sala-trofeus').remove()" style="position:absolute; top:12px; right:14px; background:none; border:none; font-size:1.6rem; color:#b45309; cursor:pointer; line-height:1;">&times;</button>
+                <span style="font-size:2.4rem;">🏛️</span>
+                <h3 style="margin:4px 0 2px 0; color:#b45309; font-size:1.1rem; font-weight:900; text-transform:uppercase; letter-spacing:1px;">Minha Sala de Troféus</h3>
+                <p style="margin:0; color:#966178; font-size:0.72rem; font-weight:700;">${minhas.length} conquista${minhas.length > 1 ? 's' : ''} de ${usuarioLogado} — cada uma sua pra sempre 💛</p>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding: 6px 16px 16px 16px;">${linhas}</div>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
 function fazerLogout(motivo) {
-    if (motivo) alert(motivo);
-    localStorage.removeItem('novera_token'); // Exclui o crachá
-    localStorage.removeItem('novera_session_expires');
-    localStorage.removeItem('novera_user_cargo');
-    localStorage.removeItem('novera_admin_token_original'); // Limpa qualquer sessão de "ver como" pendente
-    localStorage.removeItem('novera_admin_user_original');
-    localStorage.removeItem('novera_admin_cargo_original');
-    dadosCarregados = false;
-    window.location.reload();
+    const limparESair = () => {
+        localStorage.removeItem('novera_token'); // Exclui o crachá
+        localStorage.removeItem('novera_session_expires');
+        localStorage.removeItem('novera_user_cargo');
+        localStorage.removeItem('novera_admin_token_original'); // Limpa qualquer sessão de "ver como" pendente
+        localStorage.removeItem('novera_admin_user_original');
+        localStorage.removeItem('novera_admin_cargo_original');
+        dadosCarregados = false;
+        window.location.reload();
+    };
+    if (!motivo) return limparESair();
+
+    // Aviso com a cara da Novera no lugar do alerta genérico do navegador (que expunha o domínio)
+    const overlaySair = document.createElement('div');
+    overlaySair.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlaySair.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:340px; width:100%; padding:30px 25px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.4); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:3rem; margin-bottom:8px;">🔒</div>
+            <h3 style="margin:0 0 8px 0; color:#966178; font-family:'Playfair Display', serif; font-size:1.25rem; letter-spacing:2px; text-transform:uppercase;">Novera Scent</h3>
+            <p style="margin:0 0 20px 0; color:#4A4A4A; font-size:0.9rem; line-height:1.5;">${motivo}</p>
+            <button id="btn-relogin-novera" style="width:100%; background:#B87C96; color:#fff; border:none; padding:14px; border-radius:12px; font-weight:800; font-size:0.9rem; cursor:pointer; font-family:'Montserrat', sans-serif; text-transform:uppercase; letter-spacing:1px; box-shadow:0 5px 15px rgba(184,124,150,0.35);">🔑 Entrar Novamente</button>
+        </div>`;
+    document.body.appendChild(overlaySair);
+    overlaySair.querySelector('#btn-relogin-novera').onclick = limparESair;
 }
 
 function salvarConfiguracoesChaves() {
@@ -5007,6 +5141,7 @@ async function sincronizarDadosSilencioso() {
 
             if (typeof renderizarUsuarios === 'function') renderizarUsuarios();
             if (typeof renderizarClientes === 'function') renderizarClientes();
+            if (typeof verificarNovasConquistasUI === 'function') verificarNovasConquistasUI();
 
             // Refaz o agrupamento de estoque com os dados novos
             estoqueAgrupado = {};
