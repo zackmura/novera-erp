@@ -4508,6 +4508,75 @@ function renderizarDashboard() {
             <strong style="color:#b91c1c; font-size:0.9rem;">${fmt(d.divida)}</strong>
         </div>`).join('') : "<p style='color:#15803d; font-size:0.8rem; font-weight:bold; margin-top:10px;'>Nenhum fiado gerado neste período! 🎉</p>";
 
+    // 🌡️ TERMÔMETRO DE PREÇO: cruza recorrência, encomendas, rupturas e ticket médio pra dizer
+    // se a base de clientes aguenta um aumento. Análise do momento atual (independe do filtro de mês).
+    const hojeTermo = new Date();
+    const isoHojeT = hojeTermo.toISOString().split('T')[0];
+    const mesAtualT = isoHojeT.substring(0, 7);
+    const mesAnteriorT = (() => { const d = new Date(hojeTermo); d.setDate(0); return d.toISOString().substring(0, 7); })();
+    const corte90T = (() => { const d = new Date(hojeTermo); d.setDate(d.getDate() - 90); return d.toISOString().split('T')[0]; })();
+
+    const vendasReaisT = vendasGlobal.filter(v => v.status !== 'Presente' && v.cliente && v.dataVendaIso);
+    const porClienteT = {};
+    vendasReaisT.forEach(v => {
+        const c = normalizarNomeBusca(v.cliente);
+        if (!porClienteT[c]) porClienteT[c] = new Set();
+        porClienteT[c].add(v.dataVendaIso);
+    });
+    const clientesTotaisT = Object.keys(porClienteT).length;
+    const clientesRecorrentesT = Object.values(porClienteT).filter(dias => dias.size >= 2).length;
+    const pctRecorrentes = clientesTotaisT ? (clientesRecorrentesT / clientesTotaisT) * 100 : 0;
+
+    let receita90Total = 0, receita90Recorrentes = 0;
+    vendasReaisT.forEach(v => {
+        if (v.dataVendaIso >= corte90T) {
+            const val = parseDinheiro(v.valor_venda);
+            receita90Total += val;
+            if (porClienteT[normalizarNomeBusca(v.cliente)].size >= 2) receita90Recorrentes += val;
+        }
+    });
+    const pctReceitaRecorrente = receita90Total ? (receita90Recorrentes / receita90Total) * 100 : 0;
+
+    const encMesT = encomendasGlobal.filter(e => e.dataPedido && String(e.dataPedido).startsWith(mesAtualT)).length;
+    const vendeuNoMesSetT = new Set(vendasReaisT.filter(v => v.dataVendaIso.startsWith(mesAtualT)).map(v => padronizarTexto(v.produto)));
+    const rupturasMesT = Object.keys(estoqueAgrupado).filter(k => (estoqueAgrupado[k].totalQtd || 0) <= 0 && vendeuNoMesSetT.has(k)).length;
+
+    const calcPedidosT = (pfxMes) => {
+        const doMes = vendasReaisT.filter(v => v.dataVendaIso.startsWith(pfxMes));
+        const pedidos = new Set(doMes.map(v => v.dataVendaIso + '|' + normalizarNomeBusca(v.cliente)));
+        const valor = doMes.reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+        return pedidos.size ? valor / pedidos.size : 0;
+    };
+    const ticketAtualT = calcPedidosT(mesAtualT), ticketAntT = calcPedidosT(mesAnteriorT);
+
+    let pontosTermo = 0; const sinaisTermo = [];
+    if (pctRecorrentes >= 40) { pontosTermo += 2; sinaisTermo.push(`🟢 <b>${pctRecorrentes.toFixed(0)}%</b> dos ${clientesTotaisT} clientes voltam a comprar — fidelidade forte`); }
+    else if (pctRecorrentes >= 25) { pontosTermo += 1; sinaisTermo.push(`🟡 <b>${pctRecorrentes.toFixed(0)}%</b> dos ${clientesTotaisT} clientes voltam a comprar — fidelidade média`); }
+    else sinaisTermo.push(`🔴 Só <b>${pctRecorrentes.toFixed(0)}%</b> dos clientes recompram — fortaleça a base antes de mexer no preço`);
+    if (pctReceitaRecorrente >= 50) { pontosTermo += 1; sinaisTermo.push(`🟢 <b>${pctReceitaRecorrente.toFixed(0)}%</b> do faturamento dos últimos 90 dias vem de quem volta — dependência saudável da Novera`); }
+    else sinaisTermo.push(`🟡 <b>${pctReceitaRecorrente.toFixed(0)}%</b> do faturamento dos últimos 90 dias vem de quem volta`);
+    if (encMesT >= 5) { pontosTermo += 2; sinaisTermo.push(`🟢 <b>${encMesT}</b> encomenda(s) este mês — gente aceitando ESPERAR pra comprar: demanda maior que a oferta`); }
+    else if (encMesT >= 2) { pontosTermo += 1; sinaisTermo.push(`🟡 <b>${encMesT}</b> encomenda(s) este mês — demanda aquecendo`); }
+    else sinaisTermo.push(`⚪ ${encMesT} encomenda(s) este mês`);
+    if (rupturasMesT >= 3) { pontosTermo += 1; sinaisTermo.push(`🟢 <b>${rupturasMesT}</b> produto(s) venderam até ZERAR este mês — estavam baratos pra procura que têm`); }
+    else if (rupturasMesT > 0) sinaisTermo.push(`🟡 ${rupturasMesT} produto(s) zeraram este mês`);
+    if (ticketAntT > 0 && ticketAtualT >= ticketAntT) { pontosTermo += 1; sinaisTermo.push(`🟢 Ticket médio subindo: ${fmt(ticketAntT)} → <b>${fmt(ticketAtualT)}</b> — pouca resistência a gastar`); }
+    else if (ticketAntT > 0) sinaisTermo.push(`🟡 Ticket médio: ${fmt(ticketAntT)} → ${fmt(ticketAtualT)}`);
+
+    let vereditoTermo, corTermo, fundoTermo;
+    if (pontosTermo >= 5) { vereditoTermo = '🟢 MOMENTO FAVORÁVEL: sua base aguenta um teste de aumento. Comece com +R$ 5 a 10 nos campeões (os que zeraram ou têm encomenda), conte a história da qualidade (concentração premium + 20 dias de maceração) e acompanhe a recompra aqui por 60 dias.'; corTermo = '#15803d'; fundoTermo = '#f0fdf4'; }
+    else if (pontosTermo >= 3) { vereditoTermo = '🟡 QUASE LÁ: já existem sinais bons. Teste aumento SÓ nos produtos que zeraram ou têm encomenda, e trabalhe a recorrência dos demais (radar de recompra, aniversários, clientes sumidos).'; corTermo = '#b45309'; fundoTermo = '#fffbeb'; }
+    else { vereditoTermo = '🔴 SEGURE O PREÇO: primeiro fortaleça a recorrência (radar de recompra, aniversários, reconquista dos sumidos) — e volte aqui no mês que vem.'; corTermo = '#b91c1c'; fundoTermo = '#fef2f2'; }
+
+    const htmlTermometro = `
+        <div class="dash-card" style="grid-column: span 2; padding: 18px; border: 2px solid ${corTermo}; background: ${fundoTermo};">
+            <h3 style="color:${corTermo}; font-size:0.9rem; font-weight:900; text-align:center; margin:0 0 4px 0;">🌡️ TERMÔMETRO DE PREÇO</h3>
+            <p style="font-size:0.62rem; color:#888; text-align:center; margin:0 0 12px 0;">A base aguenta um aumento? Análise de agora — independe do filtro de mês</p>
+            <div style="background:#fff; border:1px solid ${corTermo}; border-radius:10px; padding:12px 14px; font-size:0.78rem; font-weight:800; color:${corTermo}; line-height:1.5; margin-bottom:12px;">${vereditoTermo}</div>
+            <div style="font-size:0.72rem; color:#4A4A4A; line-height:2;">${sinaisTermo.map(s => `• ${s}`).join('<br>')}</div>
+            <p style="font-size:0.6rem; color:#999; margin:10px 0 0 0; font-style:italic;">Depois de aumentar, a métrica-juíza: as unidades caíram menos do que a margem subiu? Acompanhe aqui por 60 dias.</p>
+        </div>`;
+
     const corLucro = lReal < 0 ? "#b91c1c" : "#15803d";
     const corLucroTotal = tLucroTotal < 0 ? "#b91c1c" : "#7c3aed";
     const margemMedia = tCustoTotal > 0 ? (tLucroTotal / tCustoTotal) * 100 : 0;
@@ -4694,6 +4763,8 @@ function renderizarDashboard() {
                 <div id="d-ranking-sumidos">${listaSumidos}</div>
                 <p style="font-size:0.6rem; color:#a78bfa; margin:8px 0 0 0; font-style:italic;">Quem mais gastava aparece primeiro — são os melhores para chamar de volta. Vale para o histórico todo, independente do mês filtrado.</p>
             </div>
+
+            ${htmlTermometro}
 
             <div class="dash-card" style="padding: 15px;">
                 <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS 👆</h3>
