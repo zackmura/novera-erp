@@ -1,4 +1,4 @@
-const VERSAO_ATUAL_SISTEMA = "8.8.0";
+const VERSAO_ATUAL_SISTEMA = "8.9.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
