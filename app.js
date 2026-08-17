@@ -25,6 +25,95 @@ function alternarModoEscuro() {
 
 document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
+// ==========================================
+// 🎨 IDENTIDADE VISUAL (Degrau 1 do white-label)
+// Nome, logo e paleta configuráveis pela Diretoria em Parâmetros Globais.
+// Tudo vive na tabela de configurações — nenhuma tabela nova.
+// ==========================================
+const IDENTIDADE_PADRAO = {
+    marca_nome: 'Novera Scent',
+    marca_logo_url: '',
+    cor_primaria: '#b87c96',
+    cor_primaria_escura: '#966178',
+    cor_fundo_claro: '#fdfbfb',
+    cor_fundo_escuro: '#1d1522',
+    cor_painel_escuro: '#3b3050',
+    cor_superficie_escura: '#453a5c'
+};
+
+// Mistura a cor com branco (fator 0 a 1) — usada pra derivar tons combinando, sem pedir mais cores
+function clarearCor(hex, fator) {
+    const h = String(hex || '').replace('#', '');
+    if (h.length !== 6) return hex;
+    const mix = (i) => Math.round(parseInt(h.substr(i, 2), 16) * (1 - fator) + 255 * fator).toString(16).padStart(2, '0');
+    return '#' + mix(0) + mix(2) + mix(4);
+}
+function corComAlpha(hex, alpha) {
+    const h = String(hex || '').replace('#', '');
+    if (h.length !== 6) return hex;
+    return `rgba(${parseInt(h.substr(0, 2), 16)}, ${parseInt(h.substr(2, 2), 16)}, ${parseInt(h.substr(4, 2), 16)}, ${alpha})`;
+}
+
+function aplicarIdentidadeVisual(valores) {
+    const v = { ...IDENTIDADE_PADRAO };
+    Object.keys(IDENTIDADE_PADRAO).forEach(k => { if (valores && valores[k]) v[k] = valores[k]; });
+
+    let estilo = document.getElementById('estilo-identidade');
+    if (!estilo) { estilo = document.createElement('style'); estilo.id = 'estilo-identidade'; document.head.appendChild(estilo); }
+    estilo.textContent = `
+        :root { --primary: ${v.cor_primaria}; --primary-dark: ${v.cor_primaria_escura}; --logo-text: ${clarearCor(v.cor_primaria_escura, 0.15)}; --bg-color: ${v.cor_fundo_claro}; }
+        html.tema-escuro { --primary-dark: ${clarearCor(v.cor_primaria_escura, 0.45)}; --shell-bg: ${v.cor_fundo_escuro}; --bg-color: ${clarearCor(v.cor_fundo_escuro, 0.06)}; --card-bg: ${v.cor_painel_escuro}; --shell-sidebar-bg: ${v.cor_painel_escuro}; --shell-more-bg: ${clarearCor(v.cor_painel_escuro, 0.06)}; --shell-nav-bg: ${corComAlpha(v.cor_painel_escuro, 0.97)}; --shell-desktop-bg: ${v.cor_fundo_escuro}; }
+        html.tema-escuro .rotulo-card, html.tema-escuro .dash-card, html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea, html.tema-escuro .sub-nav-container { background: ${v.cor_superficie_escura}; }
+        html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: ${clarearCor(v.cor_superficie_escura, 0.06)}; }
+        html.tema-escuro [style*="background:#fff"], html.tema-escuro [style*="background: #fff"],
+        html.tema-escuro [style*="background:#ffffff"], html.tema-escuro [style*="background: #ffffff"],
+        html.tema-escuro [style*="background-color: #ffffff"], html.tema-escuro [style*="background-color:#fff"] { background: ${v.cor_superficie_escura} !important; }
+        html.tema-escuro [style*="background:#fdf5f7"], html.tema-escuro [style*="background: #fdf5f7"],
+        html.tema-escuro [style*="background:#fff9e6"], html.tema-escuro [style*="background: #fff9e6"],
+        html.tema-escuro [style*="background:#f0f9ff"], html.tema-escuro [style*="background: #f0f9ff"],
+        html.tema-escuro [style*="background:#fafafa"], html.tema-escuro [style*="background: #fafafa"],
+        html.tema-escuro [style*="background:#f8fafc"], html.tema-escuro [style*="background: #f8fafc"] { background: ${clarearCor(v.cor_superficie_escura, 0.04)} !important; }`;
+
+    // Nome e logo da marca em todo o app
+    document.querySelectorAll('.header h1').forEach(h => { h.innerText = v.marca_nome; });
+    document.title = `${v.marca_nome} | ERP`;
+    document.querySelectorAll('img.logo').forEach(img => { img.src = v.marca_logo_url || 'logo.png'; });
+
+    try { localStorage.setItem('novera_identidade', JSON.stringify(v)); } catch (e) { }
+}
+
+// Na abertura, aplica a última identidade conhecida na hora (sem esperar o servidor responder)
+try { aplicarIdentidadeVisual(JSON.parse(localStorage.getItem('novera_identidade') || 'null') || {}); } catch (e) { }
+
+function lerIdentidadeDosInputs() {
+    const pega = (id, padrao) => { const el = document.getElementById(id); return el && el.value ? el.value : padrao; };
+    return {
+        marca_nome: String(pega('cfg-marca-nome', IDENTIDADE_PADRAO.marca_nome)).trim() || IDENTIDADE_PADRAO.marca_nome,
+        marca_logo_url: String(pega('cfg-marca-logo', '')).trim(),
+        cor_primaria: pega('cfg-cor-primaria', IDENTIDADE_PADRAO.cor_primaria),
+        cor_primaria_escura: pega('cfg-cor-primaria-escura', IDENTIDADE_PADRAO.cor_primaria_escura),
+        cor_fundo_claro: pega('cfg-cor-fundo-claro', IDENTIDADE_PADRAO.cor_fundo_claro),
+        cor_fundo_escuro: pega('cfg-cor-fundo-escuro', IDENTIDADE_PADRAO.cor_fundo_escuro),
+        cor_painel_escuro: pega('cfg-cor-painel-escuro', IDENTIDADE_PADRAO.cor_painel_escuro),
+        cor_superficie_escura: pega('cfg-cor-superficie-escura', IDENTIDADE_PADRAO.cor_superficie_escura)
+    };
+}
+
+function previewIdentidadeVisual() { aplicarIdentidadeVisual(lerIdentidadeDosInputs()); }
+
+function restaurarIdentidadePadrao() {
+    const setar = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    setar('cfg-marca-nome', IDENTIDADE_PADRAO.marca_nome);
+    setar('cfg-marca-logo', '');
+    setar('cfg-cor-primaria', IDENTIDADE_PADRAO.cor_primaria);
+    setar('cfg-cor-primaria-escura', IDENTIDADE_PADRAO.cor_primaria_escura);
+    setar('cfg-cor-fundo-claro', IDENTIDADE_PADRAO.cor_fundo_claro);
+    setar('cfg-cor-fundo-escuro', IDENTIDADE_PADRAO.cor_fundo_escuro);
+    setar('cfg-cor-painel-escuro', IDENTIDADE_PADRAO.cor_painel_escuro);
+    setar('cfg-cor-superficie-escura', IDENTIDADE_PADRAO.cor_superficie_escura);
+    aplicarIdentidadeVisual(IDENTIDADE_PADRAO);
+}
+
 // 📸 REGRA DE OURO DAS IMAGENS: recibo, cobrança, etiqueta, QR e catálogo saem SEMPRE no visual
 // claro Novera (identidade da marca), não importa o tema do app. A "foto" é tirada de um clone
 // da página — aqui tiramos o tema escuro do clone antes do clique.
@@ -1058,6 +1147,24 @@ function renderizarProducao() {
             const btnExcluirProd = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px;" onclick="prepararExclusaoRegistro('Produção', ${p.linha}, 'Lote: ${p.nome_produto}')" title="Cancelar Produção">🗑️</button>` : '';
             const btnFinalizarProd = isAdmin ? `<button class="btn-salvar" style="margin:0; padding:10px 20px; font-size:0.8rem; background:#2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3);" onclick="abrirModalFinalizarProducao(${p.linha})">✔️ FINALIZAR LOTE</button>` : '';
 
+            // 🖨️ Controle de caixinhas 3D do lote (só Admin): marca conforme sai da impressora, direto da tela
+            let htmlCaixas = '';
+            if (isAdmin) {
+                const metaCx = parseFloat(p.qtd_prevista) || 0;
+                const cxProntas = parseInt(p.caixas_prontas) || 0;
+                const cxCompletas = metaCx > 0 && cxProntas >= metaCx;
+                const btnCompletarCx = !cxCompletas ? `<button class="btn-acao" style="width:34px; height:34px; font-weight:900; background:#dcfce7; color:#15803d; border-color:#86efac;" onclick="definirCaixasProducao(${p.linha}, ${metaCx})" title="Marcar TODAS como impressas">✔</button>` : '';
+                htmlCaixas = `
+                <div style="margin-top:10px; background:${cxCompletas ? '#f0fdf4' : '#fdf5f7'}; border:1px dashed ${cxCompletas ? '#86efac' : '#f3d8e2'}; border-radius:8px; padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                    <span onclick="digitarCaixasProducao(${p.linha})" title="Toque para digitar a quantidade exata" style="font-size:0.72rem; font-weight:800; cursor:pointer; text-decoration:underline dotted; color:${cxCompletas ? '#15803d' : 'var(--primary-dark)'};">🖨️ Caixinhas 3D: ${cxProntas}/${metaCx}${cxCompletas ? ' — ✅ todas impressas!' : ` (faltam ${Math.max(0, metaCx - cxProntas)})`}</span>
+                    <span style="display:flex; gap:6px;">
+                        <button class="btn-acao" style="width:34px; height:34px; font-weight:900;" onclick="ajustarCaixasProducao(${p.linha}, -1)" title="Tirar uma">−</button>
+                        <button class="btn-acao" style="width:34px; height:34px; font-weight:900; background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="ajustarCaixasProducao(${p.linha}, 1)" title="Mais uma impressa">+</button>
+                        ${btnCompletarCx}
+                    </span>
+                </div>`;
+            }
+
             html += `
             <div class="rotulo-card card-producao-list" style="border-left: 5px solid ${corTextoGen}; border-radius: 8px; padding: 15px;">
                 <div class="prod-info-main" style="flex:1;">
@@ -1068,6 +1175,7 @@ function renderizarProducao() {
                     <p style="font-size: 0.75rem; color: var(--brand-dark); font-weight: 700; margin: 0 0 5px 0;">🧪 ${textoMacerando}</p>
                     <p style="font-size: 0.65rem; color: #888; margin: 0;">📅 Iniciado em: ${dataBR(p.data_inicio)}</p>
                     ${badgeAlertaFabrica}
+                    ${htmlCaixas}
                 </div>
 
                 <div class="prod-actions">
@@ -4957,6 +5065,48 @@ function renderizarDashboard() {
     }
 }
 
+// 🖨️ CAIXINHAS 3D — três jeitos de lançar: −/+ (fino), ✔ (completa o lote) e toque no número (digita exato)
+function enviarCaixasProducao(p, corpo) {
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'atualizar_caixas_producao', linha: p.linha, ...corpo }) })
+        .then(r => r.json())
+        .then(res => {
+            // Se o banco tiver um número diferente (ex: dois aparelhos mexendo), a verdade do banco vence
+            if (res && res.sucesso && typeof res.caixas === 'number' && res.caixas !== (parseInt(p.caixas_prontas) || 0)) {
+                p.caixas_prontas = res.caixas;
+                renderizarProducao();
+            }
+        })
+        .catch(() => { /* sem stress: a próxima sincronização acerta o número */ });
+}
+
+function ajustarCaixasProducao(linha, delta) {
+    const p = producaoGlobal.find(x => x.linha == linha);
+    if (!p) return;
+    const atual = parseInt(p.caixas_prontas) || 0;
+    if (delta < 0 && atual <= 0) return;
+    p.caixas_prontas = Math.max(0, atual + delta);
+    renderizarProducao();
+    enviarCaixasProducao(p, { delta: delta });
+}
+
+function definirCaixasProducao(linha, valor) {
+    const p = producaoGlobal.find(x => x.linha == linha);
+    if (!p) return;
+    p.caixas_prontas = Math.max(0, parseInt(valor) || 0);
+    renderizarProducao();
+    enviarCaixasProducao(p, { definir: p.caixas_prontas });
+}
+
+async function digitarCaixasProducao(linha) {
+    const p = producaoGlobal.find(x => x.linha == linha);
+    if (!p) return;
+    const resposta = await pedirNomeDocumento(String(parseInt(p.caixas_prontas) || 0), `🖨️ Quantas caixinhas prontas de ${p.nome_produto}?`);
+    if (resposta === null) return;
+    const n = parseInt(String(resposta).replace(/\D/g, ''));
+    if (isNaN(n)) return mostrarAlerta("Aviso", "Digite só o número de caixinhas. Ex: 15", "warning");
+    definirCaixasProducao(linha, n);
+}
+
 function abrirModalRelatorios() { document.getElementById('modal-relatorios').style.display = 'flex'; }
 function exportarExcel() { const dMes = document.getElementById('d-filtro-mes').value; const dAno = document.getElementById('d-filtro-ano').value; let pfx = dAno && dMes ? `${dAno}-${dMes}` : dAno; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); if (vDash.length === 0) return mostrarAlerta("Aviso", "Nenhuma venda neste período.", "warning"); let csvContent = "data:text/csv;charset=utf-8,Data,Cliente,Produto,Socio,Quantidade,Valor,Status,Custo Und,Custo Total,Lucro,Markup,Data Pagamento,Observacao\n"; vDash.forEach(v => { let obsLimpa = v.observacao ? v.observacao.replace(/\n/g, ' ').replace(/"/g, '""') : ''; let row = [v.dataVendaDisplay, `"${v.cliente}"`, `"${v.produto}"`, v.socio, v.qtd, `"${v.valor_venda}"`, v.status, `"${v.custo_und}"`, `"${v.custo_total}"`, `"${v.lucro}"`, `"${v.markup}"`, v.dataPgtoDisplay || "", `"${obsLimpa}"`]; csvContent += row.join(",") + "\n"; }); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Vendas_Novera_${pfx || 'Tudo'}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
 function copiarFechamento() { const dMesSel = document.getElementById('d-filtro-mes'); const dMesText = dMesSel.options[dMesSel.selectedIndex].text; const dAno = document.getElementById('d-filtro-ano').value || 'Todo o Período'; let lReal = document.getElementById('d-lucro-real').innerText; let entradas = document.getElementById('d-receitas').innerText; let saidas = document.getElementById('d-gastos').innerText; let aReceber = document.getElementById('d-receber').innerText; let patrimonio = document.getElementById('d-patrimonio').innerText; let txt = `📊 *FECHAMENTO NOVERA SCENT* 📊\n🗓️ Período: ${dMesText} ${dAno}\n\n👑 *Patrimônio Total:* ${patrimonio}\n\n📈 *Entradas (Pagas):* ${entradas}\n📉 *Saídas (Gastos):* ${saidas}\n⏳ *A Receber (Fiado):* ${aReceber}\n💰 *Caixa Líquido:* ${lReal}\n\n🤝 *Divisão de Lucros Projetada:*\n`; const fM = document.getElementById('d-filtro-mes').value; const fA = document.getElementById('d-filtro-ano').value; let pfx = fA && fM ? `${fA}-${fM}` : fA; const vDash = vendasGlobal.filter(v => pfx ? (v.dataVendaIso && v.dataVendaIso.startsWith(pfx)) : true); let mSoc = {}; vDash.forEach(v => { const luc = parseDinheiro(v.lucro); if (v.socio) mSoc[v.socio] = (mSoc[v.socio] || 0) + luc; }); let sociosText = ""; for (let s in mSoc) { sociosText += `▪️ ${s}: ${fmt(mSoc[s])}\n`; } txt += sociosText || "Nenhum lucro.\n"; txt += `\n✨ _Bora pra cima!_ 🚀`; copiarTextoSeguro(txt).then(() => { mostrarAlerta("Copiado!", "Resumo do fechamento copiado.", "success"); }).catch(err => { mostrarAlerta("Erro", "Falha ao copiar texto.", "error"); }); }
@@ -6574,6 +6724,15 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
 
+    // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
+    if(document.getElementById('cfg-marca-nome')) document.getElementById('cfg-marca-nome').value = configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome;
+    if(document.getElementById('cfg-marca-logo')) document.getElementById('cfg-marca-logo').value = configuracoesGlobais.marca_logo_url || '';
+    [['cfg-cor-primaria', 'cor_primaria'], ['cfg-cor-primaria-escura', 'cor_primaria_escura'], ['cfg-cor-fundo-claro', 'cor_fundo_claro'], ['cfg-cor-fundo-escuro', 'cor_fundo_escuro'], ['cfg-cor-painel-escuro', 'cor_painel_escuro'], ['cfg-cor-superficie-escura', 'cor_superficie_escura']].forEach(([id, chave]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = configuracoesGlobais[chave] || IDENTIDADE_PADRAO[chave];
+    });
+    aplicarIdentidadeVisual(configuracoesGlobais);
+
     const arrTipos = (configuracoesGlobais.tipos_produto || '').split(',').map(s => s.trim()).filter(s => s);
     if(document.getElementById('lista-tipos-finais')) document.getElementById('lista-tipos-finais').innerHTML = arrTipos.map(t => `<option value="${t}">`).join('');
 
@@ -6606,7 +6765,8 @@ function salvarParametrosSistema() {
                 dias_estoque_parado: diasParado,
                 tipos_produto: tipos,
                 categorias_compras: cats,
-                locais_estoque: locais
+                locais_estoque: locais,
+                ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
             }
         })
     })

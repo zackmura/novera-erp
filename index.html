@@ -1541,7 +1541,32 @@
                 <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Locais de Estoque Padrões (Separados por vírgula)</label>
                 <input type="text" id="cfg-locais" placeholder="Ex: Sede, Carro..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
             </div>
-            
+
+            <div style="margin: 20px 0 5px 0; color: #7c3aed; border-left: 4px solid #7c3aed; padding-left: 10px; font-size: 1rem; font-weight: 900;">🎨 Identidade Visual</div>
+            <p style="font-size:0.7rem; color:#888; margin: 5px 0 12px 0;">A cara do app: nome, logo e paleta. Mexeu na cor, a tela já mostra na hora (pré-visualização) — só grava de verdade no "Salvar e Aplicar".</p>
+
+            <div class="input-group" style="margin-bottom: 10px;">
+                <label>Nome da Marca (aparece no topo do app)</label>
+                <input type="text" id="cfg-marca-nome" placeholder="Ex: Novera Scent" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            <div class="input-group" style="margin-bottom: 12px;">
+                <label>Logo (link da imagem — vazio = logo Novera)</label>
+                <input type="text" id="cfg-marca-logo" placeholder="https://... (opcional)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Cor Primária (botões/destaques)</label><input type="color" id="cfg-cor-primaria" value="#B87C96" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Cor Escura da Marca (títulos)</label><input type="color" id="cfg-cor-primaria-escura" value="#966178" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Fundo do Tema Claro</label><input type="color" id="cfg-cor-fundo-claro" value="#fdfbfb" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Fundo do Tema Escuro</label><input type="color" id="cfg-cor-fundo-escuro" value="#1d1522" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Painel do Tema Escuro</label><input type="color" id="cfg-cor-painel-escuro" value="#3b3050" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Cartões/Campos (Escuro)</label><input type="color" id="cfg-cor-superficie-escura" value="#453a5c" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <button type="button" style="background: #fff; width: 100%; padding: 10px; border: 1px dashed #7c3aed; color: #7c3aed; border-radius: 8px; font-weight: 800; font-size: 0.8rem; cursor: pointer; margin-bottom: 15px;" onclick="restaurarIdentidadePadrao()">↩️ Restaurar Padrão Novera</button>
+
             <button style="background: #b45309; width: 100%; padding: 12px; border: none; color: white; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarParametrosSistema()">💾 Salvar e Aplicar</button>
         </div>
     </div>
