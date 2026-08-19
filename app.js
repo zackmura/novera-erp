@@ -864,8 +864,10 @@ function renderizarRotulos() {
                 <p style="margin:0; font-size:0.75rem; color:#666;">Cód Fornecedor: <b style="color: var(--brand-dark); font-size: 0.85rem;">${r.codigo_forn || '-'}</b></p>
             </div>` : '';
             
+        const temFicha = !!(r.ficha && String(r.ficha).trim());
         let divBotoesRotulo = isAdmin ? `
             <div style="display:flex; align-items:center; gap:6px;">
+                <button class="btn-acao" style="width:36px; height:36px; ${temFicha ? 'background:#fef3c7; color:#b45309; border-color:#fde68a;' : ''}" onclick="abrirFichaOlfativa(${r.linha})" title="${temFicha ? 'Ficha olfativa pronta — toque para editar' : 'Criar ficha olfativa (IA)'}">✨</button>
                 <button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarRotulo(${r.linha})" title="Editar">✏️</button>
                 <button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Tabela Rotulo Novera', ${r.linha}, 'Rótulo: ${r.codigo}')" title="Excluir">🗑️</button>
             </div>` : '';
@@ -2102,6 +2104,12 @@ async function gerarCatalogoPDFFrontend() {
         const qtdHtml = exibirQtd ? (e.totalQtd > 0
             ? `<div style="font-size: 9px; color: #2e7d32; font-weight: 800; margin-top: 5px;">📦 ${e.totalQtd} un disponíveis</div>`
             : `<div style="font-size: 9px; color: #991b1b; font-weight: 800; margin-top: 5px;">🚫 SOB ENCOMENDA</div>`) : "";
+        // ✨ Ficha olfativa (se existir) deixa o cartão com cara de catálogo de perfumaria de verdade
+        const rotCat = rotulosGlobal.find(rr => rr.codigo === e.codigo);
+        const fichaCat = rotCat ? lerFichaDoRotulo(rotCat) : null;
+        const htmlFichaCat = (fichaCat && fichaCat.descricao) ? `
+                <div style="font-size: 8.5px; color: #8b7280; font-style: italic; line-height: 1.35; margin: 4px 0 2px 0;">“${String(fichaCat.descricao).substring(0, 170)}”</div>
+                ${fichaCat.notas_saida ? `<div style="font-size: 7.5px; color: #a58a97; line-height: 1.45;"><b>Saída:</b> ${fichaCat.notas_saida} &nbsp;·&nbsp; <b>Coração:</b> ${fichaCat.notas_coracao || '—'} &nbsp;·&nbsp; <b>Fundo:</b> ${fichaCat.notas_fundo || '—'}</div>` : ''}` : '';
         return `<div style="flex: 1; min-width: 0; border: 1px solid #eadfe4; border-radius: 14px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
             ${imgTag}
             <div style="flex: 1; min-width: 0; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;">
@@ -2109,6 +2117,7 @@ async function gerarCatalogoPDFFrontend() {
                 <div style="font-size: 7px; color: #b8a0ab; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px;">Inspiração</div>
                 <div style="font-weight: 700; font-size: 12.5px; color: #2C2A2B; line-height: 1.25; margin: 2px 0 3px 0;">${nomeSemTipo}</div>
                 <div style="font-size: 9px; color: #999;">${iconeGeneroCat(e.genero)}</div>
+                ${htmlFichaCat}
                 <div style="font-weight: 800; font-size: 16px; color: #966178; margin-top: 5px;">${safeFmt(e.preco)}</div>
                 ${qtdHtml}
             </div>
@@ -5105,6 +5114,133 @@ async function digitarCaixasProducao(linha) {
     const n = parseInt(String(resposta).replace(/\D/g, ''));
     if (isNaN(n)) return mostrarAlerta("Aviso", "Digite só o número de caixinhas. Ex: 15", "warning");
     definirCaixasProducao(linha, n);
+}
+
+// ==========================================
+// ✨ FICHA OLFATIVA COM IA (Gemini)
+// A IA sugere dentro de um molde rígido (JSON, tamanhos limitados, tom de perfumaria,
+// sem alegação medicinal) e o Admin revisa/edita antes de salvar. Enriquece o catálogo PDF.
+// ==========================================
+function lerFichaDoRotulo(r) {
+    try { const f = JSON.parse(r.ficha || 'null'); return (f && typeof f === 'object') ? f : null; } catch (e) { return null; }
+}
+
+async function gerarFichaComIA(essencia, genero) {
+    const chave = localStorage.getItem('novera_ai_key');
+    if (!chave) { const e = new Error('SEM_CHAVE'); e.semChave = true; throw e; }
+    const prompt = `Você é um redator de alta perfumaria brasileiro. Crie a ficha olfativa de um perfume artesanal inspirado em "${essencia}" (gênero olfativo: ${genero || 'Unissex'}).
+Responda APENAS um JSON válido, sem markdown, exatamente neste formato:
+{"descricao":"1 a 2 frases sedutoras, máximo 160 caracteres","notas_saida":"2 a 3 notas separadas por vírgula","notas_coracao":"2 a 3 notas separadas por vírgula","notas_fundo":"2 a 3 notas separadas por vírgula","dica":"1 frase de dica de aplicação, máximo 120 caracteres","ingredientes":"lista curta e genérica de ingredientes cosméticos, máximo 140 caracteres"}
+Regras: português do Brasil; tom elegante e comercial; notas coerentes com o perfil olfativo do perfume que inspirou; NÃO cite o nome da marca original na descrição; NÃO faça alegações medicinais.`;
+
+    const modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    let ultimoErro = null;
+    for (const modelo of modelos) {
+        try {
+            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${chave}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } })
+            });
+            if (resp.status === 404) continue; // modelo indisponível nessa conta: tenta o próximo
+            const dados = await resp.json();
+            if (!resp.ok) { ultimoErro = new Error((dados.error && dados.error.message) || `HTTP ${resp.status}`); continue; }
+            const texto = dados.candidates && dados.candidates[0] && dados.candidates[0].content && dados.candidates[0].content.parts[0].text;
+            const ficha = JSON.parse(String(texto).replace(/```json|```/g, '').trim());
+            if (!ficha.descricao) throw new Error('Resposta sem descrição');
+            return ficha;
+        } catch (e) { ultimoErro = e; }
+    }
+    throw ultimoErro || new Error('Falha na IA');
+}
+
+function abrirFichaOlfativa(linha) {
+    const r = rotulosGlobal.find(x => x.linha == linha);
+    if (!r) return;
+    document.getElementById('fo-linha').value = linha;
+    document.getElementById('fo-titulo').innerText = `${r.codigo || ''} — Inspiração: ${r.essencia} (${r.genero || 'Unissex'})`;
+    const f = lerFichaDoRotulo(r) || {};
+    document.getElementById('fo-descricao').value = f.descricao || '';
+    document.getElementById('fo-saida').value = f.notas_saida || '';
+    document.getElementById('fo-coracao').value = f.notas_coracao || '';
+    document.getElementById('fo-fundo').value = f.notas_fundo || '';
+    document.getElementById('fo-dica').value = f.dica || '';
+    document.getElementById('fo-ingredientes').value = f.ingredientes || '';
+    document.getElementById('modal-ficha-olfativa').style.display = 'flex';
+}
+
+async function gerarFichaIAModal() {
+    const linha = document.getElementById('fo-linha').value;
+    const r = rotulosGlobal.find(x => x.linha == linha);
+    if (!r) return;
+    const btn = document.getElementById('btn-gerar-ficha-ia');
+    btn.disabled = true; btn.innerText = '✨ Criando a ficha... (uns segundinhos)';
+    try {
+        const f = await gerarFichaComIA(r.essencia, r.genero);
+        document.getElementById('fo-descricao').value = f.descricao || '';
+        document.getElementById('fo-saida').value = f.notas_saida || '';
+        document.getElementById('fo-coracao').value = f.notas_coracao || '';
+        document.getElementById('fo-fundo').value = f.notas_fundo || '';
+        document.getElementById('fo-dica').value = f.dica || '';
+        document.getElementById('fo-ingredientes').value = f.ingredientes || '';
+    } catch (e) {
+        if (e.semChave) mostrarAlerta("Falta a chave da IA", "Crie sua chave gratuita em aistudio.google.com/apikey e cole no campo 'Chave Gemini API' (⚙️ Ajustes).", "warning");
+        else mostrarAlerta("Erro na IA", e.message || "Falha ao gerar. Tente de novo.", "error");
+    } finally {
+        btn.disabled = false; btn.innerText = '✨ Gerar com IA (você revisa antes de salvar)';
+    }
+}
+
+function salvarFichaOlfativa() {
+    const linha = document.getElementById('fo-linha').value;
+    const r = rotulosGlobal.find(x => x.linha == linha);
+    if (!r) return;
+    const ficha = {
+        descricao: document.getElementById('fo-descricao').value.trim(),
+        notas_saida: document.getElementById('fo-saida').value.trim(),
+        notas_coracao: document.getElementById('fo-coracao').value.trim(),
+        notas_fundo: document.getElementById('fo-fundo').value.trim(),
+        dica: document.getElementById('fo-dica').value.trim(),
+        ingredientes: document.getElementById('fo-ingredientes').value.trim()
+    };
+    mostrarLoading("Salvando ficha...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_ficha_rotulo', linha: linha, ficha: JSON.stringify(ficha), log_detalhe: `✨ Ficha olfativa de [${r.codigo}] ${r.essencia}` }) })
+        .then(res => res.json())
+        .then(res => {
+            if (res.sucesso) {
+                r.ficha = JSON.stringify(ficha); // atualiza local na hora
+                renderizarRotulos();
+                document.getElementById('modal-ficha-olfativa').style.display = 'none';
+                mostrarAlerta("Salvo!", "Ficha olfativa guardada. Ela já entra no próximo catálogo PDF!", "success");
+            } else mostrarAlerta("Erro", res.erro || "Falha ao salvar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+}
+
+// Gera em série todas as fichas que ainda não existem (com pausa entre chamadas pra respeitar a IA)
+async function gerarFichasEmFalta() {
+    const semFicha = rotulosGlobal.filter(r => !lerFichaDoRotulo(r));
+    if (!semFicha.length) return mostrarAlerta("Tudo pronto!", "Todas as essências já têm ficha olfativa. ✨", "success");
+    if (!localStorage.getItem('novera_ai_key')) return mostrarAlerta("Falta a chave da IA", "Crie sua chave gratuita em aistudio.google.com/apikey e cole no campo 'Chave Gemini API' (⚙️ Ajustes).", "warning");
+
+    abrirConfirmacao("Gerar Fichas com IA?", `${semFicha.length} essência(s) sem ficha. A IA vai criar uma por uma (~${Math.ceil(semFicha.length * 3 / 60) || 1} min). Você pode revisar cada uma depois no botão ✨.`, "✨", "#4285f4", "#2b5cb8", "✨ Gerar Todas", async () => {
+        let feitas = 0; const falhas = [];
+        for (let i = 0; i < semFicha.length; i++) {
+            const r = semFicha[i];
+            mostrarLoading(`✨ Criando ficha ${i + 1} de ${semFicha.length}: ${r.essencia}...`);
+            try {
+                const f = await gerarFichaComIA(r.essencia, r.genero);
+                const fichaStr = JSON.stringify(f);
+                const resp = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_ficha_rotulo', linha: r.linha, ficha: fichaStr, log_detalhe: `✨ Ficha olfativa (IA em lote) de [${r.codigo}] ${r.essencia}` }) }).then(x => x.json());
+                if (resp.sucesso) { r.ficha = fichaStr; feitas++; } else falhas.push(r.essencia);
+            } catch (e) { falhas.push(r.essencia); }
+            await new Promise(res => setTimeout(res, 1500)); // respiro entre chamadas (limite da IA gratuita)
+        }
+        ocultarLoading();
+        renderizarRotulos();
+        const txtFalhas = falhas.length ? ` ⚠️ Falharam ${falhas.length}: ${falhas.slice(0, 4).join(', ')}${falhas.length > 4 ? '...' : ''} — tente essas de novo individualmente.` : '';
+        mostrarAlerta(feitas ? "Fichas prontas! ✨" : "Ops", `${feitas} ficha(s) criada(s).${txtFalhas}`, feitas ? "success" : "error");
+    });
 }
 
 function abrirModalRelatorios() { document.getElementById('modal-relatorios').style.display = 'flex'; }
