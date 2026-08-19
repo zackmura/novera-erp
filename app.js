@@ -1579,7 +1579,8 @@ function renderizarEstoque() {
     const dFiltroGenero = document.getElementById('f-e-genero');
     const generoSelecionado = dFiltroGenero ? dFiltroGenero.value : "";
 
-    const assinaturaE = [tBusca, localSelecionado, generoSelecionado].join('|');
+    const famSelAssinatura = document.getElementById('f-e-familia') ? document.getElementById('f-e-familia').value : '';
+    const assinaturaE = [tBusca, localSelecionado, generoSelecionado, famSelAssinatura].join('|');
     if (assinaturaE !== assinaturaFiltrosEstoque) { assinaturaFiltrosEstoque = assinaturaE; limiteEstoqueLista = 40; }
 
     let totalMacerandoPorProduto = {};
@@ -1602,12 +1603,31 @@ function renderizarEstoque() {
         }
     });
 
-    // 🌳 Deixa a busca entender FAMÍLIA OLFATIVA: digitou "amadeirado", acha todos os amadeirados
+    // 🌳 FAMÍLIA OLFATIVA: mapeia as fichas, popula o seletor dedicado e deixa a busca entender também
     const mapaFamiliaBusca = {};
+    const mapaFamiliaExibe = {};
+    const familiasExistentes = new Set();
     rotulosGlobal.forEach(r => {
         const fR = lerFichaDoRotulo(r);
-        if (fR && fR.familia && r.codigo) mapaFamiliaBusca[r.codigo] = String(fR.familia).toLowerCase() + ' ' + normalizarNomeBusca(fR.familia);
+        if (fR && fR.familia && r.codigo) {
+            mapaFamiliaBusca[r.codigo] = String(fR.familia).toLowerCase() + ' ' + normalizarNomeBusca(fR.familia);
+            mapaFamiliaExibe[r.codigo] = String(fR.familia).trim();
+            String(fR.familia).split(/[·,;]/).map(s => s.trim()).filter(Boolean).forEach(fam => familiasExistentes.add(fam.charAt(0).toUpperCase() + fam.slice(1).toLowerCase()));
+        }
     });
+
+    // Seletor auto-populado só com as famílias que realmente existem nas fichas
+    const selFamilia = document.getElementById('f-e-familia');
+    let familiaSelecionada = '';
+    if (selFamilia) {
+        familiaSelecionada = selFamilia.value;
+        const opcoesFam = [...familiasExistentes].sort((a, b) => a.localeCompare(b));
+        selFamilia.innerHTML = '<option value="">🌳 Todas as Famílias Olfativas</option>' + opcoesFam.map(f => `<option value="${f}">${f}</option>`).join('');
+        selFamilia.value = familiaSelecionada;
+        familiaSelecionada = selFamilia.value; // se a família sumiu das fichas, volta pro "Todas"
+        selFamilia.style.display = opcoesFam.length ? 'block' : 'none'; // sem fichas ainda? seletor nem aparece
+    }
+    const familiaNorm = normalizarNomeBusca(familiaSelecionada);
 
     let arrEstoque = Object.values(estoqueAgrupado);
     arrEstoque = arrEstoque.filter(e => {
@@ -1615,8 +1635,9 @@ function renderizarEstoque() {
         let passLocal = !localSelecionado || (e.locais[localSelecionado] !== undefined && e.locais[localSelecionado] > 0);
         let genE = e.genero ? String(e.genero).toLowerCase() : 'unissex';
         let passGenero = !generoSelecionado || genE === String(generoSelecionado).toLowerCase() || (generoSelecionado === 'Unissex' && genE === '');
-        return passBusca && passLocal && passGenero;
-    }); 
+        let passFamilia = !familiaNorm || (mapaFamiliaBusca[e.codigo] || '').includes(familiaNorm);
+        return passBusca && passLocal && passGenero && passFamilia;
+    });
     
     arrEstoque.sort((a, b) => { 
         let qA = localSelecionado ? (a.locais[localSelecionado] || 0) : a.totalQtd; 
@@ -1717,7 +1738,7 @@ function renderizarEstoque() {
             <div class="prod-info-main">
                 <img src="${urlPri}" onerror="this.src='logo.png';" class="list-img" onclick="abrirModalImagem(this.src)">
                 <div class="e-nome-block">
-                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${codigoBadge}${e.nome} ${badgeGenero}</h4>
+                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${codigoBadge}${e.nome} ${badgeGenero}${mapaFamiliaExibe[e.codigo] ? `<span style="background:#f6ebef; color:#a86f88; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px; text-transform:uppercase; font-weight:800; vertical-align: middle;">🌳 ${mapaFamiliaExibe[e.codigo]}</span>` : ''}</h4>
                     <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <p style="margin:0; font-size:0.8rem; color:var(--primary); font-weight:700;">Venda: ${safeFmt(e.preco)}</p>
                         ${txtCusto}
@@ -2140,10 +2161,17 @@ async function gerarCatalogoPDFFrontend() {
     const cardCatalogo = (e) => {
         const nomeSemTipo = e.nome.replace(new RegExp('^' + e.tipo + '\\s*', 'i'), '').trim().replace(/^[- ]+/, "");
         const fotoPronta = mapaFotosCat[e.nome] || null;
-        // A coluna da foto se ESTICA junto com o cartão (letterbox rosé centraliza se sobrar espaço)
+
+        // 🎨 Paleta por gênero, seguindo o padrão das embalagens: masculino = cinza-chumbo; demais = rosé
+        const ehMascCat = String(e.genero || '').toLowerCase().trim() === 'masculino';
+        const pal = ehMascCat
+            ? { forte: '#525a66', medio: '#6b7482', suave: '#8a92a0', micro: '#aab2bd', chipBorda: '#c8cdd5', chipFundo: '#f6f7f9', filete: '#e2e5e9', letterbox: '#eef0f3', placA: '#f4f5f7', placB: '#dfe2e7', placTxt: '#9aa2ae' }
+            : { forte: '#966178', medio: '#a86f88', suave: '#b98ba1', micro: '#c9b3bd', chipBorda: '#e3c6d2', chipFundo: '#fdf8fa', filete: '#eadfe4', letterbox: '#f6ebef', placA: '#fdf5f7', placB: '#f0dde6', placTxt: '#c9a2b4' };
+
+        // A coluna da foto se ESTICA junto com o cartão (letterbox na cor do gênero se sobrar espaço)
         const imgTag = fotoPronta
-            ? `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; background: #f6ebef; display: flex; align-items: center; justify-content: center; overflow: hidden;"><img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px;"></div>`
-            : `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; min-height: ${FOTO_H}px; background: linear-gradient(160deg, #fdf5f7, #f0dde6); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 42px; color: #c9a2b4; letter-spacing: 3px;">NS</span></div>`;
+            ? `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; background: ${pal.letterbox}; display: flex; align-items: center; justify-content: center; overflow: hidden;"><img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px;"></div>`
+            : `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; min-height: ${FOTO_H}px; background: linear-gradient(160deg, ${pal.placA}, ${pal.placB}); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 42px; color: ${pal.placTxt}; letter-spacing: 3px;">NS</span></div>`;
         const dispHtml = exibirQtd ? (e.totalQtd > 0
             ? `<span style="font-size: 8.5px; color: #5a8a68; font-weight: 700; letter-spacing: 1px;">DISPONÍVEL · ${e.totalQtd} UN</span>`
             : `<span style="font-size: 8.5px; color: #b08585; font-weight: 700; letter-spacing: 1px;">SOB ENCOMENDA</span>`) : "";
@@ -2152,32 +2180,32 @@ async function gerarCatalogoPDFFrontend() {
         const fichaCat = rotCat ? lerFichaDoRotulo(rotCat) : null;
         let htmlFichaCat = '';
         if (fichaCat && fichaCat.descricao) {
-            const linhaNota = (rotulo, valor) => valor ? `<div style="margin-top: 3px;"><span style="display: inline-block; min-width: 62px; font-size: 7.5px; font-weight: 800; color: #b98ba1; letter-spacing: 2px;">${rotulo}</span><span style="font-size: 9px; color: #6d5c66;">${valor}</span></div>` : '';
+            const linhaNota = (rotulo, valor) => valor ? `<div style="margin-top: 3px;"><span style="display: inline-block; min-width: 62px; font-size: 7.5px; font-weight: 800; color: ${pal.suave}; letter-spacing: 2px;">${rotulo}</span><span style="font-size: 9px; color: #6d5c66;">${valor}</span></div>` : '';
             // 💫 Ocasiões de uso em "joias" (chips) — o gatilho de compra em destaque
             const chipsOcasioes = fichaCat.ocasioes ? `
-                <div style="margin-top: 9px;">${String(fichaCat.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o => `<span style="display: inline-block; border: 1px solid #e3c6d2; background: #fdf8fa; color: #a86f88; border-radius: 20px; padding: 3.5px 11px; font-size: 7.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 4px 0;">${o}</span>`).join('')}</div>` : '';
+                <div style="margin-top: 9px;">${String(fichaCat.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o => `<span style="display: inline-block; border: 1px solid ${pal.chipBorda}; background: ${pal.chipFundo}; color: ${pal.medio}; border-radius: 20px; padding: 3.5px 11px; font-size: 7.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 4px 0;">${o}</span>`).join('')}</div>` : '';
             htmlFichaCat = `
                 <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 10.5px; color: #6d5c66; font-style: italic; line-height: 1.55; margin: 7px 0 0 0;">“${String(fichaCat.descricao).substring(0, 200)}”</div>
                 ${fichaCat.notas_saida ? `
-                <div style="height: 1px; background: linear-gradient(90deg, #eadfe4, rgba(234,223,228,0)); margin: 8px 0 5px 0;"></div>
+                <div style="height: 1px; background: linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0)); margin: 8px 0 5px 0;"></div>
                 ${linhaNota('SAÍDA', fichaCat.notas_saida)}
                 ${linhaNota('CORAÇÃO', fichaCat.notas_coracao)}
                 ${linhaNota('FUNDO', fichaCat.notas_fundo)}` : ''}
                 ${chipsOcasioes}`;
         }
 
-        return `<div style="border: 1px solid #eadfe4; border-radius: 18px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
+        return `<div style="border: 1px solid ${pal.filete}; border-radius: 18px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
             ${imgTag}
             <div style="flex: 1; min-width: 0; padding: 16px 22px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    ${e.codigo ? `<span style="font-size: 10px; font-weight: 800; color: #966178; letter-spacing: 3px;">${e.codigo}</span>` : '<span></span>'}
-                    <span style="font-size: 8.5px; color: #b8a0ab; letter-spacing: 1.5px; text-transform: uppercase;">${(fichaCat && fichaCat.familia) ? `<span style="color: #a86f88; font-weight: 800;">${fichaCat.familia}</span> &nbsp;·&nbsp; ` : ''}${iconeGeneroCat(e.genero)}</span>
+                    ${e.codigo ? `<span style="font-size: 10px; font-weight: 800; color: ${pal.forte}; letter-spacing: 3px;">${e.codigo}</span>` : '<span></span>'}
+                    <span style="font-size: 8.5px; color: ${pal.micro}; letter-spacing: 1.5px; text-transform: uppercase;">${(fichaCat && fichaCat.familia) ? `<span style="color: ${pal.medio}; font-weight: 800;">${fichaCat.familia}</span> &nbsp;·&nbsp; ` : ''}${iconeGeneroCat(e.genero)}</span>
                 </div>
-                <div style="font-size: 7.5px; color: #c9b3bd; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">Inspiração</div>
+                <div style="font-size: 7.5px; color: ${pal.micro}; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">Inspiração</div>
                 <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #2C2A2B; line-height: 1.2; margin-top: 2px;">${nomeSemTipo}</div>
                 ${htmlFichaCat}
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 9px; border-top: 1px solid #f3e7ec;">
-                    <span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: #966178;">${safeFmt(e.preco)}</span>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 9px; border-top: 1px solid ${pal.filete};">
+                    <span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: ${pal.forte};">${safeFmt(e.preco)}</span>
                     ${dispHtml}
                 </div>
             </div>
