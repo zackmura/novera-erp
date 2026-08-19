@@ -1644,8 +1644,7 @@ function renderizarEstoque() {
         gruposEstoque[tipoKey].valorGrupo += (qtdExibicao * precoNum);
 
         let opacidade = qtdExibicao <= 0 ? "opacity: 0.65; filter: grayscale(50%);" : ""; 
-        let fotoUrls = e.foto ? e.foto.split(',') : []; 
-        let urlPri = fotoUrls[0] || 'logo.png'; 
+        let urlPri = melhorFotoUrl(e.foto) || 'logo.png';
         let codigoBadge = e.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${e.codigo}</span>` : ''; 
         
         let corFundoGen = "#f3f4f6", corTextoGen = "#4b5563";
@@ -2006,6 +2005,39 @@ function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => pad
 function toggleTodasCategorias(source) { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); checkboxes.forEach(cb => cb.checked = source.checked); }
 function verificarCategorias() { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); const todas = document.getElementById('cat-todas'); const marcadas = document.querySelectorAll('.chk-cat-tipo:checked').length; todas.checked = (marcadas === checkboxes.length); }
 
+// 📬 Modal de entrega do PDF: os botões dão o "clique fresco" que o navegador exige
+// pra liberar compartilhamento/baixa — sem isso, gerações longas terminavam sem arquivo.
+function mostrarModalPdfPronto(blobPdf, nomeArquivo, totalPaginas) {
+    const antigo = document.getElementById('modal-pdf-pronto');
+    if (antigo) antigo.remove();
+    const urlBlob = URL.createObjectURL(blobPdf);
+    const arquivoPdf = new File([blobPdf], nomeArquivo, { type: 'application/pdf' });
+    const podeCompartilhar = !!(navigator.canShare && navigator.canShare({ files: [arquivoPdf] }));
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-pdf-pronto';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:340px; width:100%; padding:26px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:3rem;">📖</div>
+            <h3 style="margin:6px 0 4px 0; color:#966178; font-size:1.1rem; font-weight:900;">Catálogo Pronto!</h3>
+            <p style="margin:0 0 18px 0; color:#888; font-size:0.78rem;">${totalPaginas} página(s) geradas com sucesso.</p>
+            ${podeCompartilhar ? `<button id="btn-pdf-compartilhar" class="btn-salvar" style="margin:0 0 8px 0; background:#25D366; box-shadow:0 4px 0 #1b9c4b;">📲 Enviar / Compartilhar</button>` : ''}
+            <button id="btn-pdf-baixar" class="btn-salvar" style="margin:0 0 8px 0; background:#966178; box-shadow:0 4px 0 #7a4a5e;">⬇️ Baixar PDF</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-pdf-pronto').remove(); setTimeout(() => URL.revokeObjectURL('${urlBlob}'), 1000);">Fechar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const btnComp = overlay.querySelector('#btn-pdf-compartilhar');
+    if (btnComp) btnComp.onclick = async () => {
+        try { await navigator.share({ files: [arquivoPdf], title: 'Catálogo' }); } catch (e) { /* cancelou, tudo bem */ }
+    };
+    overlay.querySelector('#btn-pdf-baixar').onclick = () => {
+        const linkPdf = document.createElement('a');
+        linkPdf.href = urlBlob; linkPdf.download = nomeArquivo; linkPdf.click();
+    };
+}
+
 // ✂️ Recorta a foto no formato exato do cartão (corte central, SEM distorcer) e devolve pronta.
 // O gerador de PDF estraga tanto object-fit quanto background cover — então entregamos já recortada.
 function carregarFotoRecortada(url, alvoW, alvoH) {
@@ -2062,12 +2094,12 @@ async function gerarCatalogoPDFFrontend() {
         return mostrarAlerta("Aviso", "Nenhum produto atende a esses filtros.", "warning"); 
     } 
     
-    // ✂️ Pré-recorta todas as fotos no formato do cartão (retrato 110x150), sem distorção
+    // ✂️ Pré-recorta todas as fotos no formato do cartão (retrato grande 170x220), sem distorção
     mostrarLoading("Preparando as fotos...");
-    const FOTO_W = 110, FOTO_H = 150;
+    const FOTO_W = 170, FOTO_H = 220;
     const mapaFotosCat = {};
     await Promise.all(itensFiltrados.map(async (e) => {
-        const url = e.foto ? String(e.foto).split(',')[0].trim() : '';
+        const url = melhorFotoUrl(e.foto); // prioriza a URL do imgbb (com CORS liberado pro recorte)
         if (url) mapaFotosCat[e.nome] = await carregarFotoRecortada(url, FOTO_W, FOTO_H);
     }));
     mostrarLoading("Montando o catálogo...");
@@ -2094,32 +2126,46 @@ async function gerarCatalogoPDFFrontend() {
         return '⚪ Unissex';
     };
 
-    // Cartão estilo vitrine: foto RETRATO à esquerda (formato das fotos da Novera), infos à direita
+    // 💎 Cartão de LUXO (1 por linha): foto retrato grande, serifa Playfair no nome,
+    // descrição com respiro, notas em pirâmide olfativa e preço em destaque com filete
     const cardCatalogo = (e) => {
         const nomeSemTipo = e.nome.replace(new RegExp('^' + e.tipo + '\\s*', 'i'), '').trim().replace(/^[- ]+/, "");
         const fotoPronta = mapaFotosCat[e.nome] || null;
         const imgTag = fotoPronta
-            ? `<img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0;">`
-            : `<div style="width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; background: linear-gradient(160deg, #fdf5f7, #f3e3e9); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 26px; color: #c9a2b4; letter-spacing: 2px;">NS</span></div>`;
-        const qtdHtml = exibirQtd ? (e.totalQtd > 0
-            ? `<div style="font-size: 9px; color: #2e7d32; font-weight: 800; margin-top: 5px;">📦 ${e.totalQtd} un disponíveis</div>`
-            : `<div style="font-size: 9px; color: #991b1b; font-weight: 800; margin-top: 5px;">🚫 SOB ENCOMENDA</div>`) : "";
-        // ✨ Ficha olfativa (se existir) deixa o cartão com cara de catálogo de perfumaria de verdade
+            ? `<img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; object-fit: cover;">`
+            : `<div style="width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; background: linear-gradient(160deg, #fdf5f7, #f0dde6); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 38px; color: #c9a2b4; letter-spacing: 3px;">NS</span></div>`;
+        const dispHtml = exibirQtd ? (e.totalQtd > 0
+            ? `<span style="font-size: 8.5px; color: #5a8a68; font-weight: 700; letter-spacing: 1px;">DISPONÍVEL · ${e.totalQtd} UN</span>`
+            : `<span style="font-size: 8.5px; color: #b08585; font-weight: 700; letter-spacing: 1px;">SOB ENCOMENDA</span>`) : "";
+
         const rotCat = rotulosGlobal.find(rr => rr.codigo === e.codigo);
         const fichaCat = rotCat ? lerFichaDoRotulo(rotCat) : null;
-        const htmlFichaCat = (fichaCat && fichaCat.descricao) ? `
-                <div style="font-size: 8.5px; color: #8b7280; font-style: italic; line-height: 1.35; margin: 4px 0 2px 0;">“${String(fichaCat.descricao).substring(0, 170)}”</div>
-                ${fichaCat.notas_saida ? `<div style="font-size: 7.5px; color: #a58a97; line-height: 1.45;"><b>Saída:</b> ${fichaCat.notas_saida} &nbsp;·&nbsp; <b>Coração:</b> ${fichaCat.notas_coracao || '—'} &nbsp;·&nbsp; <b>Fundo:</b> ${fichaCat.notas_fundo || '—'}</div>` : ''}` : '';
-        return `<div style="flex: 1; min-width: 0; border: 1px solid #eadfe4; border-radius: 14px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
+        let htmlFichaCat = '';
+        if (fichaCat && fichaCat.descricao) {
+            const linhaNota = (rotulo, valor) => valor ? `<div style="margin-top: 3px;"><span style="display: inline-block; min-width: 62px; font-size: 7.5px; font-weight: 800; color: #b98ba1; letter-spacing: 2px;">${rotulo}</span><span style="font-size: 9px; color: #6d5c66;">${valor}</span></div>` : '';
+            htmlFichaCat = `
+                <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 10.5px; color: #6d5c66; font-style: italic; line-height: 1.55; margin: 7px 0 0 0;">“${String(fichaCat.descricao).substring(0, 200)}”</div>
+                ${fichaCat.notas_saida ? `
+                <div style="height: 1px; background: linear-gradient(90deg, #eadfe4, rgba(234,223,228,0)); margin: 8px 0 5px 0;"></div>
+                ${linhaNota('SAÍDA', fichaCat.notas_saida)}
+                ${linhaNota('CORAÇÃO', fichaCat.notas_coracao)}
+                ${linhaNota('FUNDO', fichaCat.notas_fundo)}` : ''}`;
+        }
+
+        return `<div style="border: 1px solid #eadfe4; border-radius: 18px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
             ${imgTag}
-            <div style="flex: 1; min-width: 0; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;">
-                ${e.codigo ? `<div style="font-size: 10px; font-weight: 800; color: #966178; letter-spacing: 2px;">${e.codigo}</div>` : ''}
-                <div style="font-size: 7px; color: #b8a0ab; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px;">Inspiração</div>
-                <div style="font-weight: 700; font-size: 12.5px; color: #2C2A2B; line-height: 1.25; margin: 2px 0 3px 0;">${nomeSemTipo}</div>
-                <div style="font-size: 9px; color: #999;">${iconeGeneroCat(e.genero)}</div>
+            <div style="flex: 1; min-width: 0; padding: 16px 22px; display: flex; flex-direction: column; justify-content: center;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    ${e.codigo ? `<span style="font-size: 10px; font-weight: 800; color: #966178; letter-spacing: 3px;">${e.codigo}</span>` : '<span></span>'}
+                    <span style="font-size: 8.5px; color: #b8a0ab; letter-spacing: 1.5px; text-transform: uppercase;">${iconeGeneroCat(e.genero)}</span>
+                </div>
+                <div style="font-size: 7.5px; color: #c9b3bd; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">Inspiração</div>
+                <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #2C2A2B; line-height: 1.2; margin-top: 2px;">${nomeSemTipo}</div>
                 ${htmlFichaCat}
-                <div style="font-weight: 800; font-size: 16px; color: #966178; margin-top: 5px;">${safeFmt(e.preco)}</div>
-                ${qtdHtml}
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 9px; border-top: 1px solid #f3e7ec;">
+                    <span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: #966178;">${safeFmt(e.preco)}</span>
+                    ${dispHtml}
+                </div>
             </div>
         </div>`;
     };
@@ -2138,9 +2184,10 @@ async function gerarCatalogoPDFFrontend() {
         blocosCat.push({ cabecalho: true, html: `<div style="text-align: center; padding: 16px 0 12px 0;">
             <div style="font-family: 'Playfair Display', serif; font-size: 18px; color: #966178; letter-spacing: 4px; text-transform: uppercase;">— ${nomeGrupo}${nomeGrupo.toLowerCase().endsWith('s') ? '' : 's'} —</div>
         </div>` });
-        for (let i = 0; i < itensGrupo.length; i += 2) {
-            blocosCat.push(`<div style="display: flex; gap: 12px; padding-bottom: 12px;">${cardCatalogo(itensGrupo[i])}${itensGrupo[i + 1] ? cardCatalogo(itensGrupo[i + 1]) : `<div style="flex: 1;"></div>`}</div>`);
-        }
+        // 💎 Um cartão por linha: cada produto tem seu momento de vitrine
+        itensGrupo.forEach(item => {
+            blocosCat.push(`<div style="padding-bottom: 14px;">${cardCatalogo(item)}</div>`);
+        });
     });
 
     blocosCat.push(`<div style="text-align: center; padding-top: 14px; font-size: 9px; color: #999; border-top: 1px solid #E8DDE1; letter-spacing: 1px;">✦ &nbsp;Catálogo atualizado em ${new Date().toLocaleDateString('pt-BR')} · Preços sujeitos a alteração&nbsp; ✦</div>`);
@@ -2188,8 +2235,8 @@ async function gerarCatalogoPDFFrontend() {
         const no = molde.firstElementChild;
         estagioCat.appendChild(no);
         const alturaBloco = no.offsetHeight;
-        // Cabeçalho de seção "reserva" espaço pra 1ª linha não ficar órfã dele no fim da página
-        const alturaNecessaria = alturaBloco + (ehCabecalho ? 175 : 0);
+        // Cabeçalho de seção "reserva" espaço pro 1º cartão não ficar órfão dele no fim da página
+        const alturaNecessaria = alturaBloco + (ehCabecalho ? 240 : 0);
         if (!paginaAtualCat || (alturaUsadaCat + alturaNecessaria > areaUtilPagina && alturaBloco < areaUtilPagina)) novaPaginaCat();
         paginaAtualCat.appendChild(no);
         alturaUsadaCat += alturaBloco;
@@ -2201,11 +2248,14 @@ async function gerarCatalogoPDFFrontend() {
         // A biblioteca empacotada NÃO expõe o jsPDF por fora — então extraímos o "motor" PDF de
         // dentro dela (worker .toPdf().get('pdf')): a página 1 já sai pronta e ganhamos o objeto
         // pra colar as demais páginas, uma foto por folha. Sem fatiamento = sem corte, nunca.
+        // Ignora os gráficos do Painel na "foto" (eles poluem o clone com avisos e deixam tudo lento)
+        const ignorarCanvasFora = (el) => el && el.tagName === 'CANVAS';
+
         mostrarLoading(`Gerando página 1 de ${paginasCat.length}...`);
         const pdfCat = await html2pdf().set({
             margin: 0,
             image: { type: 'jpeg', quality: 0.92 },
-            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', onclone: removerTemaEscuroDoClone },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', onclone: removerTemaEscuroDoClone, ignoreElements: ignorarCanvasFora },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: [] }
         }).from(paginasCat[0]).toPdf().get('pdf');
@@ -2215,23 +2265,16 @@ async function gerarCatalogoPDFFrontend() {
 
         for (let i = 1; i < paginasCat.length; i++) {
             mostrarLoading(`Gerando página ${i + 1} de ${paginasCat.length}...`);
-            const canvasPag = await html2canvas(paginasCat[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            const canvasPag = await html2canvas(paginasCat[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', ignoreElements: ignorarCanvasFora });
             pdfCat.addPage();
             pdfCat.addImage(canvasPag.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
         }
         const blobPdf = pdfCat.output('blob');
+        ocultarLoading();
 
-        const arquivoPdf = new File([blobPdf], nomeArquivoPdf, { type: 'application/pdf' });
-        // iPhone e afins: folha de compartilhamento nativa (WhatsApp, Salvar em Arquivos...); senão, download normal
-        if (navigator.canShare && navigator.canShare({ files: [arquivoPdf] })) {
-            try { await navigator.share({ files: [arquivoPdf], title: 'Catálogo Novera Scent' }); } catch (e) { /* cancelou, tudo bem */ }
-        } else {
-            const urlBlob = URL.createObjectURL(blobPdf);
-            const linkPdf = document.createElement('a');
-            linkPdf.href = urlBlob; linkPdf.download = nomeArquivoPdf; linkPdf.click();
-            setTimeout(() => URL.revokeObjectURL(urlBlob), 30000);
-        }
-        mostrarAlerta("Sucesso", `Catálogo gerado com ${paginasCat.length} página(s)!`, "success");
+        // 📬 Entrega com clique SEU: navegadores só liberam compartilhar/baixar logo após um toque —
+        // como a geração demora, o toque no botão deste modal é a "permissão fresca" que garante o arquivo
+        mostrarModalPdfPronto(blobPdf, nomeArquivoPdf, paginasCat.length);
     } catch(err) {
         console.error('Erro no catálogo:', err);
         mostrarAlerta("Erro", "Falha ao gerar o PDF.", "error");
@@ -2753,7 +2796,7 @@ function encontrarLocalPadraoVenda(locaisDisponiveis) {
     return matchSede || locaisDisponiveis[0];
 }
 
-function autoPreencherValorVenda() { const selecao = document.getElementById('v-produto').value; const nomePadronizado = padronizarTexto(selecao); const prodAgrupado = estoqueAgrupado[nomePadronizado]; const imgPrev = document.getElementById('v-produto-img-preview'); const comboLocal = document.getElementById('v-local-estoque'); if (comboLocal) comboLocal.innerHTML = ''; if (prodAgrupado && prodAgrupado.totalQtd > 0) { const qtd = parseInt(document.getElementById('v-qtd').value) || 1; const valorUnitario = parseDinheiro(prodAgrupado.preco); document.getElementById('v-valor').value = fmt(valorUnitario * qtd); let fotos = prodAgrupado.foto ? prodAgrupado.foto.split(',') : []; imgPrev.src = fotos[0] || 'logo.png'; imgPrev.style.display = 'block'; if (comboLocal) { let count = 0; let locaisDisp = []; for (let loc in prodAgrupado.locais) { if (prodAgrupado.locais[loc] > 0) { comboLocal.innerHTML += `<option value="${loc}">${loc} (Disp: ${prodAgrupado.locais[loc]})</option>`; locaisDisp.push(loc); count++; } } if (count === 0) { comboLocal.innerHTML = `<option value="">Sem estoque</option>`; } else { comboLocal.value = encontrarLocalPadraoVenda(locaisDisp); } } } else { document.getElementById('v-valor').value = ""; imgPrev.style.display = 'none'; if (comboLocal) comboLocal.innerHTML = `<option value="">Selecione o Produto Primeiro...</option>`; } atualizarAvisoBonusProduto(selecao); }
+function autoPreencherValorVenda() { const selecao = document.getElementById('v-produto').value; const nomePadronizado = padronizarTexto(selecao); const prodAgrupado = estoqueAgrupado[nomePadronizado]; const imgPrev = document.getElementById('v-produto-img-preview'); const comboLocal = document.getElementById('v-local-estoque'); if (comboLocal) comboLocal.innerHTML = ''; if (prodAgrupado && prodAgrupado.totalQtd > 0) { const qtd = parseInt(document.getElementById('v-qtd').value) || 1; const valorUnitario = parseDinheiro(prodAgrupado.preco); document.getElementById('v-valor').value = fmt(valorUnitario * qtd); imgPrev.src = melhorFotoUrl(prodAgrupado.foto) || 'logo.png'; imgPrev.style.display = 'block'; if (comboLocal) { let count = 0; let locaisDisp = []; for (let loc in prodAgrupado.locais) { if (prodAgrupado.locais[loc] > 0) { comboLocal.innerHTML += `<option value="${loc}">${loc} (Disp: ${prodAgrupado.locais[loc]})</option>`; locaisDisp.push(loc); count++; } } if (count === 0) { comboLocal.innerHTML = `<option value="">Sem estoque</option>`; } else { comboLocal.value = encontrarLocalPadraoVenda(locaisDisp); } } } else { document.getElementById('v-valor').value = ""; imgPrev.style.display = 'none'; if (comboLocal) comboLocal.innerHTML = `<option value="">Selecione o Produto Primeiro...</option>`; } atualizarAvisoBonusProduto(selecao); }
 
 // Reforça o bônus de comissão bem no momento em que o vendedor acabou de escolher o produto — não dá pra rolar a tela e perder
 function atualizarAvisoBonusProduto(nomeProduto) {
@@ -5891,7 +5934,44 @@ function fecharModalImagem() { document.getElementById('modal-zoom-imagem').styl
 function pedirNomeDocumento(nomeOriginal, titulo) { return new Promise((resolve) => { document.getElementById('modal-doc-titulo').innerText = titulo; const input = document.getElementById('modal-doc-nome-input'); input.value = nomeOriginal; document.getElementById('modal-nome-documento').style.display = 'flex'; setTimeout(() => input.focus(), 100); const btnConfirmar = document.getElementById('btn-modal-doc-confirmar'); const btnCancelar = document.getElementById('btn-modal-doc-cancelar'); const removerListeners = () => { btnConfirmar.removeEventListener('click', onConfirmar); btnCancelar.removeEventListener('click', onCancelar); window.cancelarNomeDoc = null; }; const onConfirmar = () => { document.getElementById('modal-nome-documento').style.display = 'none'; removerListeners(); resolve(input.value.trim() === "" ? nomeOriginal : input.value.trim()); }; const onCancelar = () => { document.getElementById('modal-nome-documento').style.display = 'none'; removerListeners(); resolve(null); }; window.cancelarNomeDoc = onCancelar; btnConfirmar.addEventListener('click', onConfirmar); btnCancelar.addEventListener('click', onCancelar); }); }
 const fileToBase64 = f => new Promise((r, j) => { const rd = new FileReader(); rd.readAsDataURL(f); rd.onload = () => r(rd.result.split(',')[1]); rd.onerror = e => j(e); });
 function comprimirImagem(f, mW, mH, q) { return new Promise((r, j) => { if (!f.type.match(/image.*/)) return j(new Error(`Formato inválido.`)); const rd = new FileReader(); rd.readAsDataURL(f); rd.onload = e => { const i = new Image(); i.src = e.target.result; i.onload = () => { let w = i.width, h = i.height; if (w > h) { if (w > mW) { h = Math.round(h * mW / w); w = mW; } } else { if (h > mH) { w = Math.round(w * mH / h); h = mH; } } const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const cx = cv.getContext('2d'); cx.drawImage(i, 0, 0, w, h); cv.toBlob(b => b ? r(new File([b], "img.jpg", { type: 'image/jpeg' })) : j(new Error("Erro na Compressão")), 'image/jpeg', q); }; }; }); }
-async function uploadDuplo(fileBlob) { let urlOnion = "", urlImgBB = ""; try { const fd = new FormData(); fd.append("imagem", fileBlob); const res = await fetch("https://api.onionsys.com.br/api/novera/registrar/catalogo", { method: "POST", headers: { "Authorization": `Bearer ${TOKEN_ONIONSYS}` }, body: fd }); const text = await res.text(); if (res.ok) { const data = JSON.parse(text); urlOnion = (data.arquivos && data.arquivos.length > 0) ? data.arquivos[0].url : (data.url || data.link || (data.filename ? `https://api.onionsys.com.br/arquivos/catalogo/${data.filename}` : "")); } } catch (e) { } try { const fd2 = new FormData(); fd2.append("image", fileBlob); const res2 = await fetch(`https://api.imgbb.com/1/upload?key=${KEY_IMGBB}`, { method: "POST", body: fd2 }); const data2 = await res2.json(); if (data2.success) urlImgBB = data2.data.url; } catch (e) { } if (!urlOnion && !urlImgBB) throw new Error("Falha no upload."); return [urlOnion, urlImgBB].filter(u => u).join(','); }
+// 📤 Upload de fotos: imgbb é o TITULAR (rápido e libera CORS pro catálogo ler); OnionSys virou
+// reserva com no máximo 6s de espera — se estiver lento (os famosos erros 524), seguimos sem ele.
+// A URL do imgbb SEMPRE vem primeiro na lista salva.
+async function uploadDuplo(fileBlob) {
+    let urlOnion = "", urlImgBB = "";
+    // 1º: imgbb (o que o app realmente usa)
+    try {
+        const fd2 = new FormData(); fd2.append("image", fileBlob);
+        const res2 = await fetch(`https://api.imgbb.com/1/upload?key=${KEY_IMGBB}`, { method: "POST", body: fd2 });
+        const data2 = await res2.json();
+        if (data2.success) urlImgBB = data2.data.url;
+    } catch (e) { }
+    // 2º: OnionSys como backup, com paciência CURTA (6s) pra não travar o salvamento
+    if (TOKEN_ONIONSYS) {
+        try {
+            const controle = new AbortController();
+            const cronometro = setTimeout(() => controle.abort(), 6000);
+            const fd = new FormData(); fd.append("imagem", fileBlob);
+            const res = await fetch("https://api.onionsys.com.br/api/novera/registrar/catalogo", { method: "POST", headers: { "Authorization": `Bearer ${TOKEN_ONIONSYS}` }, body: fd, signal: controle.signal });
+            clearTimeout(cronometro);
+            const text = await res.text();
+            if (res.ok) {
+                const data = JSON.parse(text);
+                urlOnion = (data.arquivos && data.arquivos.length > 0) ? data.arquivos[0].url : (data.url || data.link || (data.filename ? `https://api.onionsys.com.br/arquivos/catalogo/${data.filename}` : ""));
+            }
+        } catch (e) { /* backup lento ou fora do ar: segue o jogo só com o imgbb */ }
+    }
+    if (!urlOnion && !urlImgBB) throw new Error("Falha no upload da foto. Confira a chave imgbb em Configurações.");
+    return [urlImgBB, urlOnion].filter(u => u).join(',');
+}
+
+// 🖼️ Entre as URLs salvas de uma foto, escolhe a melhor pro uso: a do imgbb (rápida e com CORS
+// liberado). Conserta também os registros antigos que ficaram com a URL lenta na frente.
+function melhorFotoUrl(fotoStr) {
+    const urls = String(fotoStr || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!urls.length) return '';
+    return urls.find(u => u.includes('ibb.co')) || urls[0];
+}
 
 
 
