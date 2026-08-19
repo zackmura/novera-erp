@@ -865,6 +865,8 @@ function renderizarRotulos() {
             </div>` : '';
             
         const temFicha = !!(r.ficha && String(r.ficha).trim());
+        const fichaEss = lerFichaDoRotulo(r) || {};
+        const badgeFamilia = fichaEss.familia ? `<span style="background:#f6ebef; color:#a86f88; padding:2px 6px; border-radius:4px; font-size:0.6rem; margin-left:5px; text-transform:uppercase; font-weight:800; vertical-align: middle;">🌳 ${fichaEss.familia}</span>` : '';
         let divBotoesRotulo = isAdmin ? `
             <div style="display:flex; align-items:center; gap:6px;">
                 <button class="btn-acao" style="width:36px; height:36px; ${temFicha ? 'background:#fef3c7; color:#b45309; border-color:#fde68a;' : ''}" onclick="abrirFichaOlfativa(${r.linha})" title="${temFicha ? 'Ficha olfativa pronta — toque para editar' : 'Criar ficha olfativa (IA)'}">✨</button>
@@ -878,7 +880,7 @@ function renderizarRotulos() {
         <div class="rotulo-card card-essencia-list" style="border-left: 5px solid ${corTextoGen};">
             <div class="prod-info-main">
                 <div class="e-nome-block">
-                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${r.essencia} ${badgeGenero}</h4>
+                    <h4 style="margin: 0 0 5px 0; font-size: 0.95rem; color: var(--brand-dark);">${r.essencia} ${badgeGenero}${badgeFamilia}</h4>
                     <p style="margin:0; font-size:0.75rem; color:#888; font-weight:600;">Marca: <span style="color:var(--primary);">${r.marca || 'N/A'}</span></p>
                 </div>
             </div>
@@ -1600,9 +1602,16 @@ function renderizarEstoque() {
         }
     });
 
-    let arrEstoque = Object.values(estoqueAgrupado); 
-    arrEstoque = arrEstoque.filter(e => { 
-        let passBusca = !tBusca || (e.nome + " " + e.tipo + " " + (e.codigo || "")).toLowerCase().includes(tBusca);
+    // 🌳 Deixa a busca entender FAMÍLIA OLFATIVA: digitou "amadeirado", acha todos os amadeirados
+    const mapaFamiliaBusca = {};
+    rotulosGlobal.forEach(r => {
+        const fR = lerFichaDoRotulo(r);
+        if (fR && fR.familia && r.codigo) mapaFamiliaBusca[r.codigo] = String(fR.familia).toLowerCase() + ' ' + normalizarNomeBusca(fR.familia);
+    });
+
+    let arrEstoque = Object.values(estoqueAgrupado);
+    arrEstoque = arrEstoque.filter(e => {
+        let passBusca = !tBusca || (e.nome + " " + e.tipo + " " + (e.codigo || "") + " " + (mapaFamiliaBusca[e.codigo] || "")).toLowerCase().includes(tBusca);
         let passLocal = !localSelecionado || (e.locais[localSelecionado] !== undefined && e.locais[localSelecionado] > 0);
         let genE = e.genero ? String(e.genero).toLowerCase() : 'unissex';
         let passGenero = !generoSelecionado || genE === String(generoSelecionado).toLowerCase() || (generoSelecionado === 'Unissex' && genE === '');
@@ -2162,7 +2171,7 @@ async function gerarCatalogoPDFFrontend() {
             <div style="flex: 1; min-width: 0; padding: 16px 22px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
                     ${e.codigo ? `<span style="font-size: 10px; font-weight: 800; color: #966178; letter-spacing: 3px;">${e.codigo}</span>` : '<span></span>'}
-                    <span style="font-size: 8.5px; color: #b8a0ab; letter-spacing: 1.5px; text-transform: uppercase;">${iconeGeneroCat(e.genero)}</span>
+                    <span style="font-size: 8.5px; color: #b8a0ab; letter-spacing: 1.5px; text-transform: uppercase;">${(fichaCat && fichaCat.familia) ? `<span style="color: #a86f88; font-weight: 800;">${fichaCat.familia}</span> &nbsp;·&nbsp; ` : ''}${iconeGeneroCat(e.genero)}</span>
                 </div>
                 <div style="font-size: 7.5px; color: #c9b3bd; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">Inspiração</div>
                 <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #2C2A2B; line-height: 1.2; margin-top: 2px;">${nomeSemTipo}</div>
@@ -5178,7 +5187,7 @@ async function gerarFichaComIA(essencia, genero) {
     if (!chave) { const e = new Error('SEM_CHAVE'); e.semChave = true; throw e; }
     const prompt = `Você é um redator de alta perfumaria brasileiro. Crie a ficha olfativa de um perfume artesanal inspirado em "${essencia}" (gênero olfativo: ${genero || 'Unissex'}).
 Responda APENAS um JSON válido, sem markdown, exatamente neste formato:
-{"descricao":"1 a 2 frases sedutoras, máximo 160 caracteres","notas_saida":"2 a 3 notas separadas por vírgula","notas_coracao":"2 a 3 notas separadas por vírgula","notas_fundo":"2 a 3 notas separadas por vírgula","ocasioes":"2 a 4 ocasiões de uso separadas por ' · ', máximo 90 caracteres","dica":"1 frase de dica de aplicação, máximo 120 caracteres","ingredientes":"lista curta e genérica de ingredientes cosméticos, máximo 140 caracteres"}
+{"descricao":"1 a 2 frases sedutoras, máximo 160 caracteres","notas_saida":"2 a 3 notas separadas por vírgula","notas_coracao":"2 a 3 notas separadas por vírgula","notas_fundo":"2 a 3 notas separadas por vírgula","familia":"1 a 2 famílias olfativas separadas por ' · ', escolhidas SOMENTE entre: Amadeirado, Cítrico, Doce, Floral, Frutal, Oriental, Fresco, Aromático, Especiado","ocasioes":"2 a 4 ocasiões de uso separadas por ' · ', máximo 90 caracteres","dica":"1 frase de dica de aplicação, máximo 120 caracteres","ingredientes":"lista curta e genérica de ingredientes cosméticos, máximo 140 caracteres"}
 Regras: português do Brasil; tom elegante e comercial; notas coerentes com o perfil olfativo do perfume que inspirou; NÃO cite o nome da marca original na descrição; NÃO faça alegações medicinais.
 IMPORTANTE sobre as ocasiões: use situações REAIS e populares do dia a dia do brasileiro, concretas e diretas (exemplos bons: Trabalho, Dia a dia, Balada, Encontro, Igreja, Festa de família, Fim de semana, Academia, Sair à noite). PROIBIDO usar clichês chiques como "eventos de gala", "noites sofisticadas", "jantares elegantes", "encontros marcantes" — a cliente precisa se enxergar na ocasião.`;
 
@@ -5212,6 +5221,7 @@ function abrirFichaOlfativa(linha) {
     document.getElementById('fo-saida').value = f.notas_saida || '';
     document.getElementById('fo-coracao').value = f.notas_coracao || '';
     document.getElementById('fo-fundo').value = f.notas_fundo || '';
+    document.getElementById('fo-familia').value = f.familia || '';
     document.getElementById('fo-ocasioes').value = f.ocasioes || '';
     document.getElementById('fo-dica').value = f.dica || '';
     document.getElementById('fo-ingredientes').value = f.ingredientes || '';
@@ -5230,6 +5240,7 @@ async function gerarFichaIAModal() {
         document.getElementById('fo-saida').value = f.notas_saida || '';
         document.getElementById('fo-coracao').value = f.notas_coracao || '';
         document.getElementById('fo-fundo').value = f.notas_fundo || '';
+        document.getElementById('fo-familia').value = f.familia || '';
         document.getElementById('fo-ocasioes').value = f.ocasioes || '';
         document.getElementById('fo-dica').value = f.dica || '';
         document.getElementById('fo-ingredientes').value = f.ingredientes || '';
@@ -5250,6 +5261,7 @@ function salvarFichaOlfativa() {
         notas_saida: document.getElementById('fo-saida').value.trim(),
         notas_coracao: document.getElementById('fo-coracao').value.trim(),
         notas_fundo: document.getElementById('fo-fundo').value.trim(),
+        familia: document.getElementById('fo-familia').value.trim(),
         ocasioes: document.getElementById('fo-ocasioes').value.trim(),
         dica: document.getElementById('fo-dica').value.trim(),
         ingredientes: document.getElementById('fo-ingredientes').value.trim()
