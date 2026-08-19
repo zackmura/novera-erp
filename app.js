@@ -2094,9 +2094,9 @@ async function gerarCatalogoPDFFrontend() {
         return mostrarAlerta("Aviso", "Nenhum produto atende a esses filtros.", "warning"); 
     } 
     
-    // ✂️ Pré-recorta todas as fotos no formato do cartão (retrato grande 170x220), sem distorção
+    // ✂️ Pré-recorta todas as fotos no formato do cartão (retrato grande 210x300), sem distorção
     mostrarLoading("Preparando as fotos...");
-    const FOTO_W = 170, FOTO_H = 220;
+    const FOTO_W = 210, FOTO_H = 300;
     const mapaFotosCat = {};
     await Promise.all(itensFiltrados.map(async (e) => {
         const url = melhorFotoUrl(e.foto); // prioriza a URL do imgbb (com CORS liberado pro recorte)
@@ -2131,9 +2131,10 @@ async function gerarCatalogoPDFFrontend() {
     const cardCatalogo = (e) => {
         const nomeSemTipo = e.nome.replace(new RegExp('^' + e.tipo + '\\s*', 'i'), '').trim().replace(/^[- ]+/, "");
         const fotoPronta = mapaFotosCat[e.nome] || null;
+        // A coluna da foto se ESTICA junto com o cartão (letterbox rosé centraliza se sobrar espaço)
         const imgTag = fotoPronta
-            ? `<img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; object-fit: cover;">`
-            : `<div style="width: ${FOTO_W}px; height: ${FOTO_H}px; flex-shrink: 0; background: linear-gradient(160deg, #fdf5f7, #f0dde6); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 38px; color: #c9a2b4; letter-spacing: 3px;">NS</span></div>`;
+            ? `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; background: #f6ebef; display: flex; align-items: center; justify-content: center; overflow: hidden;"><img src="${fotoPronta}" width="${FOTO_W}" height="${FOTO_H}" style="display: block; width: ${FOTO_W}px; height: ${FOTO_H}px;"></div>`
+            : `<div style="width: ${FOTO_W}px; flex-shrink: 0; align-self: stretch; min-height: ${FOTO_H}px; background: linear-gradient(160deg, #fdf5f7, #f0dde6); display: flex; align-items: center; justify-content: center;"><span style="font-family: 'Playfair Display', serif; font-size: 42px; color: #c9a2b4; letter-spacing: 3px;">NS</span></div>`;
         const dispHtml = exibirQtd ? (e.totalQtd > 0
             ? `<span style="font-size: 8.5px; color: #5a8a68; font-weight: 700; letter-spacing: 1px;">DISPONÍVEL · ${e.totalQtd} UN</span>`
             : `<span style="font-size: 8.5px; color: #b08585; font-weight: 700; letter-spacing: 1px;">SOB ENCOMENDA</span>`) : "";
@@ -2143,13 +2144,17 @@ async function gerarCatalogoPDFFrontend() {
         let htmlFichaCat = '';
         if (fichaCat && fichaCat.descricao) {
             const linhaNota = (rotulo, valor) => valor ? `<div style="margin-top: 3px;"><span style="display: inline-block; min-width: 62px; font-size: 7.5px; font-weight: 800; color: #b98ba1; letter-spacing: 2px;">${rotulo}</span><span style="font-size: 9px; color: #6d5c66;">${valor}</span></div>` : '';
+            // 💫 Ocasiões de uso em "joias" (chips) — o gatilho de compra em destaque
+            const chipsOcasioes = fichaCat.ocasioes ? `
+                <div style="margin-top: 9px;">${String(fichaCat.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o => `<span style="display: inline-block; border: 1px solid #e3c6d2; background: #fdf8fa; color: #a86f88; border-radius: 20px; padding: 3.5px 11px; font-size: 7.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 4px 0;">${o}</span>`).join('')}</div>` : '';
             htmlFichaCat = `
                 <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 10.5px; color: #6d5c66; font-style: italic; line-height: 1.55; margin: 7px 0 0 0;">“${String(fichaCat.descricao).substring(0, 200)}”</div>
                 ${fichaCat.notas_saida ? `
                 <div style="height: 1px; background: linear-gradient(90deg, #eadfe4, rgba(234,223,228,0)); margin: 8px 0 5px 0;"></div>
                 ${linhaNota('SAÍDA', fichaCat.notas_saida)}
                 ${linhaNota('CORAÇÃO', fichaCat.notas_coracao)}
-                ${linhaNota('FUNDO', fichaCat.notas_fundo)}` : ''}`;
+                ${linhaNota('FUNDO', fichaCat.notas_fundo)}` : ''}
+                ${chipsOcasioes}`;
         }
 
         return `<div style="border: 1px solid #eadfe4; border-radius: 18px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
@@ -5173,8 +5178,9 @@ async function gerarFichaComIA(essencia, genero) {
     if (!chave) { const e = new Error('SEM_CHAVE'); e.semChave = true; throw e; }
     const prompt = `Você é um redator de alta perfumaria brasileiro. Crie a ficha olfativa de um perfume artesanal inspirado em "${essencia}" (gênero olfativo: ${genero || 'Unissex'}).
 Responda APENAS um JSON válido, sem markdown, exatamente neste formato:
-{"descricao":"1 a 2 frases sedutoras, máximo 160 caracteres","notas_saida":"2 a 3 notas separadas por vírgula","notas_coracao":"2 a 3 notas separadas por vírgula","notas_fundo":"2 a 3 notas separadas por vírgula","dica":"1 frase de dica de aplicação, máximo 120 caracteres","ingredientes":"lista curta e genérica de ingredientes cosméticos, máximo 140 caracteres"}
-Regras: português do Brasil; tom elegante e comercial; notas coerentes com o perfil olfativo do perfume que inspirou; NÃO cite o nome da marca original na descrição; NÃO faça alegações medicinais.`;
+{"descricao":"1 a 2 frases sedutoras, máximo 160 caracteres","notas_saida":"2 a 3 notas separadas por vírgula","notas_coracao":"2 a 3 notas separadas por vírgula","notas_fundo":"2 a 3 notas separadas por vírgula","ocasioes":"2 a 4 ocasiões de uso separadas por ' · ', máximo 90 caracteres","dica":"1 frase de dica de aplicação, máximo 120 caracteres","ingredientes":"lista curta e genérica de ingredientes cosméticos, máximo 140 caracteres"}
+Regras: português do Brasil; tom elegante e comercial; notas coerentes com o perfil olfativo do perfume que inspirou; NÃO cite o nome da marca original na descrição; NÃO faça alegações medicinais.
+IMPORTANTE sobre as ocasiões: use situações REAIS e populares do dia a dia do brasileiro, concretas e diretas (exemplos bons: Trabalho, Dia a dia, Balada, Encontro, Igreja, Festa de família, Fim de semana, Academia, Sair à noite). PROIBIDO usar clichês chiques como "eventos de gala", "noites sofisticadas", "jantares elegantes", "encontros marcantes" — a cliente precisa se enxergar na ocasião.`;
 
     const modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     let ultimoErro = null;
@@ -5206,6 +5212,7 @@ function abrirFichaOlfativa(linha) {
     document.getElementById('fo-saida').value = f.notas_saida || '';
     document.getElementById('fo-coracao').value = f.notas_coracao || '';
     document.getElementById('fo-fundo').value = f.notas_fundo || '';
+    document.getElementById('fo-ocasioes').value = f.ocasioes || '';
     document.getElementById('fo-dica').value = f.dica || '';
     document.getElementById('fo-ingredientes').value = f.ingredientes || '';
     document.getElementById('modal-ficha-olfativa').style.display = 'flex';
@@ -5223,6 +5230,7 @@ async function gerarFichaIAModal() {
         document.getElementById('fo-saida').value = f.notas_saida || '';
         document.getElementById('fo-coracao').value = f.notas_coracao || '';
         document.getElementById('fo-fundo').value = f.notas_fundo || '';
+        document.getElementById('fo-ocasioes').value = f.ocasioes || '';
         document.getElementById('fo-dica').value = f.dica || '';
         document.getElementById('fo-ingredientes').value = f.ingredientes || '';
     } catch (e) {
@@ -5242,6 +5250,7 @@ function salvarFichaOlfativa() {
         notas_saida: document.getElementById('fo-saida').value.trim(),
         notas_coracao: document.getElementById('fo-coracao').value.trim(),
         notas_fundo: document.getElementById('fo-fundo').value.trim(),
+        ocasioes: document.getElementById('fo-ocasioes').value.trim(),
         dica: document.getElementById('fo-dica').value.trim(),
         ingredientes: document.getElementById('fo-ingredientes').value.trim()
     };
