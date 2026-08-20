@@ -2037,6 +2037,85 @@ function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => pad
 function toggleTodasCategorias(source) { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); checkboxes.forEach(cb => cb.checked = source.checked); }
 function verificarCategorias() { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); const todas = document.getElementById('cat-todas'); const marcadas = document.querySelectorAll('.chk-cat-tipo:checked').length; todas.checked = (marcadas === checkboxes.length); }
 
+// 🎴 CARTÃO DO CATÁLOGO: QR emoldurado com a identidade da marca + instrução de uso,
+// pronto pra imprimir e colar nas sacolinhas — ninguém se assusta com QR pelado rsrs
+async function montarCartaoQrCatalogo(hostEl, linkQr) {
+    const ninho = hostEl.querySelector('#qr-catalogo-render');
+    ninho.innerHTML = '';
+    new QRCode(ninho, { text: linkQr, width: 440, height: 440, correctLevel: QRCode.CorrectLevel.M });
+    await new Promise(r => setTimeout(r, 150)); // respiro pro desenho do QR terminar
+    const qrFonte = ninho.querySelector('canvas') || ninho.querySelector('img');
+    if (!qrFonte) throw new Error('QR não gerado');
+    try { await document.fonts.ready; } catch (e) { /* segue com as fontes que tiver */ }
+
+    const marcaNome = String(configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome).toUpperCase();
+    const corForte = configuracoesGlobais.cor_primaria_escura || IDENTIDADE_PADRAO.cor_primaria_escura;
+    const W = 720, H = 1020, R = 36;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+
+    const cantosRedondos = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    };
+
+    // Fundo branco de cantos arredondados (fora fica transparente — imprime bonito)
+    cantosRedondos(0, 0, W, H, R);
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center';
+
+    // ✦ Marca (encolhe a fonte se o nome da loja for comprido)
+    ctx.fillStyle = corForte;
+    let tamMarca = 54;
+    do { ctx.font = `700 ${tamMarca}px "Playfair Display", Georgia, serif`; tamMarca -= 2; }
+    while (ctx.measureText(marcaNome).width > W - 90 && tamMarca > 26);
+    try { ctx.letterSpacing = '6px'; } catch (e) { }
+    ctx.fillText(marcaNome, W / 2, 118);
+
+    try { ctx.letterSpacing = '5px'; } catch (e) { }
+    ctx.fillStyle = '#b8a0ab';
+    ctx.font = '700 22px Montserrat, sans-serif';
+    ctx.fillText('CATÁLOGO DE PRODUTOS', W / 2, 168);
+
+    // Filete decorativo
+    ctx.fillStyle = '#e8dde1';
+    ctx.fillRect(W / 2 - 120, 196, 240, 2);
+
+    // Moldura do QR (borda na cor da marca) + zona de silêncio branca
+    const QRS = 440, qx = (W - QRS) / 2, qy = 246;
+    ctx.strokeStyle = corForte; ctx.lineWidth = 3;
+    cantosRedondos(qx - 22, qy - 22, QRS + 44, QRS + 44, 26); ctx.stroke();
+    ctx.drawImage(qrFonte, qx, qy, QRS, QRS);
+
+    // Instrução pra quem nunca leu um QR na vida
+    try { ctx.letterSpacing = '1px'; } catch (e) { }
+    ctx.fillStyle = '#2C2A2B';
+    ctx.font = '800 27px Montserrat, sans-serif';
+    ctx.fillText('APONTE A CÂMERA DO CELULAR', W / 2, 790);
+    ctx.fillStyle = '#6d5c66';
+    ctx.font = '500 21px Montserrat, sans-serif';
+    ctx.fillText('para o código e o catálogo abre sozinho,', W / 2, 828);
+    ctx.fillText('com preços e novidades sempre atualizados ✨', W / 2, 860);
+
+    // Assinatura do vendedor
+    ctx.fillStyle = corForte;
+    ctx.font = '700 23px Montserrat, sans-serif';
+    ctx.fillText(`💬 Atendimento: ${usuarioLogado}`, W / 2, 930);
+
+    // Faixa inferior na cor da marca
+    ctx.fillStyle = corForte;
+    ctx.fillRect(0, H - 26, W, 26);
+    ctx.restore();
+
+    return cv.toDataURL('image/png');
+}
+
 // 🔗 CATÁLOGO ONLINE: monta o link da página pública (catalogo.html) com os MESMOS filtros
 // do modal e entrega pronto pra enviar — o cliente abre no celular e vê tudo atualizado.
 function gerarLinkCatalogoOnline() {
@@ -2075,41 +2154,37 @@ function gerarLinkCatalogoOnline() {
             <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:8px 10px; font-size:0.65rem; color:#966178; word-break:break-all; margin-bottom:14px;">${link}</div>
             <button id="btn-link-zap" class="btn-salvar" style="margin:0 0 8px 0; background:#25D366; box-shadow:0 4px 0 #1b9c4b;">📲 Enviar no WhatsApp</button>
             <button id="btn-link-copiar" class="btn-salvar" style="margin:0 0 8px 0; background:#966178; box-shadow:0 4px 0 #7a4a5e;">📋 Copiar Link</button>
-            <button id="btn-link-qr" class="btn-salvar" style="margin:0 0 8px 0; background:#1e293b; box-shadow:0 4px 0 #0f172a;">📱 Gerar QR Code</button>
+            <button id="btn-link-qr" class="btn-salvar" style="margin:0 0 8px 0; background:#1e293b; box-shadow:0 4px 0 #0f172a;">📱 Gerar Cartão com QR Code</button>
             <div id="area-qr-catalogo" style="display:none; margin: 4px 0 12px 0;">
-                <div id="qr-catalogo-render" style="background:#fff; padding:14px; border:1px solid #eee; border-radius:12px; display:inline-block;"></div>
-                <p style="font-size:0.62rem; color:#888; margin:6px 0 8px;">Imprima em cartõezinhos, cole na caixinha ou ponha na bio do Instagram!</p>
-                <button id="btn-qr-baixar" class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">⬇️ Baixar QR (imagem)</button>
+                <div id="qr-catalogo-render" style="display:none;"></div>
+                <img id="qr-cartao-img" alt="Cartão do catálogo" style="width:100%; max-width:250px; border-radius:14px; box-shadow:0 10px 26px rgba(0,0,0,0.22); display:block; margin:0 auto;">
+                <p style="font-size:0.62rem; color:#888; margin:8px 0 8px;">Cartão pronto pra imprimir: cole nas sacolinhas, caixinhas ou ponha na bio do Instagram!</p>
+                <button id="btn-qr-baixar" class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">⬇️ Baixar Cartão (imagem)</button>
             </div>
             <button id="btn-link-abrir" class="btn-salvar" style="margin:0 0 8px 0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">👀 Ver como o Cliente vê</button>
             <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-link-catalogo').remove();">Fechar</button>
         </div>`;
     document.body.appendChild(overlay);
 
-    // 📱 QR Code do link (usa a mesma biblioteca das etiquetas) + download com moldura branca
-    overlay.querySelector('#btn-link-qr').onclick = (ev) => {
+    // 📱 Cartão de marca com QR: prévia bonita no modal e imagem pronta pra imprimir
+    overlay.querySelector('#btn-link-qr').onclick = async (ev) => {
         const area = overlay.querySelector('#area-qr-catalogo');
-        if (area.style.display !== 'none') { area.style.display = 'none'; return; }
-        const alvoQr = overlay.querySelector('#qr-catalogo-render');
-        if (!alvoQr.hasChildNodes()) {
-            try { new QRCode(alvoQr, { text: link, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M }); }
-            catch (e) { return mostrarAlerta("Erro", "Não consegui desenhar o QR Code neste aparelho.", "error"); }
+        const btnQr = ev.currentTarget;
+        if (area.style.display !== 'none') { area.style.display = 'none'; btnQr.innerHTML = '📱 Gerar Cartão com QR Code'; return; }
+        if (!overlay._cartaoQr) {
+            btnQr.innerHTML = '⏳ Montando o cartão...';
+            try { overlay._cartaoQr = await montarCartaoQrCatalogo(overlay, link); }
+            catch (e) { btnQr.innerHTML = '📱 Gerar Cartão com QR Code'; return mostrarAlerta("Erro", "Não consegui desenhar o QR Code neste aparelho.", "error"); }
+            overlay.querySelector('#qr-cartao-img').src = overlay._cartaoQr;
         }
         area.style.display = 'block';
-        ev.currentTarget.innerHTML = '📱 Ocultar QR Code';
+        btnQr.innerHTML = '📱 Ocultar Cartão';
     };
     overlay.querySelector('#btn-qr-baixar').onclick = () => {
-        const cvQr = overlay.querySelector('#qr-catalogo-render canvas') || overlay.querySelector('#qr-catalogo-render img');
-        if (!cvQr) return;
-        // Moldura branca em volta (zona de silêncio que leitores de QR exigem)
-        const moldura = document.createElement('canvas');
-        moldura.width = 260; moldura.height = 260;
-        const ctxQr = moldura.getContext('2d');
-        ctxQr.fillStyle = '#fff'; ctxQr.fillRect(0, 0, 260, 260);
-        ctxQr.drawImage(cvQr, 30, 30, 200, 200);
+        if (!overlay._cartaoQr) return;
         const aQr = document.createElement('a');
-        aQr.href = moldura.toDataURL('image/png');
-        aQr.download = 'QR_Catalogo_' + String(usuarioLogado).replace(/\s+/g, '_') + '.png';
+        aQr.href = overlay._cartaoQr;
+        aQr.download = 'Cartao_Catalogo_' + String(usuarioLogado).replace(/\s+/g, '_') + '.png';
         aQr.click();
     };
 
