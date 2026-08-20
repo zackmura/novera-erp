@@ -176,6 +176,7 @@ let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque
 let sugestoesProducaoGlobal = []; // sugestões de fabricação enviadas pelos vendedores
 let clientesGlobal = []; // cadastro de clientes (nome, telefone, aniversário)
 let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe só as dele)
+let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: só os dele; admin: equipe toda)
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -588,6 +589,7 @@ async function sincronizarDadosUnico() {
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
             conquistasGlobal = dados.conquistas || [];
+            visitasCatalogoGlobal = dados.visitasCatalogo || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -2034,6 +2036,96 @@ function confirmarTransferirEstoque() {
 function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => padronizarTexto(e.tipo)).filter(t => t)); let html = `<label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="cat-todas" onchange="toggleTodasCategorias(this)" checked style="width:16px; height:16px; flex-shrink:0;"> <strong>Selecionar Todas</strong></label><div style="border-top:1px dashed #E8DDE1; margin-bottom:10px;"></div>`;[...tipos].forEach(t => { let nomeBonito = t.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); html += `<label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin-bottom:8px; cursor:pointer;"><input type="checkbox" class="chk-cat-tipo" value="${t}" checked onchange="verificarCategorias()" style="width:16px; height:16px; flex-shrink:0;"> ${nomeBonito}</label>`; }); document.getElementById('cat-checkbox-container').innerHTML = html; document.getElementById('modal-gerar-catalogo').style.display = 'flex'; }
 function toggleTodasCategorias(source) { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); checkboxes.forEach(cb => cb.checked = source.checked); }
 function verificarCategorias() { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); const todas = document.getElementById('cat-todas'); const marcadas = document.querySelectorAll('.chk-cat-tipo:checked').length; todas.checked = (marcadas === checkboxes.length); }
+
+// 🔗 CATÁLOGO ONLINE: monta o link da página pública (catalogo.html) com os MESMOS filtros
+// do modal e entrega pronto pra enviar — o cliente abre no celular e vê tudo atualizado.
+function gerarLinkCatalogoOnline() {
+    const tipos = Array.from(document.querySelectorAll('.chk-cat-tipo:checked')).map(cb => String(cb.value).toLowerCase().trim());
+    if (!tipos.length) return mostrarAlerta("Aviso", "Selecione pelo menos uma categoria.", "warning");
+    const generos = Array.from(document.querySelectorAll('.chk-cat-genero:checked')).map(cb => String(cb.value).toLowerCase().trim());
+    if (!generos.length) return mostrarAlerta("Aviso", "Selecione pelo menos um gênero.", "warning");
+
+    // Filtro que inclui tudo fica FORA do link — link mais curto e bonito no WhatsApp
+    const dadosLink = {};
+    if (tipos.length < document.querySelectorAll('.chk-cat-tipo').length) dadosLink.t = tipos.join(',');
+    if (generos.length < document.querySelectorAll('.chk-cat-genero').length) dadosLink.g = generos.join(',');
+    if (document.getElementById('cat-filtro-estoque').checked) dadosLink.e = 1;
+    if (document.getElementById('cat-filtro-exibir-qtd').checked) dadosLink.q = 1;
+    dadosLink.v = usuarioLogado; // 💬 assinatura do link: o "Quero esse" do cliente cai no WhatsApp DESTE vendedor
+
+    // 🔒 Embaralha os parâmetros num código (base64): o cliente não vê nome de vendedor nem filtros na URL
+    const jsonLink = JSON.stringify(dadosLink);
+    const tokenLink = btoa(unescape(encodeURIComponent(jsonLink))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const urlPagina = new URL('catalogo.html', window.location.href);
+    urlPagina.search = 'c=' + tokenLink;
+    const link = urlPagina.href;
+
+    document.getElementById('modal-gerar-catalogo').style.display = 'none';
+
+    const antigo = document.getElementById('modal-link-catalogo');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-link-catalogo';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:340px; width:100%; padding:26px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:3rem;">🔗</div>
+            <h3 style="margin:6px 0 4px 0; color:#966178; font-size:1.1rem; font-weight:900;">Link do Catálogo Pronto!</h3>
+            <p style="margin:0 0 12px 0; color:#888; font-size:0.75rem;">A página abre com os filtros escolhidos e mostra sempre os preços e o estoque de agora.</p>
+            <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:8px 10px; font-size:0.65rem; color:#966178; word-break:break-all; margin-bottom:14px;">${link}</div>
+            <button id="btn-link-zap" class="btn-salvar" style="margin:0 0 8px 0; background:#25D366; box-shadow:0 4px 0 #1b9c4b;">📲 Enviar no WhatsApp</button>
+            <button id="btn-link-copiar" class="btn-salvar" style="margin:0 0 8px 0; background:#966178; box-shadow:0 4px 0 #7a4a5e;">📋 Copiar Link</button>
+            <button id="btn-link-qr" class="btn-salvar" style="margin:0 0 8px 0; background:#1e293b; box-shadow:0 4px 0 #0f172a;">📱 Gerar QR Code</button>
+            <div id="area-qr-catalogo" style="display:none; margin: 4px 0 12px 0;">
+                <div id="qr-catalogo-render" style="background:#fff; padding:14px; border:1px solid #eee; border-radius:12px; display:inline-block;"></div>
+                <p style="font-size:0.62rem; color:#888; margin:6px 0 8px;">Imprima em cartõezinhos, cole na caixinha ou ponha na bio do Instagram!</p>
+                <button id="btn-qr-baixar" class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">⬇️ Baixar QR (imagem)</button>
+            </div>
+            <button id="btn-link-abrir" class="btn-salvar" style="margin:0 0 8px 0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">👀 Ver como o Cliente vê</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-link-catalogo').remove();">Fechar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    // 📱 QR Code do link (usa a mesma biblioteca das etiquetas) + download com moldura branca
+    overlay.querySelector('#btn-link-qr').onclick = (ev) => {
+        const area = overlay.querySelector('#area-qr-catalogo');
+        if (area.style.display !== 'none') { area.style.display = 'none'; return; }
+        const alvoQr = overlay.querySelector('#qr-catalogo-render');
+        if (!alvoQr.hasChildNodes()) {
+            try { new QRCode(alvoQr, { text: link, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M }); }
+            catch (e) { return mostrarAlerta("Erro", "Não consegui desenhar o QR Code neste aparelho.", "error"); }
+        }
+        area.style.display = 'block';
+        ev.currentTarget.innerHTML = '📱 Ocultar QR Code';
+    };
+    overlay.querySelector('#btn-qr-baixar').onclick = () => {
+        const cvQr = overlay.querySelector('#qr-catalogo-render canvas') || overlay.querySelector('#qr-catalogo-render img');
+        if (!cvQr) return;
+        // Moldura branca em volta (zona de silêncio que leitores de QR exigem)
+        const moldura = document.createElement('canvas');
+        moldura.width = 260; moldura.height = 260;
+        const ctxQr = moldura.getContext('2d');
+        ctxQr.fillStyle = '#fff'; ctxQr.fillRect(0, 0, 260, 260);
+        ctxQr.drawImage(cvQr, 30, 30, 200, 200);
+        const aQr = document.createElement('a');
+        aQr.href = moldura.toDataURL('image/png');
+        aQr.download = 'QR_Catalogo_' + String(usuarioLogado).replace(/\s+/g, '_') + '.png';
+        aQr.click();
+    };
+
+    overlay.querySelector('#btn-link-zap').onclick = () => {
+        const msg = `✨ Dá uma olhada no nosso catálogo! Perfumes e cosméticos com preços e disponibilidade atualizados:\n\n${link}`;
+        window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    };
+    overlay.querySelector('#btn-link-copiar').onclick = async (ev) => {
+        const btn = ev.currentTarget;
+        try { await navigator.clipboard.writeText(link); }
+        catch (e) { const ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+        btn.innerHTML = '✅ Copiado!';
+        setTimeout(() => { btn.innerHTML = '📋 Copiar Link'; }, 2000);
+    };
+    overlay.querySelector('#btn-link-abrir').onclick = () => window.open(link, '_blank');
+}
 
 // 📬 Modal de entrega do PDF: os botões dão o "clique fresco" que o navegador exige
 // pra liberar compartilhamento/baixa — sem isso, gerações longas terminavam sem arquivo.
@@ -4067,6 +4159,22 @@ function salvarEdicaoVenda() {
         }); 
 }
 
+// 🔗 Soma as visitas do catálogo online: total, últimos 7 dias e hoje (nomeVendedor null = equipe toda)
+function estatisticasVisitasCatalogo(nomeVendedor) {
+    const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
+    const isoCorte = corte7.toISOString().split('T')[0];
+    const hojeIso = new Date().toISOString().split('T')[0];
+    let total = 0, sete = 0, hoje = 0;
+    visitasCatalogoGlobal.forEach(vi => {
+        if (nomeVendedor && normalizarNomeBusca(vi.vendedor) !== normalizarNomeBusca(nomeVendedor)) return;
+        const h = parseInt(vi.hits) || 0;
+        total += h;
+        if (vi.data >= isoCorte) sete += h;
+        if (vi.data === hojeIso) hoje += h;
+    });
+    return { total, sete, hoje };
+}
+
 function renderizarDashboard() {
     const isAdmin = (usuarioCargo === 'Admin');
     const container = document.getElementById('dash-dinamico-container');
@@ -4412,6 +4520,21 @@ function renderizarDashboard() {
             </div>`;
         }
 
+        // 🔗 MEU CATÁLOGO ONLINE: quantas pessoas abriram o link que EU divulguei
+        const vcMeu = estatisticasVisitasCatalogo(usuarioLogado);
+        const htmlVisitasCat = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #f0fdfa; border: 1px solid #99f6e4;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="color:#0f766e; font-size:0.75rem; font-weight:900; margin:0;">🔗 MEU CATÁLOGO ONLINE</h3>
+                    <span style="font-size:0.6rem; color:#0d9488; font-weight:700;">${vcMeu.hoje > 0 ? `👀 ${vcMeu.hoje} hoje!` : ''}</span>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px; text-align:center;">
+                    <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#0f766e; display:block;">${vcMeu.sete}</span><span style="font-size:0.58rem; color:#888;">visitas · 7 dias</span></div>
+                    <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#0f766e; display:block;">${vcMeu.total}</span><span style="font-size:0.58rem; color:#888;">visitas · total</span></div>
+                </div>
+                <p style="font-size:0.62rem; color:#0d9488; margin:8px 0 0 0; text-align:center;">${vcMeu.total === 0 ? 'Gere seu link em Estoque → Catálogo e divulgue — cada visita é um cliente olhando a vitrine! 🚀' : 'Cada visita é um cliente na sua vitrine. Continue divulgando! 💪'}</p>
+            </div>`;
+
         container.innerHTML = `
             <div class="dash-grid">
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
@@ -4440,6 +4563,7 @@ function renderizarDashboard() {
                 ${htmlSala}
                 ${htmlPatente}
                 ${htmlRanking}
+                ${htmlVisitasCat}
                 ${htmlCrm}
                 
                 <div class="dash-card" style="grid-column: span 2; padding: 15px;">
@@ -4812,6 +4936,33 @@ function renderizarDashboard() {
         </div>`;
     }
 
+    // 🔗 CATÁLOGO ONLINE (visão da Diretoria): visitas por vendedor pra medir quem divulga e o alcance geral
+    let htmlVisitasCatAdmin = '';
+    {
+        const vcGeral = estatisticasVisitasCatalogo(null);
+        const porVendedorVc = {};
+        visitasCatalogoGlobal.forEach(vi => {
+            const nomeVi = String(vi.vendedor || '(link geral)').trim();
+            if (!porVendedorVc[nomeVi]) porVendedorVc[nomeVi] = true;
+        });
+        const linhasVc = Object.keys(porVendedorVc)
+            .map(nomeVi => ({ nome: nomeVi, ...estatisticasVisitasCatalogo(nomeVi) }))
+            .sort((a, b) => b.sete - a.sete || b.total - a.total)
+            .map(vLinha => `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ccfbf1; padding:6px 0;">
+                <span style="font-size:0.78rem; font-weight:700; color:#134e4a;">${vLinha.nome === '(link geral)' ? '🌐 Link geral (sem vendedor)' : '👤 ' + vLinha.nome}${vLinha.hoje > 0 ? ` <span style="font-size:0.58rem; color:#0d9488;">· ${vLinha.hoje} hoje</span>` : ''}</span>
+                <span style="font-size:0.72rem; color:#0f766e;"><b>${vLinha.sete}</b> em 7d · ${vLinha.total} total</span>
+            </div>`).join('');
+        htmlVisitasCatAdmin = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #f0fdfa; border: 1px solid #99f6e4;">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px dashed #99f6e4; padding-bottom:6px; margin-bottom:8px;">
+                    <h3 style="color:#0f766e; font-size:0.8rem; font-weight:900; margin:0;">🔗 CATÁLOGO ONLINE — ALCANCE DA EQUIPE</h3>
+                    <span style="font-size:0.7rem; color:#0d9488; font-weight:800;">${vcGeral.sete} visitas · 7d</span>
+                </div>
+                ${linhasVc || `<p style="font-size:0.72rem; color:#5eead4; text-align:center; margin:8px 0;">Nenhuma visita registrada ainda — peça pra equipe divulgar os links! 📣</p>`}
+                ${linhasVc ? `<p style="font-size:0.6rem; color:#0d9488; margin:8px 0 0 0; text-align:center; font-style:italic;">Total geral: ${vcGeral.total} visitas${vcGeral.hoje > 0 ? ` · ${vcGeral.hoje} só hoje 👀` : ''} — visita alta e venda baixa? Vale revisar preço, foto ou abordagem.</p>` : ''}
+            </div>`;
+    }
+
     container.innerHTML = `
         <div class="dash-grid">
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
@@ -4842,6 +4993,8 @@ function renderizarDashboard() {
                 <p style="font-size:1.2rem; font-weight:900; color:#c2410c; margin:0;">${fmt(tBonusPago)}</p>
                 <p style="font-size:0.6rem; color:#888; margin-top:3px;">Custo do incentivo de Estoque Parado no período</p>
             </div>
+
+            ${htmlVisitasCatAdmin}
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
                 <div>
@@ -5585,6 +5738,7 @@ async function sincronizarDadosSilencioso() {
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
             conquistasGlobal = dados.conquistas || [];
+            visitasCatalogoGlobal = dados.visitasCatalogo || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -6503,7 +6657,7 @@ function renderizarUsuarios() {
                 <h4 style="margin: 0 0 5px 0; font-size: 1rem; color: var(--brand-dark);">
                     👤 ${u.usuario} ${badgeCargo}
                 </h4>
-                <p style="font-size:0.75rem; color:#888; margin:0;">ID: ${u.id} | <b style="color:var(--primary-dark);">Comissão: ${taxa}%</b></p>
+                <p style="font-size:0.75rem; color:#888; margin:0;">ID: ${u.id} | <b style="color:var(--primary-dark);">Comissão: ${taxa}%</b>${u.telefone ? ` | 📱 ${u.telefone}` : ` | <span style="color:#c2410c;">📵 sem WhatsApp p/ catálogo</span>`}</p>
             </div>
 
             <div class="prod-actions">
@@ -6527,6 +6681,7 @@ function salvarUsuario() {
     const senha = document.getElementById('u-senha').value;
     const comissao = parseFloat(document.getElementById('u-comissao').value) || 0;
     const metaMensal = parseFloat(document.getElementById('u-meta') ? document.getElementById('u-meta').value : 0) || 0;
+    const telefoneU = document.getElementById('u-telefone') ? document.getElementById('u-telefone').value.trim() : '';
 
     if(!nome) return mostrarAlerta("Atenção", "Preencha o nome de usuário.", "warning");
     if(!id && !senha) return mostrarAlerta("Atenção", "Crie uma senha para o novo usuário.", "warning");
@@ -6535,7 +6690,7 @@ function salvarUsuario() {
     mostrarLoading("Salvando...");
     const msgLog = id ? `✏️ Editou usuário: ${nome} (${cargo} - ${comissao}%${metaMensal ? ` - meta ${fmt(metaMensal)}` : ''})` : `👤 Novo membro: ${nome} (${cargo} - ${comissao}%)`;
 
-    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, meta_mensal: metaMensal, log_detalhe: msgLog };
+    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, meta_mensal: metaMensal, telefone: telefoneU, log_detalhe: msgLog };
     if(!id) payload.senha_usuario = senha; 
 
     fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(payload) })
@@ -6557,6 +6712,7 @@ function prepararEdicaoUsuario(id) {
     document.getElementById('u-cargo').value = u.cargo;
     document.getElementById('u-comissao').value = u.comissao || 0;
     const uMetaEl = document.getElementById('u-meta'); if (uMetaEl) uMetaEl.value = u.meta_mensal || '';
+    const uTelEl = document.getElementById('u-telefone'); if (uTelEl) uTelEl.value = u.telefone || '';
 
     document.getElementById('div-u-senha').style.display = 'none';
     document.getElementById('btn-salvar-usuario').innerText = "💾 Salvar Alterações";
@@ -6572,6 +6728,7 @@ function cancelarEdicaoUsuario() {
     document.getElementById('u-cargo').value = "Vendedor";
     document.getElementById('u-comissao').value = "";
     const uMetaEl2 = document.getElementById('u-meta'); if (uMetaEl2) uMetaEl2.value = "";
+    const uTelEl2 = document.getElementById('u-telefone'); if (uTelEl2) uTelEl2.value = "";
     document.getElementById('u-senha').value = "";
     document.getElementById('div-u-senha').style.display = 'block';
     document.getElementById('btn-salvar-usuario').innerText = "➕ Cadastrar Usuário";
@@ -6988,6 +7145,7 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-tipos-prod')) document.getElementById('cfg-tipos-prod').value = configuracoesGlobais.tipos_produto || '';
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
+    if(document.getElementById('cfg-telefone-loja')) document.getElementById('cfg-telefone-loja').value = configuracoesGlobais.telefone_loja || '';
 
     // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
     if(document.getElementById('cfg-marca-nome')) document.getElementById('cfg-marca-nome').value = configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome;
@@ -7031,6 +7189,7 @@ function salvarParametrosSistema() {
                 tipos_produto: tipos,
                 categorias_compras: cats,
                 locais_estoque: locais,
+                telefone_loja: (document.getElementById('cfg-telefone-loja') ? document.getElementById('cfg-telefone-loja').value.trim() : ''),
                 ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
             }
         })

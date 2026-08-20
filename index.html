@@ -212,7 +212,7 @@
                 <div class="section-title" style="margin-top: 0; margin-bottom: 15px;">📦 Produtos Prontos na Prateleira</div>
                 <!-- No celular ficam em coluna, no PC o CSS muda pra lado a lado -->
                 <div class="estoque-botoes-desktop" style="display: flex; flex-direction: column; gap: 10px;">
-                    <button class="btn-salvar" style="margin-top:0; background: var(--primary-dark);" onclick="abrirModalCatalogo()">📄 Gerar Catálogo em PDF</button>
+                    <button class="btn-salvar" style="margin-top:0; background: var(--primary-dark);" onclick="abrirModalCatalogo()">📖 Catálogo (PDF ou Link Online)</button>
                     <button class="btn-salvar" id="btn-qr-codes" style="margin-top:0; background: #2C2A2B; color: #fff; border-color: #2C2A2B; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="abrirModalQrCode()">🖨️ Imprimir QR Codes</button>
                     <button class="btn-salvar" id="btn-conferencia-estoque" style="margin-top:0; background: #0369a1; display:none;" onclick="abrirModalConferencia()">📋 Conferência de Estoque</button>
                 </div>
@@ -887,6 +887,7 @@
                     <div class="col"><label>Comissão (%)</label><input type="number" id="u-comissao" placeholder="Ex: 10" min="0" max="100"></div>
                 </div>
                 <div class="input-group"><label>🎯 Meta de Vendas do Mês (R$) — opcional</label><input type="number" id="u-meta" placeholder="Ex: 1500" min="0" step="50"></div>
+                <div class="input-group"><label>📱 WhatsApp do Vendedor — opcional</label><input type="tel" id="u-telefone" placeholder="Ex: (35) 99999-9999"><small style="font-size:0.62rem; color:#999;">Usado no Catálogo Online: o cliente toca em "Quero esse" e cai direto no WhatsApp dele.</small></div>
                 <div class="input-group" id="div-u-senha"><label>Senha de Acesso</label><div class="password-wrapper"><input type="password" id="u-senha" placeholder="Crie uma senha forte"><button type="button" class="toggle-eye" onclick="toggleSenha('u-senha', this)">🙈</button></div></div>
                 
                 <button class="btn-salvar" id="btn-salvar-usuario" onclick="salvarUsuario()">➕ Cadastrar Usuário</button>
@@ -1076,7 +1077,7 @@
     <div class="modal-box-alert" style="width: 95%; max-width: 400px; padding: 30px 20px;">
         <button onclick="document.getElementById('modal-gerar-catalogo').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
         <h3 class="modal-title-alert" style="margin-bottom: 5px; color: var(--brand-dark);">📄 Catálogo Novera</h3>
-        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Filtre o tipo de produto e gênero que deseja incluir no PDF.</p>
+        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Filtre o que deseja incluir no PDF ou na página online.</p>
         
         <div style="text-align: left; margin-bottom: 15px;"><label style="margin-bottom:10px;">Categorias (Tipos)</label><div id="cat-checkbox-container" style="max-height: 120px; overflow-y: auto; background: #fafafa; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;"></div></div>
         
@@ -1092,6 +1093,8 @@
 
         <div style="text-align: left; margin-bottom: 15px;"><label class="checkbox-recibo" style="margin-bottom: 8px;"><input type="checkbox" id="cat-filtro-estoque" checked><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Apenas com Estoque</span><span class="chk-desc" style="font-size: 0.7rem;">Oculta produtos esgotados</span></div></label><label class="checkbox-recibo"><input type="checkbox" id="cat-filtro-exibir-qtd"><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Exibir Qtd. no PDF</span><span class="chk-desc" style="font-size: 0.7rem;">Mostra quantas unidades restam</span></div></label></div>
         <button class="btn-salvar" style="margin-top: 5px; background: var(--primary-dark); box-shadow: 0 4px 10px rgba(150, 97, 120, 0.3);" onclick="gerarCatalogoPDFFrontend()">⬇️ Gerar e Baixar PDF</button>
+        <button class="btn-salvar" style="margin-top: 10px; background: #25D366; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);" onclick="gerarLinkCatalogoOnline()">🔗 Criar Link Online p/ Cliente</button>
+        <p style="font-size: 0.65rem; color: #aaa; margin: 8px 0 0;">O link abre uma página com esses mesmos filtros, sempre com preços e estoque atualizados.</p>
     </div>
 </div>
 
@@ -1499,7 +1502,8 @@
                 </div>
                 <p style="margin-bottom: 4px;">🌳 <b>Cliente pediu "um amadeirado"? Um "doce"?</b> Use o filtro <b>"Todas as Famílias Olfativas"</b> ou digite a família na busca — aparecem só os daquele perfil, com preço e onde estão.</p>
                 <p style="margin-bottom: 4px;">⏳ <b>"Chega em X dias"</b> = acabou, mas a fábrica já está produzindo. Use isso pra vender: "te reservo pra semana que vem?"</p>
-                <p style="margin-bottom: 0;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>
+                <p style="margin-bottom: 8px;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>
+                <p style="margin-bottom: 0;">🔗 <b>SEU CATÁLOGO ONLINE (arma secreta!):</b> no topo do Estoque, toque em <b>📖 Catálogo → Criar Link Online</b>. Gera um link SEU pra mandar aos clientes (ou o QR pra imprimir): eles veem a vitrine com preços sempre atualizados, tocam em "💬 Quero esse!" e caem direto no <b>seu</b> WhatsApp com o pedido pronto. As visitas aparecem no seu Painel!</p>
             </div>
 
             <div style="margin-bottom: 25px;">
@@ -1620,6 +1624,12 @@
             <div style="margin-bottom: 20px;">
                 <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Locais de Estoque Padrões (Separados por vírgula)</label>
                 <input type="text" id="cfg-locais" placeholder="Ex: Sede, Carro..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">📱 WhatsApp Padrão da Loja (Catálogo Online)</label>
+                <input type="tel" id="cfg-telefone-loja" placeholder="Ex: (35) 99999-9999" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+                <small style="font-size:0.65rem; color:#999;">Recebe os pedidos do catálogo quando o vendedor do link não tem WhatsApp cadastrado.</small>
             </div>
 
             <div style="margin: 20px 0 5px 0; color: #7c3aed; border-left: 4px solid #7c3aed; padding-left: 10px; font-size: 1rem; font-weight: 900;">🎨 Identidade Visual</div>
