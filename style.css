@@ -26,10 +26,190 @@ body {
 .card { background: var(--card-bg); padding: 25px 20px; border-radius: 20px; box-shadow: 0 15px 35px rgba(184, 124, 150, 0.1); border: 1px solid rgba(184, 124, 150, 0.05); position: relative; }
 
 .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; box-shadow: 0 -5px 20px rgba(184, 124, 150, 0.15); border-radius: 25px 25px 0 0; z-index: 1000; padding-bottom: calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(184, 124, 150, 0.1); }
-.nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a1a1aa; text-decoration: none; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 0; }
+.nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a1a1aa; text-decoration: none; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase; cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
 .nav-item .icon { font-size: 1.35rem; margin-bottom: 4px; transition: all 0.3s ease; filter: grayscale(100%) opacity(0.5); }
 .nav-item.active { color: var(--primary-dark); }
 .nav-item.active .icon { filter: grayscale(0%) opacity(1); transform: translateY(-3px) scale(1.1); }
+
+/* ==========================================
+   🌙 MODO ESCURO COMPLETO
+   O JS coloca a classe .tema-escuro no <html> (pela escolha do botão 🌙 ou seguindo o
+   tema do celular/PC). SEM a classe, nada daqui se aplica: o modo claro continua sendo
+   exatamente o visual original. Os textos com cor fixa escrita no código são vencidos
+   por remapeamento com !important (que ganha de estilo inline).
+   ========================================== */
+:root {
+    --shell-bg: var(--bg-color); --shell-nav-bg: rgba(255, 255, 255, 0.95); --shell-nav-border: rgba(184, 124, 150, 0.1);
+    --shell-header-border: var(--border-color); --shell-more-bg: #ffffff; --shell-overlay: rgba(0,0,0,0.6);
+    --shell-desktop-bg: #f4f7f6; --shell-sidebar-bg: #ffffff; --shell-sidebar-border: #e8dde1;
+}
+html.tema-escuro {
+    /* 🍇 Paleta "Novera Noite": ameixa e rosé em tons suaves — escuro sem ficar pesado */
+    --bg-color: #322842; --card-bg: #3b3050; --text-main: #e6def0;
+    --border-color: #5e4d75; --brand-dark: #f5f0fa; --primary-dark: #e0aec7;
+    --shell-bg: #2a2138; --shell-nav-bg: rgba(59, 47, 78, 0.97); --shell-nav-border: rgba(224, 174, 199, 0.22);
+    --shell-header-border: rgba(224, 174, 199, 0.22); --shell-more-bg: #453757; --shell-overlay: rgba(24, 16, 32, 0.75);
+    --shell-desktop-bg: #251d33; --shell-sidebar-bg: #372c49; --shell-sidebar-border: rgba(224, 174, 199, 0.18);
+}
+body { background: var(--shell-bg); }
+.header { border-bottom-color: var(--shell-header-border); }
+.bottom-nav { background: var(--shell-nav-bg); border-top-color: var(--shell-nav-border); }
+html.tema-escuro .nav-more-panel { background: var(--shell-more-bg); box-shadow: 0 -5px 25px rgba(0,0,0,0.5); }
+html.tema-escuro .nav-more-overlay { background: var(--shell-overlay); }
+html.tema-escuro .modal-overlay-alert { background: var(--shell-overlay); }
+html.tema-escuro .nav-item-more { color: #b7a8bf; }
+#nav-mais, .app-version { color: inherit; }
+
+/* Superfícies principais no escuro: a borda mantém o tom do fundo, e o "miolo" é mais clarinho */
+html.tema-escuro .card { box-shadow: 0 15px 35px rgba(0,0,0,0.35); border-color: rgba(224, 174, 199, 0.1); }
+html.tema-escuro .rotulo-card { background: #453a5c; border-color: rgba(224, 174, 199, 0.2); }
+html.tema-escuro .dash-card { background: #453a5c; }
+html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea { background: #453a5c; color: #f5f0fa; border-color: #5e4d75; }
+html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: #4d4166; }
+html.tema-escuro input[readonly] { background: #5e4d75; color: #ecd0dd; }
+html.tema-escuro .sub-nav-container { background: #453a5c; }
+html.tema-escuro .sub-nav-btn { color: #d3c5db; }
+html.tema-escuro .sub-nav-btn.active { background: #5e4d75; color: #ffe4ef; box-shadow: none; }
+html.tema-escuro .loading-overlay { background: rgba(42, 33, 56, 0.9); }
+/* Gráficos desenham texto escuro — ganham um "papel" claro pra continuarem legíveis */
+html.tema-escuro canvas { background: #f6f1f7; border-radius: 8px; }
+
+/* 🧭 Menus com presença no escuro: rótulos mais claros e ícones mais vivos */
+html.tema-escuro .nav-item { color: #cfc2d8; }
+html.tema-escuro .nav-item .icon { filter: grayscale(60%) opacity(0.85) brightness(1.35); }
+html.tema-escuro .nav-item.active { color: #ffd7e6; }
+html.tema-escuro .nav-item.active .icon { filter: grayscale(0%) opacity(1) brightness(1.15); transform: translateY(-3px) scale(1.15); }
+html.tema-escuro .nav-item-more { color: #cfc2d8; }
+html.tema-escuro .nav-item-more .icon { filter: grayscale(60%) opacity(0.85) brightness(1.35); }
+html.tema-escuro .nav-item-more.active { color: #ffd7e6; }
+
+/* Fundos claros escritos direto no código viram superfícies ameixa equivalentes */
+html.tema-escuro [style*="background:#fff"], html.tema-escuro [style*="background: #fff"],
+html.tema-escuro [style*="background:#ffffff"], html.tema-escuro [style*="background: #ffffff"],
+html.tema-escuro [style*="background-color: #ffffff"], html.tema-escuro [style*="background-color:#fff"] { background: #453a5c !important; }
+html.tema-escuro [style*="background:#fdf5f7"], html.tema-escuro [style*="background: #fdf5f7"],
+html.tema-escuro [style*="background:#fff9e6"], html.tema-escuro [style*="background: #fff9e6"],
+html.tema-escuro [style*="background:#f0f9ff"], html.tema-escuro [style*="background: #f0f9ff"],
+html.tema-escuro [style*="background:#fafafa"], html.tema-escuro [style*="background: #fafafa"],
+html.tema-escuro [style*="background:#f8fafc"], html.tema-escuro [style*="background: #f8fafc"] { background: #4a3d61 !important; }
+
+/* Bordas claras escritas no código ficam discretas no escuro (sem linhas neon) */
+html.tema-escuro [style*="border:1px solid #E8DDE1"], html.tema-escuro [style*="border: 1px solid #E8DDE1"],
+html.tema-escuro [style*="border:1px solid #e5e7eb"], html.tema-escuro [style*="border: 1px solid #e5e7eb"],
+html.tema-escuro [style*="border:1px solid #f3d8e2"], html.tema-escuro [style*="border: 1px solid #f3d8e2"],
+html.tema-escuro [style*="border:1px solid #eadfe4"], html.tema-escuro [style*="border: 1px solid #eadfe4"] { border-color: #5e4d75 !important; }
+html.tema-escuro [style*="border:1px solid #ffeeba"], html.tema-escuro [style*="border: 1px solid #ffeeba"],
+html.tema-escuro [style*="border:1px solid #fde047"], html.tema-escuro [style*="border: 1px solid #fde047"],
+html.tema-escuro [style*="border:1px solid #fde68a"], html.tema-escuro [style*="border: 1px solid #fde68a"],
+html.tema-escuro [style*="border:1px solid #fef08a"], html.tema-escuro [style*="border: 1px solid #fef08a"] { border-color: #7d6a30 !important; }
+html.tema-escuro [style*="border:1px solid #fecaca"], html.tema-escuro [style*="border: 1px solid #fecaca"],
+html.tema-escuro [style*="border:1px solid #fca5a5"], html.tema-escuro [style*="border: 1px solid #fca5a5"] { border-color: #7d3f3f !important; }
+html.tema-escuro [style*="border:1px solid #bae6fd"], html.tema-escuro [style*="border: 1px solid #bae6fd"],
+html.tema-escuro [style*="border:1px solid #bfdbfe"], html.tema-escuro [style*="border: 1px solid #bfdbfe"] { border-color: #38688a !important; }
+html.tema-escuro [style*="border:1px solid #86efac"], html.tema-escuro [style*="border: 1px solid #86efac"],
+html.tema-escuro [style*="border:1px solid #bbf7d0"], html.tema-escuro [style*="border: 1px solid #bbf7d0"],
+html.tema-escuro [style*="border:1px solid #c8e6c9"], html.tema-escuro [style*="border: 1px solid #c8e6c9"] { border-color: #38744e !important; }
+html.tema-escuro [style*="border:1px solid #ddd6fe"], html.tema-escuro [style*="border: 1px solid #ddd6fe"],
+html.tema-escuro [style*="border:1px solid #d8b4fe"], html.tema-escuro [style*="border: 1px solid #d8b4fe"],
+html.tema-escuro [style*="border:1px solid #c4b5fd"], html.tema-escuro [style*="border: 1px solid #c4b5fd"] { border-color: #644a8c !important; }
+
+/* Textos com cor fixa escrita no código: remapeados pra tons claros com calor de ameixa */
+html.tema-escuro [style*="color:#2C2A2B"], html.tema-escuro [style*="color: #2C2A2B"],
+html.tema-escuro [style*="color:#4A4A4A"], html.tema-escuro [style*="color: #4A4A4A"],
+html.tema-escuro [style*="color:#333"], html.tema-escuro [style*="color: #333"] { color: #f0eaf4 !important; }
+html.tema-escuro [style*="color:#666"], html.tema-escuro [style*="color: #666"],
+html.tema-escuro [style*="color:#888"], html.tema-escuro [style*="color: #888"],
+html.tema-escuro [style*="color:#999"], html.tema-escuro [style*="color: #999"],
+html.tema-escuro [style*="color:#aaa"], html.tema-escuro [style*="color: #aaa"] { color: #b7a8bf !important; }
+html.tema-escuro [style*="color:#64748b"], html.tema-escuro [style*="color: #64748b"],
+html.tema-escuro [style*="color:#4b5563"], html.tema-escuro [style*="color: #4b5563"],
+html.tema-escuro [style*="color:#475569"], html.tema-escuro [style*="color: #475569"] { color: #adb4c8 !important; }
+html.tema-escuro [style*="color:#7a4a5e"], html.tema-escuro [style*="color: #7a4a5e"],
+html.tema-escuro [style*="color:#966178"], html.tema-escuro [style*="color: #966178"] { color: #e3c3d3 !important; }
+html.tema-escuro [style*="color:#92400e"], html.tema-escuro [style*="color: #92400e"],
+html.tema-escuro [style*="color:#b45309"], html.tema-escuro [style*="color: #b45309"],
+html.tema-escuro [style*="color:#a16207"], html.tema-escuro [style*="color: #a16207"] { color: #ecc08b !important; }
+html.tema-escuro [style*="color:#0369a1"], html.tema-escuro [style*="color: #0369a1"],
+html.tema-escuro [style*="color:#1e40af"], html.tema-escuro [style*="color: #1e40af"] { color: #7cc4ee !important; }
+html.tema-escuro [style*="color:#15803d"], html.tema-escuro [style*="color: #15803d"],
+html.tema-escuro [style*="color:#166534"], html.tema-escuro [style*="color: #166534"],
+html.tema-escuro [style*="color:#2e7d32"], html.tema-escuro [style*="color: #2e7d32"] { color: #6ede8f !important; }
+html.tema-escuro [style*="color:#991b1b"], html.tema-escuro [style*="color: #991b1b"],
+html.tema-escuro [style*="color:#b91c1c"], html.tema-escuro [style*="color: #b91c1c"] { color: #ff8a8a !important; }
+html.tema-escuro [style*="color:#7c3aed"], html.tema-escuro [style*="color: #7c3aed"],
+html.tema-escuro [style*="color:#7e22ce"], html.tema-escuro [style*="color: #7e22ce"],
+html.tema-escuro [style*="color:#4c1d95"], html.tema-escuro [style*="color: #4c1d95"] { color: #c5a3ff !important; }
+
+/* Faixas e selos coloridos (amarelo/azul/verde/vermelho/roxo) viram a versão escura da mesma
+   cor, com um toque de ameixa pra conversar com o resto do tema */
+html.tema-escuro [style*="background:#fef3c7"], html.tema-escuro [style*="background: #fef3c7"],
+html.tema-escuro [style*="background:#fffbeb"], html.tema-escuro [style*="background: #fffbeb"],
+html.tema-escuro [style*="background:#fef08a"], html.tema-escuro [style*="background: #fef08a"],
+html.tema-escuro [style*="background:#fff7ed"], html.tema-escuro [style*="background: #fff7ed"],
+html.tema-escuro [style*="background:#ffedd5"], html.tema-escuro [style*="background: #ffedd5"] { background: #524020 !important; }
+html.tema-escuro [style*="background:#fee2e2"], html.tema-escuro [style*="background: #fee2e2"],
+html.tema-escuro [style*="background:#fef2f2"], html.tema-escuro [style*="background: #fef2f2"] { background: #572f34 !important; }
+html.tema-escuro [style*="background:#e0f2fe"], html.tema-escuro [style*="background: #e0f2fe"],
+html.tema-escuro [style*="background:#eff6ff"], html.tema-escuro [style*="background: #eff6ff"] { background: #2c485f !important; }
+html.tema-escuro [style*="background:#dcfce7"], html.tema-escuro [style*="background: #dcfce7"],
+html.tema-escuro [style*="background:#e8f5e9"], html.tema-escuro [style*="background: #e8f5e9"],
+html.tema-escuro [style*="background:#f0fdf4"], html.tema-escuro [style*="background: #f0fdf4"] { background: #2b4d37 !important; }
+html.tema-escuro [style*="background:#faf5ff"], html.tema-escuro [style*="background: #faf5ff"],
+html.tema-escuro [style*="background:#f3e8ff"], html.tema-escuro [style*="background: #f3e8ff"],
+html.tema-escuro [style*="background:#e9d5ff"], html.tema-escuro [style*="background: #e9d5ff"] { background: #473563 !important; }
+
+/* Selos de status por classe (Pago/Pendente/etc.) */
+html.tema-escuro .b-atrasado { background: #572f34; color: #ffa3a3; border-color: #7d3f3f; }
+html.tema-escuro .b-hoje { background: #524020; color: #ffd88f; border-color: #7d6a30; }
+html.tema-escuro .b-futuro { background: #2c485f; color: #93cff2; border-color: #38688a; }
+html.tema-escuro .b-ok { background: #2b4d37; color: #8fe6a8; border-color: #38744e; }
+html.tema-escuro .status-presente { background: #473563; color: #d0b3ff; border-color: #644a8c; }
+html.tema-escuro .badge-critico { background: #572f34; color: #ffa3a3; border-color: #7d3f3f; }
+html.tema-escuro .badge-saudavel { background: #2b4d37; color: #8fe6a8; border-color: #38744e; }
+html.tema-escuro .badge-produzindo { background: #524020; color: #ffd88f; border-color: #7d6a30; }
+
+/* Fica ABAIXO da .bottom-nav (z-index 1000): escurece só o conteúdo, deixando a barra e o painel "Mais" clicáveis */
+.nav-more-overlay { display: none; position: fixed; inset: 0; background: rgba(44, 42, 43, 0.35); z-index: 999; }
+.nav-more-panel {
+    display: none; position: absolute; bottom: 100%; left: 0; right: 0; margin: 0 0 10px;
+    background: #ffffff; border-radius: 20px;
+    box-shadow: 0 -5px 25px rgba(184, 124, 150, 0.2); padding: 15px; z-index: 1002;
+    flex-wrap: wrap; gap: 6px; box-sizing: border-box;
+}
+.nav-item-more {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #a1a1aa; text-decoration: none; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.2px;
+    text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;
+    flex: 1 1 30%; min-width: 0; padding: 12px 4px; border-radius: 14px;
+}
+.nav-item-more:active { background: rgba(184, 124, 150, 0.08); }
+.nav-item-more .icon { font-size: 1.35rem; margin-bottom: 4px; filter: grayscale(100%) opacity(0.5); }
+.nav-item-more.active { color: var(--primary-dark); }
+.nav-item-more.active .icon { filter: grayscale(0%) opacity(1); transform: scale(1.1); }
+
+/* Chama atenção pro banner de comissão extra: brilho pulsante na caixa + foguinho balançando */
+@keyframes pulsoBonus {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    50% { box-shadow: 0 0 0 9px rgba(245, 158, 11, 0); }
+}
+@keyframes fogoBalanca {
+    0%, 100% { transform: scale(1) rotate(-6deg); }
+    50% { transform: scale(1.35) rotate(6deg); }
+}
+.banner-bonus-pulso { animation: pulsoBonus 2s ease-in-out infinite; }
+.fogo-pulso { animation: fogoBalanca 0.9s ease-in-out infinite; }
+
+/* ⬆️ Botão flutuante de voltar ao topo: só aparece depois que a pessoa rolou a tela pra baixo */
+#btn-voltar-topo {
+    position: fixed; bottom: calc(95px + env(safe-area-inset-bottom)); right: 16px;
+    width: 46px; height: 46px; border-radius: 50%; border: none;
+    background: var(--primary-dark); color: #fff; font-size: 1.25rem; line-height: 1;
+    box-shadow: 0 6px 18px rgba(150, 97, 120, 0.45); cursor: pointer; z-index: 998;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease;
+    transform: translateY(8px);
+}
+#btn-voltar-topo.visivel { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#btn-voltar-topo:active { transform: scale(0.9); }
 
 .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; }
 
@@ -80,8 +260,8 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
 
 .filtro-box { background: #fdfbfb; border: 1px solid var(--border-color); padding: 18px; border-radius: 16px; margin-bottom: 20px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);}
 
-.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-.dash-card { background: #fff; border: 1px solid var(--border-color); padding: 18px; border-radius: 16px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.02); cursor: pointer; transition: 0.2s;}
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 20px; }
+.dash-card { background: #fff; border: 1px solid var(--border-color); padding: 18px; border-radius: 16px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.02); cursor: pointer; transition: 0.2s; box-sizing: border-box; min-width: 0; overflow-wrap: break-word; }
 .dash-card:active { transform: scale(0.95); }
 .dash-card h3 { margin: 0 0 5px; font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-weight:800;}
 .dash-card .valor { font-size: 1.6rem; font-weight: 900; color: var(--brand-dark);}
@@ -164,14 +344,14 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
    MODO DESKTOP (Telas maiores que 992px - Computadores)
    ========================================== */
 @media (min-width: 992px) {
-    body { background: #f4f7f6; padding: 0; margin: 0; display: block; }
+    body { background: var(--shell-desktop-bg); padding: 0; margin: 0; display: block; }
     .app-container { display: block; margin-left: 230px; padding: 30px; max-width: 1600px; }
 
     /* 1. MENU LATERAL */
     .bottom-nav {
         position: fixed; top: 0; left: 0; width: 230px; height: 100vh;
         flex-direction: column; justify-content: flex-start;
-        background: #ffffff; border-top: none; border-right: 1px solid #e8dde1;
+        background: var(--shell-sidebar-bg); border-top: none; border-right: 1px solid var(--shell-sidebar-border);
         padding: 30px 15px; box-shadow: 2px 0 15px rgba(0,0,0,0.03); z-index: 1000;
         transform: none; border-radius: 0; box-sizing: border-box;
         gap: 2px;
@@ -180,9 +360,10 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     .nav-item {
         flex-direction: row; justify-content: flex-start;
         padding: 8px 12px;
-        margin-bottom: 0; 
+        margin-bottom: 0;
         border-radius: 8px; width: 100%; box-sizing: border-box; color: #888;
         height: auto; align-items: center;
+        flex: none; /* sem isso, os itens esticam para preencher os 100vh da barra lateral, criando espaços gigantes */
     }
     
     .nav-item .icon { margin-bottom: 0; margin-right: 10px; font-size: 1.1rem; }
@@ -193,10 +374,32 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
         box-shadow: inset 4px 0 0 var(--primary-dark);
     }
 
+    /* No desktop, a barra lateral tem espaço de sobra: mostra tudo direto, sem menu "Mais" */
+    #nav-mais, .nav-more-overlay { display: none !important; }
+    .nav-more-panel {
+        display: flex !important; position: static; flex-direction: column; flex-wrap: nowrap;
+        width: 100%; max-width: none; background: transparent; box-shadow: none;
+        padding: 0; margin: 0; gap: 2px; transform: none; bottom: auto; left: auto;
+    }
+    .nav-item-more {
+        flex-direction: row; justify-content: flex-start; align-items: center;
+        flex: none; width: 100%; box-sizing: border-box; padding: 8px 12px; color: #888;
+    }
+    .nav-item-more .icon { margin-bottom: 0; margin-right: 10px; font-size: 1.1rem; }
+    .nav-item-more span:last-child { font-size: 0.85rem; font-weight: 700; }
+    .nav-item-more.active {
+        background: #fdf5f7; color: var(--primary-dark);
+        box-shadow: inset 4px 0 0 var(--primary-dark);
+    }
+    .nav-item-more.active .icon { transform: none; }
+
+    /* No desktop a barra fica na lateral, então o botão de topo pode descer mais */
+    #btn-voltar-topo { bottom: 25px; right: 25px; }
+
     /* 2. O CARTÃO BRANCO DO SISTEMA */
     .card {
         box-shadow: 0 5px 25px rgba(184, 124, 150, 0.08); border-radius: 20px;
-        padding: 40px 50px; background: #ffffff; min-height: 85vh;
+        padding: 40px 50px; background: var(--card-bg); min-height: 85vh;
     }
 
     /* 3. CABEÇALHO */
@@ -455,7 +658,7 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     
     .rotulo-card { margin-bottom: 0; height: 100%; box-sizing: border-box; }
     
-    .dash-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .dash-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
     .dash-card.highlight { grid-column: span 4; }
     .dash-card.patrimonio { grid-column: span 4; }
 
@@ -823,6 +1026,10 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     gap: 12px !important;
     width: 100% !important;
 }
+
+/* Seta de recolher/expandir o grupo de vendas de um dia (o esconder em si é feito via JS, direto no elemento) */
+.seta-dia-vendas { display: inline-block; transition: transform 0.2s ease; margin-right: 6px; }
+.seta-dia-vendas.recolhida { transform: rotate(-90deg); }
 
 /* 4. O Cartão individual */
 .card-venda-list {

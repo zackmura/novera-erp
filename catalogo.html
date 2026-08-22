@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo · Novera Scent</title>
+<meta name="description" content="Catálogo de produtos Novera Scent — perfumes, cremes e mais, com preços e disponibilidade atualizados.">
+<meta property="og:title" content="Catálogo Novera Scent">
+<meta property="og:description" content="Perfumes e cosméticos de alta perfumaria. Veja os produtos, notas olfativas e preços atualizados.">
+<meta property="og:type" content="website">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    /* 🌸 Página PÚBLICA do catálogo — sempre tema claro (identidade da marca), feita pro celular do cliente */
+    :root {
+        --p: #b87c96;          /* cor primária da marca (sobrescrita pela identidade visual) */
+        --pd: #966178;         /* primária escura */
+        --tinta: #2C2A2B;
+        --papel: #fdfbfb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--papel); color: var(--tinta); font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; }
+
+    .topo { text-align: center; padding: 34px 16px 22px; border-bottom: 2px solid #E8DDE1; background: #fff; }
+    .topo img.logo { max-height: 64px; margin-bottom: 10px; }
+    .topo h1 { font-family: 'Playfair Display', serif; color: var(--pd); font-size: 1.7rem; text-transform: uppercase; letter-spacing: 5px; font-weight: 700; }
+    .topo h2 { font-size: 0.7rem; font-weight: 600; margin-top: 6px; text-transform: uppercase; letter-spacing: 3px; color: #b8a0ab; }
+    .topo .atendente { margin-top: 10px; font-size: 0.68rem; color: var(--pd); background: #faf3f6; border: 1px solid #f0dde6; display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; }
+
+    .barra-busca { max-width: 860px; margin: 18px auto 0; padding: 0 14px; }
+    .barra-busca input { width: 100%; padding: 13px 18px; border: 1px solid #e3c6d2; border-radius: 30px; font-family: 'Montserrat', sans-serif; font-size: 0.9rem; color: var(--tinta); background: #fff; outline: none; }
+    .barra-busca input:focus { border-color: var(--p); box-shadow: 0 0 0 3px rgba(184,124,150,0.12); }
+
+    .chips-familia { max-width: 860px; margin: 10px auto 0; padding: 0 14px; display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; }
+    #chips-genero .chip-fam { background: #faf3f6; border-color: #eadfe4; }
+    #chips-genero .chip-fam.ativo { background: var(--pd); border-color: var(--pd); }
+    .chip-fam { border: 1px solid #e3c6d2; background: #fff; color: var(--pd); border-radius: 20px; padding: 6px 14px; font-size: 0.62rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; font-family: 'Montserrat', sans-serif; }
+    .chip-fam.ativo { background: var(--pd); color: #fff; border-color: var(--pd); }
+
+    .miolo { max-width: 860px; margin: 0 auto; padding: 6px 14px 40px; }
+    .secao { text-align: center; font-family: 'Playfair Display', serif; font-size: 1.15rem; color: var(--pd); letter-spacing: 4px; text-transform: uppercase; padding: 30px 0 16px; }
+
+    .cartao { border: 1px solid var(--filete, #eadfe4); border-radius: 18px; overflow: hidden; background: #fff; display: flex; flex-direction: column; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(150,97,120,0.06); scroll-margin-top: 20px; }
+    .cartao.destaque { animation: brilhar 2.2s ease; }
+    @keyframes brilhar { 0%, 60% { box-shadow: 0 0 0 4px var(--p), 0 8px 30px rgba(150,97,120,0.35); } 100% { box-shadow: 0 2px 10px rgba(150,97,120,0.06); } }
+    .cartao .foto { width: 100%; height: 300px; background: var(--letterbox, #f6ebef); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .cartao .foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cartao .foto .ns { font-family: 'Playfair Display', serif; font-size: 42px; letter-spacing: 3px; }
+    .cartao .conteudo { padding: 18px 20px; display: flex; flex-direction: column; }
+
+    @media (min-width: 700px) {
+        .cartao { flex-direction: row; align-items: stretch; }
+        .cartao .foto { width: 250px; height: auto; min-height: 320px; flex-shrink: 0; }
+        .cartao .conteudo { flex: 1; min-width: 0; padding: 22px 28px; justify-content: center; }
+    }
+
+    .linha-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .codigo { font-size: 0.7rem; font-weight: 800; letter-spacing: 3px; }
+    .meta { font-size: 0.62rem; letter-spacing: 1.5px; text-transform: uppercase; }
+    .insp { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 3px; margin-top: 10px; }
+    .nome { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.35rem; line-height: 1.2; margin-top: 2px; color: var(--tinta); }
+    .descricao { font-family: Georgia, 'Times New Roman', serif; font-size: 0.82rem; color: #6d5c66; font-style: italic; line-height: 1.6; margin-top: 9px; }
+    .filete { height: 1px; margin: 11px 0 7px; }
+    .nota { margin-top: 4px; font-size: 0.72rem; color: #6d5c66; }
+    .nota b { display: inline-block; min-width: 74px; font-size: 0.6rem; font-weight: 800; letter-spacing: 2px; }
+    .chips { margin-top: 11px; }
+    .chip { display: inline-block; border-radius: 20px; padding: 4.5px 13px; font-size: 0.6rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 5px 0; border: 1px solid; }
+    .rodape-cartao { display: flex; justify-content: space-between; align-items: baseline; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--filete, #eadfe4); }
+    .preco { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.35rem; }
+    .disp-ok { font-size: 0.62rem; color: #5a8a68; font-weight: 700; letter-spacing: 1px; }
+    .disp-enc { font-size: 0.62rem; color: #b08585; font-weight: 700; letter-spacing: 1px; }
+
+    .acoes-cartao { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+    .btn-add { width: 100%; background: var(--pd); color: #fff; border: none; border-radius: 12px; padding: 14px 10px; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 0.8rem; cursor: pointer; box-shadow: 0 3px 8px rgba(150,97,120,0.3); }
+    .btn-add.ja-tem { background: #2e7d32; box-shadow: 0 3px 8px rgba(46,125,50,0.3); }
+    .btn-so-este { width: 100%; background: none; color: #1b9c4b; border: none; padding: 4px; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 0.68rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+    /* 🛍️ Barra fixa de pedido: aparece assim que a sacolinha tem 1 item — impossível não ver */
+    .barra-pedido { position: fixed; left: 0; right: 0; bottom: 0; background: #25D366; color: #fff; z-index: 90; display: none; cursor: pointer; box-shadow: 0 -6px 20px rgba(0,0,0,0.22); animation: subir 0.35s ease; }
+    @keyframes subir { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .barra-pedido .bp-in { max-width: 860px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; font-family: 'Montserrat', sans-serif; }
+    .barra-pedido .bp-esq { font-size: 0.82rem; font-weight: 700; }
+    .barra-pedido .bp-esq b { font-size: 0.95rem; }
+    .barra-pedido .bp-btn { background: #fff; color: #1b9c4b; border-radius: 24px; padding: 9px 18px; font-weight: 900; font-size: 0.78rem; white-space: nowrap; }
+
+    .overlay-sacola { position: fixed; inset: 0; background: rgba(24,16,32,0.75); z-index: 100; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(3px); }
+    @media (min-width: 700px) { .overlay-sacola { align-items: center; } }
+    .caixa-sacola { background: #fff; border-radius: 22px 22px 0 0; width: 100%; max-width: 460px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+    @media (min-width: 700px) { .caixa-sacola { border-radius: 22px; } }
+    .caixa-sacola .cab { padding: 18px 20px 12px; text-align: center; border-bottom: 1px solid #f0e5ea; position: relative; }
+    .caixa-sacola .cab h3 { font-family: 'Playfair Display', serif; color: var(--pd); font-size: 1.15rem; }
+    .caixa-sacola .fechar-sac { position: absolute; top: 14px; right: 14px; background: #f3e8ed; border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--pd); cursor: pointer; font-size: 1rem; }
+    .caixa-sacola .itens { padding: 10px 20px; overflow-y: auto; flex: 1; }
+    .item-sacola { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px dashed #f0e5ea; }
+    .item-sacola .thumb { width: 52px; height: 62px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #f6ebef; display: flex; align-items: center; justify-content: center; border: 1px solid #f0e5ea; }
+    .item-sacola .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item-sacola .thumb .mini-ns { font-family: 'Playfair Display', serif; font-size: 0.85rem; color: #c9a2b4; letter-spacing: 1px; }
+    .item-sacola .info { flex: 1; min-width: 0; }
+    .item-sacola .n { font-size: 0.8rem; font-weight: 700; color: var(--tinta); }
+    .item-sacola .p { font-size: 0.68rem; color: var(--pd); font-weight: 700; margin-top: 2px; }
+    .qtd-controle { display: flex; align-items: center; gap: 8px; }
+    .qtd-controle button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #e3c6d2; background: #fff; color: var(--pd); font-weight: 900; font-size: 1rem; cursor: pointer; }
+    .qtd-controle span { min-width: 20px; text-align: center; font-weight: 800; font-size: 0.85rem; }
+    .caixa-sacola .pe { padding: 14px 20px 20px; border-top: 1px solid #f0e5ea; background: #fdf9fb; }
+    .total-sacola { display: flex; justify-content: space-between; font-weight: 800; margin-bottom: 12px; }
+    .total-sacola .v { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--pd); }
+    .btn-enviar-pedido { width: 100%; background: #25D366; color: #fff; border: none; border-radius: 14px; padding: 15px; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 0 #1b9c4b; }
+    .btn-limpar { width: 100%; background: none; border: none; color: #b08585; font-size: 0.68rem; font-weight: 700; margin-top: 10px; cursor: pointer; font-family: 'Montserrat', sans-serif; }
+
+    .aviso { text-align: center; padding: 60px 20px; color: #a08a94; font-size: 0.85rem; line-height: 1.7; }
+    .aviso .giro { font-size: 2rem; display: inline-block; animation: girar 1.2s linear infinite; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; background: #2C2A2B; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 0.75rem; font-weight: 700; z-index: 120; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+    .toast.on { opacity: 1; }
+
+    .rodape { text-align: center; padding: 26px 16px 90px; font-size: 0.62rem; color: #b8a0ab; border-top: 1px solid #E8DDE1; letter-spacing: 1px; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<header class="topo">
+    <img class="logo" id="marca-logo" src="" alt="" style="display:none;">
+    <h1 id="marca-nome">Novera Scent</h1>
+    <h2>Catálogo de Produtos</h2>
+    <div class="atendente" id="atendente" style="display:none;"></div>
+</header>
+
+<div class="barra-busca">
+    <input type="text" id="busca" placeholder="🔍 Buscar por nome, código ou família (ex.: amadeirado)..." oninput="renderizar()">
+</div>
+<div class="chips-familia" id="chips-genero" style="margin-top: 14px;"></div>
+<div class="chips-familia" id="chips-familia"></div>
+
+<main class="miolo" id="lista">
+    <div class="aviso"><span class="giro">✦</span><br><br>Preparando a vitrine...</div>
+</main>
+
+<footer class="rodape" id="rodape" style="display:none;">
+    ✦ &nbsp;Catálogo atualizado em tempo real · Preços sujeitos a alteração&nbsp; ✦<br>
+    <span id="rodape-msg">Fale com quem te enviou este link para encomendar o seu. 💬</span>
+</footer>
+
+<div class="barra-pedido" id="barra-pedido" onclick="abrirSacola()">
+    <div class="bp-in">
+        <span class="bp-esq">🛍️ <b id="bp-qtd">0 itens</b> na sacolinha &nbsp;·&nbsp; <b id="bp-total">R$ 0,00</b></span>
+        <span class="bp-btn">Fechar Pedido ➜</span>
+    </div>
+</div>
+
+<div class="overlay-sacola" id="overlay-sacola" onclick="if(event.target === this) fecharSacola()">
+    <div class="caixa-sacola">
+        <div class="cab">
+            <button class="fechar-sac" onclick="fecharSacola()">×</button>
+            <h3>🛍️ Minha Sacolinha</h3>
+        </div>
+        <div class="itens" id="sacola-itens"></div>
+        <div class="pe">
+            <div class="total-sacola"><span>Total</span><span class="v" id="sacola-total">R$ 0,00</span></div>
+            <button class="btn-enviar-pedido" id="btn-enviar-pedido" onclick="enviarPedidoWhatsApp()">📲 Enviar Pedido no WhatsApp</button>
+            <button class="btn-limpar" onclick="limparSacola()">🗑️ Esvaziar sacolinha</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const API_BASE = 'https://bdfernando.alwaysdata.net/api';
+
+    // 🎯 Filtros que vieram no link — chegam embaralhados no código "c" (o cliente não vê
+    // vendedor nem filtros na URL). Links antigos com parâmetros abertos seguem funcionando.
+    const qs = new URLSearchParams(location.search);
+    let pl = {};
+    if (qs.get('c')) {
+        try {
+            let b64 = String(qs.get('c')).replace(/-/g, '+').replace(/_/g, '/');
+            while (b64.length % 4) b64 += '=';
+            pl = JSON.parse(decodeURIComponent(escape(atob(b64)))) || {};
+        } catch (e) { pl = {}; }
+    } else {
+        pl = { t: qs.get('t') || '', g: qs.get('g') || '', e: qs.get('e') === '1' ? 1 : 0, q: qs.get('q') === '1' ? 1 : 0, v: qs.get('v') || '' };
+    }
+    const fTipos   = String(pl.t || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const fGeneros = String(pl.g || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const soComEstoque = pl.e == 1;
+    const mostrarQtd   = pl.q == 1;
+    const vendedorLink = String(pl.v || '').trim();
+
+    let dados = null;
+    let vendedor = null;      // {nome, telefone} — vem do servidor, nunca a lista toda
+    let familiaAtiva = '';
+    let generoAtivo = '';
+
+    // 🌳 As 9 famílias oficiais da marca: fichas com família composta ("Oriental · Doce")
+    // entram nos DOIS filtros — em vez de virar dezenas de chips repetidos
+    const FAMILIAS_CANONICAS = ['Amadeirado', 'Aromático', 'Cítrico', 'Doce', 'Especiado', 'Floral', 'Fresco', 'Frutal', 'Oriental'];
+
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtBRL = (v) => (parseFloat(v) > 0) ? parseFloat(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Consulte';
+    const semAcento = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const melhorFoto = (fotoStr) => { const urls = String(fotoStr || '').split(',').map(s => s.trim()).filter(Boolean); return urls.find(u => u.includes('ibb.co')) || urls[0] || ''; };
+
+    // 📱 Número pro wa.me: só dígitos, com DDI 55 se vier no formato brasileiro comum
+    function zapNumero(tel) {
+        let d = String(tel || '').replace(/\D/g, '');
+        if (d.length === 10 || d.length === 11) d = '55' + d;
+        return d.length >= 12 ? d : '';
+    }
+    const temZap = () => !!(vendedor && zapNumero(vendedor.telefone));
+
+    function toast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('on');
+        clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('on'), 2200);
+    }
+
+    const iconeGenero = (gen) => {
+        const g = semAcento(gen);
+        if (g === 'feminino') return '🌸 Feminino';
+        if (g === 'masculino') return '🔷 Masculino';
+        if (g === 'infantil') return '🧸 Infantil';
+        return '⚪ Unissex';
+    };
+
+    // 🎨 Mesma regra das embalagens: masculino = cinza-chumbo, demais = rosé
+    const paleta = (genero) => semAcento(genero) === 'masculino'
+        ? { forte: '#525a66', medio: '#6b7482', suave: '#8a92a0', micro: '#aab2bd', chipBorda: '#c8cdd5', chipFundo: '#f6f7f9', filete: '#e2e5e9', letterbox: '#eef0f3', placTxt: '#9aa2ae' }
+        : { forte: '#966178', medio: '#a86f88', suave: '#b98ba1', micro: '#c9b3bd', chipBorda: '#e3c6d2', chipFundo: '#fdf8fa', filete: '#eadfe4', letterbox: '#f6ebef', placTxt: '#c9a2b4' };
+
+    // 🔑 A chave é o NOME COMPLETO: 40ml e 100ml da mesma essência dividem o código,
+    // então identificar pelo código misturava os tamanhos (e os preços!) na sacolinha
+    const chaveItem = (item) => String(item.nome);
+    const slugProduto = (item) => semAcento(item.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const nomeVitrine = (item) => {
+        const semTipo = String(item.nome || '').replace(new RegExp('^' + String(item.tipo || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').trim().replace(/^[- ]+/, '');
+        return semTipo || item.nome;
+    };
+
+    // ============ 🛍️ SACOLINHA (fica salva no aparelho do cliente) ============
+    function lerSacola() { try { return JSON.parse(localStorage.getItem('novera_sacolinha') || '[]'); } catch (e) { return []; } }
+    function gravarSacola(s) { localStorage.setItem('novera_sacolinha', JSON.stringify(s)); atualizarFab(); }
+
+    function adicionarSacola(chave) {
+        const item = dados.itens.find(i => chaveItem(i) === chave);
+        if (!item) return;
+        const s = lerSacola();
+        const jaTem = s.find(x => x.chave === chave);
+        if (jaTem) { jaTem.qtd += 1; } else { s.push({ chave, codigo: item.codigo || '', nome: nomeVitrine(item), preco: parseFloat(item.preco) || 0, qtd: 1 }); }
+        gravarSacola(s);
+        // Primeiro item da vida: ensina o caminho; depois, só confirma rapidinho
+        if (!localStorage.getItem('novera_sacola_dica')) {
+            localStorage.setItem('novera_sacola_dica', '1');
+            toast('🛍️ Adicionado! Finalize na barra verde aqui embaixo 👇');
+        } else {
+            toast('🛍️ Adicionado à sacolinha!');
+        }
+        renderizar();
+    }
+    function mudarQtdSacola(chave, delta) {
+        let s = lerSacola();
+        const it = s.find(x => x.chave === chave);
+        if (!it) return;
+        it.qtd += delta;
+        if (it.qtd <= 0) s = s.filter(x => x.chave !== chave);
+        gravarSacola(s);
+        desenharSacola();
+        renderizar();
+    }
+    function limparSacola() { gravarSacola([]); desenharSacola(); renderizar(); }
+
+    function atualizarFab() {
+        const s = lerSacola();
+        const qtdTotal = s.reduce((acc, x) => acc + x.qtd, 0);
+        const valorTotal = s.reduce((acc, x) => acc + (x.preco * x.qtd), 0);
+        document.getElementById('bp-qtd').innerText = qtdTotal + (qtdTotal === 1 ? ' item' : ' itens');
+        document.getElementById('bp-total').innerText = valorTotal > 0 ? valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'a combinar';
+        document.getElementById('barra-pedido').style.display = (qtdTotal > 0 && temZap()) ? 'block' : 'none';
+    }
+    function abrirSacola() { desenharSacola(); document.getElementById('overlay-sacola').style.display = 'flex'; }
+    function fecharSacola() { document.getElementById('overlay-sacola').style.display = 'none'; }
+
+    function desenharSacola() {
+        const s = lerSacola();
+        const box = document.getElementById('sacola-itens');
+        if (!s.length) {
+            box.innerHTML = '<p style="text-align:center; color:#a08a94; font-size:0.8rem; padding:24px 0;">Sua sacolinha está vazia. 🌸<br>Toque em 🛍️ nos produtos que amar!</p>';
+        } else {
+            box.innerHTML = s.map(x => {
+                // 📸 Foto vem do catálogo ao vivo (mesma regra dos cartões: prioriza imgbb)
+                const itemVivo = dados ? dados.itens.find(i => chaveItem(i) === x.chave) : null;
+                const fotoMini = itemVivo ? melhorFoto(itemVivo.foto) : '';
+                const thumb = fotoMini
+                    ? `<div class="thumb"><img src="${esc(fotoMini)}" alt="" loading="lazy"></div>`
+                    : `<div class="thumb"><span class="mini-ns">NS</span></div>`;
+                return `
+                <div class="item-sacola">
+                    ${thumb}
+                    <div class="info">
+                        <div class="n">${x.codigo ? `<span style="color:var(--pd); font-size:0.65rem; font-weight:800; letter-spacing:1px;">${esc(x.codigo)}</span> · ` : ''}${esc(x.nome)}</div>
+                        <div class="p">${fmtBRL(x.preco)}${x.qtd > 1 && x.preco > 0 ? ` &nbsp;·&nbsp; ${x.qtd}x = ${fmtBRL(x.preco * x.qtd)}` : ''}</div>
+                    </div>
+                    <div class="qtd-controle">
+                        <button onclick="mudarQtdSacola('${esc(x.chave).replace(/'/g, "\\'")}', -1)">−</button>
+                        <span>${x.qtd}</span>
+                        <button onclick="mudarQtdSacola('${esc(x.chave).replace(/'/g, "\\'")}', 1)">+</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        const total = s.reduce((acc, x) => acc + (x.preco * x.qtd), 0);
+        document.getElementById('sacola-total').innerText = total > 0 ? total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'A combinar';
+        document.getElementById('btn-enviar-pedido').style.opacity = s.length ? '1' : '0.5';
+    }
+
+    function enviarPedidoWhatsApp() {
+        const s = lerSacola();
+        if (!s.length || !temZap()) return;
+        const total = s.reduce((acc, x) => acc + (x.preco * x.qtd), 0);
+        const linhas = s.map(x => `• ${x.qtd}x ${x.codigo ? x.codigo + ' – ' : ''}${x.nome}${x.preco > 0 ? ' (' + fmtBRL(x.preco * x.qtd) + ')' : ''}`).join('\n');
+        const msg = `Oi${vendedor.nome ? ', ' + vendedor.nome : ''}! 😍 Montei meu pedido pelo catálogo:\n\n${linhas}\n\n${total > 0 ? 'Total: ' + total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' 💛' : 'Pode me passar os valores? 💛'}`;
+        window.open('https://wa.me/' + zapNumero(vendedor.telefone) + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    function queroEsse(chave) {
+        const item = dados.itens.find(i => chaveItem(i) === chave);
+        if (!item || !temZap()) return;
+        const msg = `Oi${vendedor.nome ? ', ' + vendedor.nome : ''}! Vi o catálogo e me interessei no ${item.codigo ? item.codigo + ' – ' : ''}${nomeVitrine(item)} 😍 Ainda tem?`;
+        window.open('https://wa.me/' + zapNumero(vendedor.telefone) + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    // 🔗 Compartilha o link direto de UM produto (abre já rolado e destacado nele)
+    async function compartilharProduto(slug) {
+        const url = location.origin + location.pathname + location.search + '#p-' + slug;
+        try {
+            if (navigator.share) { await navigator.share({ title: document.title, url: url }); return; }
+            await navigator.clipboard.writeText(url);
+            toast('🔗 Link do produto copiado!');
+        } catch (e) { /* pessoa cancelou o compartilhar, tudo bem */ }
+    }
+
+    function filtrarFamilia(fam) {
+        familiaAtiva = (familiaAtiva === fam) ? '' : fam;
+        renderizar();
+    }
+    function filtrarGenero(gen) {
+        generoAtivo = (generoAtivo === gen) ? '' : gen;
+        renderizar();
+    }
+    // Quais famílias oficiais este item carrega? ("Oriental · Doce" → Oriental E Doce)
+    function familiasDoItem(i) {
+        const f = semAcento((i.ficha && i.ficha.familia) || '');
+        if (!f) return [];
+        return FAMILIAS_CANONICAS.filter(c => f.indexOf(semAcento(c)) !== -1);
+    }
+
+    // ============ 🖼️ VITRINE ============
+    function cartaoHtml(item) {
+        const pal = paleta(item.genero);
+        const nome = nomeVitrine(item);
+        const chave = chaveItem(item);
+        const foto = melhorFoto(item.foto);
+        const fotoHtml = foto
+            ? `<div class="foto" style="--letterbox:${pal.letterbox}"><img src="${esc(foto)}" alt="${esc(nome)}" loading="lazy"></div>`
+            : `<div class="foto" style="background:linear-gradient(160deg, ${pal.letterbox}, ${pal.filete});"><span class="ns" style="color:${pal.placTxt}">NS</span></div>`;
+
+        const f = item.ficha || {};
+        const nota = (rot, val) => val ? `<div class="nota"><b style="color:${pal.suave}">${rot}</b>${esc(val)}</div>` : '';
+        const chips = f.ocasioes ? `<div class="chips">${String(f.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o =>
+            `<span class="chip" style="border-color:${pal.chipBorda}; background:${pal.chipFundo}; color:${pal.medio}">${esc(o)}</span>`).join('')}</div>` : '';
+        const fichaHtml = (f.descricao ? `<div class="descricao">“${esc(String(f.descricao).substring(0, 220))}”</div>` : '') +
+            (f.notas_saida ? `<div class="filete" style="background:linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0))"></div>${nota('SAÍDA', f.notas_saida)}${nota('CORAÇÃO', f.notas_coracao)}${nota('FUNDO', f.notas_fundo)}` : '') + chips;
+
+        const disp = item.disp
+            ? `<span class="disp-ok">DISPONÍVEL${mostrarQtd ? ' · ' + item.qtd + ' UN' : ''}</span>`
+            : `<span class="disp-enc">SOB ENCOMENDA</span>`;
+
+        // 🛍️ Sacolinha é o caminho principal (dá pra pedir 1 ou 10 do mesmo jeito);
+        // pedir só um item vira o atalho secundário — o cliente bate o olho e entende
+        const qtdNaSacola = (lerSacola().find(x => x.chave === chave) || {}).qtd || 0;
+        const chaveJs = esc(chave).replace(/'/g, "\\'");
+        const botoes = temZap() ? `
+            <div class="acoes-cartao">
+                <button class="btn-add ${qtdNaSacola ? 'ja-tem' : ''}" onclick="adicionarSacola('${chaveJs}')">${qtdNaSacola ? `✓ Na sacolinha (${qtdNaSacola}) &nbsp;·&nbsp; adicionar mais +` : '🛍️ Adicionar à Sacolinha'}</button>
+                <button class="btn-so-este" onclick="queroEsse('${chaveJs}')">💬 ou peça só este agora no WhatsApp</button>
+            </div>` : '';
+
+        return `<div class="cartao" id="p-${slugProduto(item)}" style="--filete:${pal.filete}">
+            ${fotoHtml}
+            <div class="conteudo">
+                <div class="linha-topo">
+                    <span class="codigo" style="color:${pal.forte}">${esc(item.codigo || '')} <button onclick="compartilharProduto('${slugProduto(item)}')" title="Compartilhar este produto" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:${pal.micro}; padding:0 4px;">🔗</button></span>
+                    <span class="meta" style="color:${pal.micro}">${f.familia ? `<span style="color:${pal.medio}; font-weight:800;">${esc(f.familia)}</span> &nbsp;·&nbsp; ` : ''}${iconeGenero(item.genero)}</span>
+                </div>
+                <div class="insp" style="color:${pal.micro}">Inspiração</div>
+                <div class="nome">${esc(nome)}</div>
+                ${fichaHtml}
+                <div class="rodape-cartao">
+                    <span class="preco" style="color:${pal.forte}">${fmtBRL(item.preco)}</span>
+                    ${disp}
+                </div>
+                ${botoes}
+            </div>
+        </div>`;
+    }
+
+    function itensDoLink() {
+        return dados.itens.filter(i => {
+            if (fTipos.length && fTipos.indexOf(semAcento(i.tipo)) === -1) return false;
+            if (fGeneros.length && fGeneros.indexOf(semAcento(i.genero || 'Unissex')) === -1) return false;
+            if (soComEstoque && !i.disp) return false;
+            return true;
+        });
+    }
+
+    function desenharChipsFamilia() {
+        const base = itensDoLink();
+
+        // 🚻 Gênero: só aparece se o link tiver mais de um (ordem fixa, com os ícones do app)
+        const ordemGen = ['Feminino', 'Masculino', 'Unissex', 'Infantil'];
+        const gensPresentes = ordemGen.filter(gen => base.some(i => semAcento(i.genero || 'Unissex') === semAcento(gen)));
+        const boxGen = document.getElementById('chips-genero');
+        boxGen.innerHTML = gensPresentes.length < 2 ? '' : gensPresentes.map(gen =>
+            `<button class="chip-fam ${generoAtivo === gen ? 'ativo' : ''}" onclick="filtrarGenero('${gen}')">${iconeGenero(gen)}</button>`).join('');
+
+        // 🌳 Famílias: só as 9 oficiais que existem nos produtos deste link
+        const famsPresentes = FAMILIAS_CANONICAS.filter(fam => base.some(i => familiasDoItem(i).indexOf(fam) !== -1));
+        const box = document.getElementById('chips-familia');
+        box.innerHTML = famsPresentes.length < 2 ? '' : famsPresentes.map(fam =>
+            `<button class="chip-fam ${familiaAtiva === fam ? 'ativo' : ''}" onclick="filtrarFamilia('${fam}')">🌳 ${esc(fam)}</button>`).join('');
+    }
+
+    function renderizar() {
+        if (!dados) return;
+        const busca = semAcento(document.getElementById('busca').value);
+
+        let itens = itensDoLink().filter(i => {
+            if (generoAtivo && semAcento(i.genero || 'Unissex') !== semAcento(generoAtivo)) return false;
+            if (familiaAtiva && familiasDoItem(i).indexOf(familiaAtiva) === -1) return false;
+            if (busca) {
+                const alvo = semAcento(i.nome + ' ' + (i.codigo || '') + ' ' + ((i.ficha && i.ficha.familia) || ''));
+                if (alvo.indexOf(busca) === -1) return false;
+            }
+            return true;
+        });
+
+        desenharChipsFamilia();
+
+        const el = document.getElementById('lista');
+        if (!itens.length) {
+            el.innerHTML = '<div class="aviso">Nenhum produto encontrado por aqui. 🌸<br>Tente buscar por outro nome ou família.</div>';
+            return;
+        }
+
+        // Agrupa por tipo na ordem oficial da marca (mesma dos Parâmetros Globais)
+        const ordem = String(dados.ordemTipos || '').split(',').map(s => semAcento(s)).filter(Boolean);
+        const idx = (t) => { const i = ordem.indexOf(semAcento(t)); return i === -1 ? 999 : i; };
+        const grupos = {};
+        itens.forEach(i => { const k = String(i.tipo || 'Outros').trim(); (grupos[k] = grupos[k] || []).push(i); });
+
+        let html = '';
+        Object.keys(grupos).sort((a, b) => { const ia = idx(a), ib = idx(b); return ia !== ib ? ia - ib : a.localeCompare(b); }).forEach(tipo => {
+            const nomeGrupo = tipo.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            html += `<div class="secao">— ${esc(nomeGrupo)}${nomeGrupo.toLowerCase().endsWith('s') ? '' : 's'} —</div>`;
+            grupos[tipo].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''))).forEach(i => { html += cartaoHtml(i); });
+        });
+        el.innerHTML = html;
+        document.getElementById('rodape').style.display = 'block';
+        atualizarFab();
+    }
+
+    // 📍 Link direto de produto (#p-N034): rola até o cartão e dá o brilho de destaque
+    function focarProdutoDoLink() {
+        const hash = String(location.hash || '').replace('#', '');
+        if (!hash) return;
+        const alvo = document.getElementById(hash);
+        if (alvo) { alvo.scrollIntoView({ behavior: 'smooth', block: 'center' }); alvo.classList.add('destaque'); }
+    }
+
+    async function carregar() {
+        try {
+            const r = await fetch(API_BASE + '/catalogo-publico' + (vendedorLink ? ('?v=' + encodeURIComponent(vendedorLink)) : ''));
+            const json = await r.json();
+            if (!json.sucesso) throw new Error('resposta sem sucesso');
+            dados = json;
+            vendedor = json.vendedor || null;
+
+            // 🎨 Identidade visual da marca (white-label): nome, logo e cores vêm do sistema
+            if (json.marca) {
+                if (json.marca.nome) { document.getElementById('marca-nome').innerText = json.marca.nome; document.title = 'Catálogo · ' + json.marca.nome; }
+                if (json.marca.logo) { const lg = document.getElementById('marca-logo'); lg.src = json.marca.logo; lg.style.display = 'inline-block'; }
+                if (json.marca.corPrimaria) document.documentElement.style.setProperty('--p', json.marca.corPrimaria);
+                if (json.marca.corEscura) document.documentElement.style.setProperty('--pd', json.marca.corEscura);
+            }
+            if (vendedor && vendedor.nome) {
+                const at = document.getElementById('atendente');
+                at.innerText = `💬 Atendimento: ${vendedor.nome}`;
+                at.style.display = 'inline-block';
+            }
+            if (temZap()) document.getElementById('rodape-msg').innerHTML = 'Gostou de algo? Toque em <b>🛍️ Adicionar à Sacolinha</b> e feche o pedido na barra verde.';
+
+            // 🧹 Sincroniza a sacolinha salva com o catálogo de AGORA: preço/nome sempre
+            // atualizados, e itens de formato antigo ou fora de linha saem sozinhos
+            const sacolaAtual = lerSacola();
+            const sacolaLimpa = sacolaAtual.map(x => {
+                const item = dados.itens.find(i => chaveItem(i) === x.chave);
+                if (!item) return null;
+                return { chave: x.chave, codigo: item.codigo || '', nome: nomeVitrine(item), preco: parseFloat(item.preco) || 0, qtd: x.qtd };
+            }).filter(Boolean);
+            if (JSON.stringify(sacolaLimpa) !== JSON.stringify(sacolaAtual)) gravarSacola(sacolaLimpa);
+
+            renderizar();
+            setTimeout(focarProdutoDoLink, 400);
+
+            // 📈 Avisa a loja que a vitrine foi aberta (1x por sessão, nunca trava a página)
+            const chaveVisita = 'novera_visita_' + (vendedorLink || 'geral');
+            if (!sessionStorage.getItem(chaveVisita)) {
+                sessionStorage.setItem(chaveVisita, '1');
+                fetch(API_BASE + '/catalogo-visita' + (vendedorLink ? ('?v=' + encodeURIComponent(vendedorLink)) : '')).catch(() => {});
+            }
+        } catch (e) {
+            document.getElementById('lista').innerHTML = '<div class="aviso">😔 Não conseguimos carregar o catálogo agora.<br>Verifique sua internet e <a href="javascript:location.reload()" style="color:var(--pd); font-weight:700;">toque aqui para tentar de novo</a>.</div>';
+        }
+    }
+    carregar();
+</script>
+
+</body>
+</html>

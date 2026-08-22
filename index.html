@@ -35,6 +35,10 @@
 </div>
 
 <div id="main-app" class="app-container" style="display: none;">
+    <div id="banner-visualizacao-como" style="display:none; position:sticky; top:0; z-index:9999; background:#0369a1; color:#fff; padding:10px 15px; align-items:center; justify-content:center; gap:12px; font-size:0.8rem; font-weight:700; flex-wrap:wrap; text-align:center;">
+        <span>👁️ Você está vendo o sistema como <span id="banner-visualizacao-nome">-</span></span>
+        <button onclick="voltarDaVisualizacao()" style="background:#fff; color:#0369a1; border:none; border-radius:6px; padding:6px 12px; font-weight:800; font-size:0.75rem; cursor:pointer;">↩️ Voltar para Admin</button>
+    </div>
     <div class="card">
         <div id="global-loader" class="loading-overlay">
             <div class="spinner"></div>
@@ -44,6 +48,7 @@
         <div class="header">
            <span class="app-version"></span>
             <div id="sync-status" class="sync-status" title="Status da Nuvem">☁️</div>
+            <button class="btn-settings" id="btn-modo-escuro" style="right: 78px;" onclick="alternarModoEscuro()" title="Modo escuro">🌙</button>
             <button class="btn-settings" onclick="switchTab('configuracoes')" title="Configurações">⚙️</button>
             <img src="logo.png" alt="Novera Scent Logo" class="logo" crossorigin="anonymous" onerror="this.src='logo.jpeg'; this.onerror=null;">
             <h1>Novera Scent</h1>
@@ -77,6 +82,7 @@
                 <div class="essencia-actions">
                     <button class="btn-salvar" onclick="salvarRotulo()">✔️ Criar Essência Mestre</button>
                     <button class="btn-salvar" style="background: #2C2A2B; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="abrirModalEtiquetaAmostras()">🏷️ Gerar Etiqueta de Amostras (PDF)</button>
+                    <button class="btn-salvar" style="background: #4285f4; box-shadow: 0 4px 10px rgba(66,133,244,0.3);" onclick="gerarFichasEmFalta()">✨ Gerar Fichas Olfativas em Falta (IA)</button>
                 </div>
 
             </div>
@@ -95,6 +101,7 @@
                 <button id="btn-sub-fab-receita" class="sub-nav-btn active" onclick="toggleFabricaTab('receita')">🧪 Nova Receita</button>
                 <button id="btn-sub-fab-lancar" class="sub-nav-btn" onclick="toggleFabricaTab('lancar')">⚡ Lançar Produção</button>
                 <button id="btn-sub-fab-fila" class="sub-nav-btn" onclick="toggleFabricaTab('fila')">⏳ Fila Maceração</button>
+                <button id="btn-sub-fab-sugestoes" class="sub-nav-btn" onclick="toggleFabricaTab('sugestoes')">💡 Sugestões</button>
             </div>
 
             <!-- SUB-ABA 1: NOVA RECEITA E CÁLCULOS -->
@@ -189,6 +196,13 @@
                 <div id="lista-producao-cards"></div>
             </div>
 
+            <!-- SUB-ABA 4: SUGESTÕES DE PRODUÇÃO (enviadas pelos vendedores) -->
+            <div id="fabrica-sugestoes-view" style="display: none;">
+                <div class="section-title" style="margin-top: 0;">💡 Sugestões da Equipe</div>
+                <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Pedidos de produção sugeridos pelos vendedores. Atenda pra já mandar pra fila de maceração, ou descarte se não for o momento.</p>
+                <div id="lista-sugestoes-producao"></div>
+            </div>
+
         </div>
 
         <div id="tab-estoque" class="tab-content">
@@ -198,8 +212,9 @@
                 <div class="section-title" style="margin-top: 0; margin-bottom: 15px;">📦 Produtos Prontos na Prateleira</div>
                 <!-- No celular ficam em coluna, no PC o CSS muda pra lado a lado -->
                 <div class="estoque-botoes-desktop" style="display: flex; flex-direction: column; gap: 10px;">
-                    <button class="btn-salvar" style="margin-top:0; background: var(--primary-dark);" onclick="abrirModalCatalogo()">📄 Gerar Catálogo em PDF</button>
-                    <button class="btn-salvar" style="margin-top:0; background: #2C2A2B; color: #fff; border-color: #2C2A2B; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="abrirModalQrCode()">🖨️ Imprimir QR Codes</button>
+                    <button class="btn-salvar" style="margin-top:0; background: var(--primary-dark);" onclick="abrirModalCatalogo()">📖 Catálogo (PDF ou Link Online)</button>
+                    <button class="btn-salvar" id="btn-qr-codes" style="margin-top:0; background: #2C2A2B; color: #fff; border-color: #2C2A2B; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="abrirModalQrCode()">🖨️ Imprimir QR Codes</button>
+                    <button class="btn-salvar" id="btn-conferencia-estoque" style="margin-top:0; background: #0369a1; display:none;" onclick="abrirModalConferencia()">📋 Conferência de Estoque</button>
                 </div>
             </div>
             
@@ -226,6 +241,9 @@
                             </select>
                         </div>
                     </div>
+                    <select id="f-e-familia" onchange="renderizarEstoque()" style="margin: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; width: 100%; box-sizing: border-box; background: #fff; color: var(--brand-dark); font-weight: 600;">
+                        <option value="">🌳 Todas as Famílias Olfativas</option>
+                    </select>
                 </div>
                 
                 <!-- Direita: Caixas de Totais -->
@@ -268,6 +286,8 @@
                             <div class="col"><label>Valor Previsto (Unitário)</label><input type="text" id="c-valor" class="mask-money" placeholder="R$ 0,00"></div>
                         </div>
                         <button class="btn-salvar" onclick="salvarCompra()">Adicionar à Lista</button>
+                        <button class="btn-salvar" style="background: #0369a1; box-shadow: 0 4px 0 #075985; margin-top: 10px;" onclick="gerarSugestaoCompras()">🤖 Sugerir Compras da Fábrica</button>
+                        <p style="font-size: 0.7rem; color: #888; margin-top: 8px; line-height: 1.4;">Cruza os perfumes abaixo do estoque mínimo com o código do fornecedor (Essências) e o último preço pago (Despesas).</p>
                     </div>
 
                     <!-- Lado Direito (Fila e Ações) -->
@@ -349,9 +369,10 @@
         </div>
 
         <div id="tab-vendas" class="tab-content active">
+           <div id="banner-bonus-comissao" style="display:none;"></div>
+           <div id="banner-chegando-em-breve" style="display:none;"></div>
            <div class="sub-nav-container">
                 <button id="btn-sub-registro" class="sub-nav-btn active" onclick="toggleVendasTab('registro')">🛒 PDV Rápido</button>
-                <button id="btn-sub-encomendas" class="sub-nav-btn" onclick="toggleVendasTab('encomendas')">📦 Encomendas</button>
                 <button id="btn-sub-lotes" class="sub-nav-btn" onclick="toggleVendasTab('lotes')">📄 Docs & Lotes</button>
                 <!-- NOVO BOTÃO: MAPA DE SEPARAÇÃO (SÓ ADMIN) -->
                 <button id="btn-sub-separacao" class="sub-nav-btn" onclick="abrirMapaSeparacao()" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-weight: bold;">🛍️ Separar Pedidos</button>
@@ -380,7 +401,9 @@
                             </div>
                             <img id="v-produto-img-preview" src="logo.png" onclick="abrirModalImagem(this.src)" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color); display: none; cursor: zoom-in;">
                         </div>
-                        
+
+                        <div id="aviso-bonus-produto-selecionado" style="display:none; background:#fef3c7; border:1px solid #fde047; border-radius:10px; padding:10px 14px; margin-bottom:15px; font-size:0.8rem; font-weight:800; color:#92400e;"></div>
+
                         <div class="input-group">
                             <label>Retirar Produto de Qual Local?</label>
                             <select id="v-local-estoque" style="background:#fef08a; border-color:#fde047; color:#b45309;">
@@ -404,7 +427,7 @@
                             <span id="carrinho-total" style="font-size: 1.5rem; font-weight: 900;">R$ 0,00</span>
                         </div>
 
-                        <button class="btn-salvar" style="background: #2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3); width: 100%;" onclick="salvarVendaCarrinho()">✅ FINALIZAR VENDA COMPLETA</button>
+                        <button id="btn-finalizar-venda" class="btn-salvar" style="background: #2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3); width: 100%;" onclick="salvarVendaCarrinho()">✅ FINALIZAR VENDA COMPLETA</button>
                     </div>
                 </div>
 
@@ -414,7 +437,8 @@
                 <!-- PAINEL FIXO EFEITO VIDRO (Filtros + Totais) -->
                 <div class="vendas-sticky-header">
                     
-                    <button class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 15px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">🔍 Ocultar / Mostrar Filtros</button>
+                    <button id="btn-toggle-filtros-vendas" class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 8px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">🔍 Ocultar / Mostrar Filtros</button>
+                    <button id="btn-limpar-filtros-vendas" class="btn-salvar" style="display: none; background: #fff; color: #b91c1c; border: 1px dashed #fca5a5; box-shadow: none; padding: 10px; font-size: 0.75rem; margin-top: 0; margin-bottom: 15px; width: 100%; font-weight: 800;" onclick="limparFiltrosVendas()">🧹 Limpar Filtros (voltar ao padrão)</button>
 
                     <div id="filtros-vendas-container" style="display: none;">
                         <div class="filtros-box" style="background: transparent; border: none; padding: 0; box-shadow: none; margin-bottom: 15px;">
@@ -441,7 +465,18 @@
                             </div>
                             <div class="row">
                                 <div class="col"><label>Cliente</label><input type="text" id="f-v-cliente" list="f-lista-clientes" placeholder="Buscar..." oninput="filtrarVendas()"><datalist id="f-lista-clientes"></datalist></div>
-                                <div class="col"><label>Sócio</label><select id="f-v-socio" onchange="filtrarVendas()"><option value="">Todos</option></select></div>
+                                <div class="col"><label>Vendedor</label><select id="f-v-socio" onchange="filtrarVendas()"><option value="">Todos</option></select></div>
+                            </div>
+                            <div class="row">
+                                <div class="col"><label>📦 Produto</label><input type="text" id="f-v-produto" list="f-lista-produtos" placeholder="Buscar produto..." oninput="filtrarVendas()"><datalist id="f-lista-produtos"></datalist></div>
+                                <div class="col" id="filtro-comissao-wrap">
+                                    <label>🤝 Status da Comissão</label>
+                                    <select id="f-v-comissao" onchange="filtrarVendas()">
+                                        <option value="">Todos</option>
+                                        <option value="pendente">🔴 Pendente de Acerto</option>
+                                        <option value="acertado">✅ Já Acertado</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -461,37 +496,6 @@
             </div>
 
             <!-- SUB-ABA 2: ENCOMENDAS -->
-            <div id="vendas-encomendas-view" style="display: none;">
-                <div class="vendas-pdv-wrapper">
-                    <div class="vendas-col-left">
-                        <div class="section-title" style="margin-top:0;">📝 Registrar Pedido Especial</div>
-                        <div class="row">
-                            <div class="col"><label>Data do Pedido</label><input type="date" id="e-data"></div>
-                            <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
-                        </div>
-                        <div class="row">
-                          <div class="col" style="flex: 2;">
-                                <label>O que o cliente pediu?</label>
-                                <select id="e-item" style="width: 100%; border-color: #ccc; background: #fff;">
-                                    <option value="">Aguardando estoque...</option>
-                                </select>
-                            </div>
-                            <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
-                        </div>
-                        <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
-                        <button class="btn-salvar" onclick="salvarEncomenda()">Salvar Pedido</button>
-                    </div>
-                    
-                    <div class="vendas-col-right">
-                        <div class="section-title" style="margin-top: 0;">📦 Fila de Produção</div>
-                        <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 15px;">
-                            <input type="text" id="busca-encomendas" class="search-bar" style="margin: 0; border: none; box-shadow: none;" placeholder="🔍 Buscar cliente ou item..." onkeyup="renderizarEncomendas()">
-                        </div>
-                        <div id="lista-encomendas-cards"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- SUB-ABA 3: DOCS E LOTES -->
             <div id="vendas-lotes-view" style="display: none;">
                 <div class="vendas-lotes-wrapper">
@@ -512,6 +516,22 @@
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #25D366; color: white; padding: 12px; font-size:0.8rem;" onclick="copiarPendenciasWhats()">📋 Texto</button></div>
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #b45309; color: white; padding: 12px; font-size:0.8rem;" onclick="montarCobranca()">📸 Img</button></div>
                             <div class="col"><button class="btn-salvar" style="margin-top: 0; background: #2e7d32; color: white; padding: 12px; font-size:0.8rem;" onclick="darBaixaVendaLote()">💲 Pagar</button></div>
+                        </div>
+                        <button class="btn-salvar" id="btn-whats-cobranca" style="display:none; margin-top:10px; background:#25D366; box-shadow:0 4px 0 #1b9c4b;" onclick="cobrarNoWhatsApp()">📲 Cobrar direto no WhatsApp</button>
+                        <button class="btn-salvar" id="btn-whats-cadastrar" style="display:none; margin-top:10px; background:#fff; color:#128C7E; border:2px dashed #25D366; box-shadow:none; font-size:0.8rem;" onclick="cadastrarTelefoneCobranca()">📵 Cadastrar o WhatsApp desse cliente pra cobrar direto</button>
+                    </div>
+
+                    <div class="filtro-box" id="card-acerto-comissao" style="background: #f0f9ff; border-color: #bae6fd; margin-top: 0; display: none;">
+                        <div class="section-title" style="margin-top:0; border-left-color: #0369a1; color: #0369a1;">🤝 Acerto de Comissão em Lote</div>
+                        <p style="font-size: 0.72rem; color: #0369a1; margin-top: 0; margin-bottom: 12px;">Escolha a vendedora pra ver tudo que o cliente <b>já pagou</b> mas a comissão dela ainda <b>não foi acertada</b>. Marque e acerte tudo de uma vez.</p>
+                        <div class="row" style="margin-bottom: 0;"><div class="col"><label style="color: #0369a1;">Vendedor(a)</label><select id="ac-vendedor" onchange="prepararAcertoComissao()"><option value="">Selecione...</option></select></div></div>
+                        <div id="acerto-comissao-lista" style="max-height: 300px; overflow-y: auto; margin-top: 15px; display: none;"></div>
+                        <div id="acerto-comissao-rodape" style="display: none; margin-top: 12px;">
+                            <div style="background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span style="font-size: 0.8rem; font-weight: 800; color: #0369a1;">💰 Total da comissão selecionada:</span>
+                                <strong id="acerto-comissao-total" style="font-size: 1.1rem; color: #0369a1;">R$ 0,00</strong>
+                            </div>
+                            <button class="btn-salvar" style="margin-top: 0; background: #0369a1; box-shadow: 0 4px 0 #075985;" onclick="confirmarAcertoComissaoLote()">🤝 Acertar Comissões Selecionadas</button>
                         </div>
                     </div>
                 </div>
@@ -595,8 +615,9 @@
 
        <div id="tab-logs" class="tab-content">
             <div class="section-title" style="margin-top:0;">📜 Auditoria e Logs</div>
-            <p style="font-size: 0.8rem; color: #888; margin-bottom: 15px;">Mostrando os últimos 150 registros de atividades do sistema.</p>
-            
+            <p style="font-size: 0.8rem; color: #888; margin-bottom: 15px;">Mostrando os últimos 500 registros de atividades do sistema.</p>
+            <button class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; margin-top: 0; margin-bottom: 15px; font-size: 0.8rem; font-weight: 700;" onclick="exportarLogsCsv()">📥 Exportar Logs Filtrados (CSV)</button>
+
             <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 20px;">
                 <div class="row" style="margin-bottom: 10px;">
                     <div class="col" style="flex: 1.5;">
@@ -624,6 +645,231 @@
             <button class="btn-salvar" style="margin-top: 20px; background: #E8DDE1; color: #7a4a5e; box-shadow: none;" onclick="switchTab('configuracoes')">⬅️ Voltar para Configurações</button>
         </div>
 
+        <div id="tab-encomendas" class="tab-content">
+            <div class="section-title" style="margin-top:0;">📦 Encomendas</div>
+            <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#7a4a5e; line-height:1.5;">
+                💡 <b>Use isso quando</b> um cliente pedir um produto que está <b>esgotado</b> (a lista só mostra o que zerou no estoque). Anote o pedido aqui — quando o produto ficar pronto, ele aparece marcado como <b>"Produzido"</b> e você já pode vender direto por aqui. Se o produto ainda tem estoque, é só vender normal na aba Vendas!
+            </div>
+            <div class="vendas-pdv-wrapper">
+                <div class="vendas-col-left">
+                    <div class="section-title" style="margin-top:0;">📝 Registrar Pedido Especial</div>
+                    <div class="row">
+                        <div class="col"><label>Data do Pedido</label><input type="date" id="e-data"></div>
+                        <div class="col"><label>Cliente</label><input type="text" id="e-cliente" list="lista-clientes" placeholder="Nome do Cliente"></div>
+                    </div>
+                    <div class="row">
+                      <div class="col" style="flex: 2;">
+                            <label>O que o cliente pediu?</label>
+                            <select id="e-item" style="width: 100%; border-color: #ccc; background: #fff;">
+                                <option value="">Aguardando estoque...</option>
+                            </select>
+                        </div>
+                        <div class="col"><label>Qtd</label><input type="number" id="e-qtd" value="1"></div>
+                    </div>
+                    <div class="input-group"><label>Observações / Detalhes</label><textarea id="e-obs" placeholder="Preferência de cor, presente, etc..."></textarea></div>
+                    <button class="btn-salvar" onclick="salvarEncomenda()">Salvar Pedido</button>
+                </div>
+
+                <div class="vendas-col-right">
+                    <div class="section-title" style="margin-top: 0;">📋 Pedidos em Aberto</div>
+                    <p style="font-size:0.7rem; color:#888; margin-top:-8px; margin-bottom:15px;">De toda a equipe — qualquer um pode ver e entregar quando o cliente vier buscar.</p>
+                    <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 15px;">
+                        <input type="text" id="busca-encomendas" class="search-bar" style="margin: 0; border: none; box-shadow: none;" placeholder="🔍 Buscar cliente ou item..." onkeyup="renderizarEncomendas()">
+                    </div>
+                    <div id="lista-encomendas-cards"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-maceracaovendedor" class="tab-content">
+            <div class="section-title" style="margin-top:0;">⏳ Maceração — Quando Fica Pronto</div>
+            <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Consulte aqui quando cada perfume em produção fica pronto pra vender. Assim você já se planeja e avisa o cliente sem precisar perguntar. 😉</p>
+
+            <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 20px;">
+                <div class="col">
+                    <label>🔍 Buscar produto</label>
+                    <input type="text" id="busca-maceracao-vendedor" placeholder="Nome ou código (ex: N038)" oninput="renderizarMaceracaoVendedor()" style="margin: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div id="lista-maceracao-vendedor"></div>
+        </div>
+
+        <div id="tab-sugestaoproducao" class="tab-content">
+            <div class="section-title" style="margin-top:0;">💡 Sugerir Produção</div>
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#1e3a8a; line-height:1.5;">
+                💡 <b>Use isso quando</b> um cliente pedir um perfume que já acabou (ou que ainda nem existe) e você achar que vale a pena fabricar mais. Escreva o produto e, se quiser, o motivo — sua sugestão cai direto pra Diretoria decidir. Simples assim, não precisa de mais nada.
+            </div>
+            <div class="input-group">
+                <label>Produto (existente ou uma ideia nova)</label>
+                <input type="text" id="sp-produto" list="lista-produtos-sugestao" placeholder="Ex: Perfume Bad Boy 40ml">
+                <datalist id="lista-produtos-sugestao"></datalist>
+            </div>
+            <div class="input-group">
+                <label>Observação (opcional)</label>
+                <textarea id="sp-observacao" placeholder="Ex: Cliente perguntou 3x essa semana"></textarea>
+            </div>
+            <button class="btn-salvar" style="background: #0369a1; box-shadow: 0 4px 0 #075985;" onclick="salvarSugestaoProducao()">💡 Enviar Sugestão</button>
+
+            <div id="lista-minhas-sugestoes" style="margin-top: 20px;"></div>
+        </div>
+
+        <div id="tab-estoqueparado" class="tab-content">
+            <div class="section-title" style="margin-top:0;">🔥 Bônus de Comissão Ativos</div>
+            <div id="lista-bonus-ativos" style="margin-bottom: 20px;"></div>
+
+            <div class="section-title">🐌 Estoque Parado</div>
+            <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Produtos com estoque sem reposição há muito tempo. Defina um bônus de comissão pra incentivar a equipe a vender.</p>
+
+            <div class="filtro-box" style="padding: 10px 15px; margin-bottom: 20px;">
+                <div class="col">
+                    <label>Mostrar produtos parados há mais de (dias)</label>
+                    <div style="display:flex; gap:8px; align-items:stretch;">
+                        <button type="button" onclick="ajustarFiltroDiasParado(-5)" style="flex:0 0 48px; font-size:1.2rem; font-weight:900; border:1px solid var(--border-color); border-radius:8px; background:#fff; color:var(--primary-dark); cursor:pointer;">−</button>
+                        <input type="number" id="ep-filtro-dias" min="1" inputmode="numeric" oninput="renderizarEstoqueParado()" style="margin: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; width: 100%; box-sizing: border-box; text-align:center;">
+                        <button type="button" onclick="ajustarFiltroDiasParado(5)" style="flex:0 0 48px; font-size:1.2rem; font-weight:900; border:1px solid var(--border-color); border-radius:8px; background:#fff; color:var(--primary-dark); cursor:pointer;">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="lista-estoque-parado"></div>
+        </div>
+
+        <div id="tab-clientes" class="tab-content">
+            <div class="section-title" style="margin-top:0;">👥 Clientes</div>
+            <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#7a4a5e; line-height:1.5;">
+                💡 Cadastre <b>seus clientes</b> com telefone pra habilitar a <b>cobrança direto no WhatsApp</b> — e com o aniversário, a Novera lembra a data pra você aproveitar e vender. 🎂 Aqui aparecem os clientes que você cadastrou e os que já compraram com você.
+            </div>
+
+            <div class="filtro-box" style="background:#fdf5f7; border-color:#f3d8e2;">
+                <input type="hidden" id="cad-cli-id">
+                <div class="row">
+                    <div class="col"><label>Nome do Cliente</label><input type="text" id="cad-cli-nome" placeholder="Ex: Amanda Zanotti"></div>
+                    <div class="col"><label>Telefone (WhatsApp)</label><input type="tel" id="cad-cli-telefone" inputmode="numeric" placeholder="Ex: 11 99999-8888"></div>
+                </div>
+                <div class="row">
+                    <div class="col"><label>Aniversário (dia/mês)</label><input type="text" id="cad-cli-aniversario" placeholder="Ex: 25/12" maxlength="5" inputmode="numeric"></div>
+                    <div class="col"><label>Observação</label><input type="text" id="cad-cli-obs" placeholder="Ex: Prefere florais"></div>
+                </div>
+                <button class="btn-salvar" id="btn-salvar-cliente" style="margin-top:5px;" onclick="salvarCliente()">💾 Salvar Cliente</button>
+                <button class="btn-salvar" id="btn-cancelar-edicao-cliente" style="display:none; margin-top:8px; background:#fff; color:#999; border:1px dashed #ccc; box-shadow:none;" onclick="limparFormCliente()">✖️ Cancelar Edição</button>
+            </div>
+
+            <div class="section-title">📒 Cadastrados <span id="total-clientes-cadastrados" style="font-size:0.7rem; color:#999;"></span></div>
+            <input type="text" id="busca-cadastro-clientes" placeholder="🔎 Buscar cliente..." oninput="renderizarClientes()" style="margin-bottom:12px;">
+            <div id="lista-cadastro-clientes"></div>
+
+            <div id="secao-unificar-clientes" style="display:none;">
+                <div class="section-title">🔀 Unificar Nomes Duplicados</div>
+                <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 15px; margin-bottom:15px; font-size:0.75rem; color:#b91c1c; line-height:1.5;">
+                    ⚠️ Achou o mesmo cliente escrito de dois jeitos (ex: "Amanda Zanotti" e "Amanda Zantti")? Escolha o <b>nome errado</b> e o <b>nome certo</b> — todas as vendas e encomendas do errado passam pro certo. <b>Não tem como desfazer.</b>
+                </div>
+                <div class="filtro-box" style="background:#fff; border-color:#fecaca;">
+                    <div class="row">
+                        <div class="col"><label style="color:#b91c1c;">Nome ERRADO (some)</label><select id="mesclar-de"><option value="">Selecione...</option></select></div>
+                        <div class="col"><label style="color:#15803d;">Nome CERTO (fica)</label><select id="mesclar-para"><option value="">Selecione...</option></select></div>
+                    </div>
+                    <button class="btn-salvar" style="margin-top:5px; background:#b91c1c; box-shadow:0 4px 0 #7f1d1d;" onclick="mesclarClientesUI()">🔀 Unificar Agora</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-alexa" class="tab-content">
+            <div class="section-title" style="margin-top:0;">🗣️ Alexa — Novera por Voz</div>
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 15px; margin-bottom:20px; font-size:0.8rem; color:#1e40af; line-height:1.5;">
+                💡 A skill é <b>privada da diretoria</b>: só funciona nos aparelhos Alexa logados na conta cadastrada. Fale a frase de ativação, pergunte à vontade e, para encerrar, diga <b>"parar"</b>.
+            </div>
+
+            <div style="background:linear-gradient(135deg,#0ea5e9,#0369a1); color:#fff; border-radius:14px; padding:22px 15px; text-align:center; margin-bottom:25px; box-shadow:0 8px 20px rgba(3,105,161,0.25);">
+                <p style="margin:0 0 6px 0; font-size:0.7rem; opacity:.85; text-transform:uppercase; letter-spacing:1px;">Para começar, diga:</p>
+                <p style="margin:0; font-size:1.35rem; font-weight:900;">"Alexa, abrir Minha Perfumaria"</p>
+                <p style="margin:8px 0 0 0; font-size:0.7rem; opacity:.8;">Ou direto: "Alexa, pergunta pra Minha Perfumaria qual o estoque do sete"</p>
+            </div>
+
+            <button class="btn-salvar" style="background:#0369a1; box-shadow:0 5px 15px rgba(3,105,161,0.3); margin:0 0 20px 0;" onclick="document.getElementById('modal-alexa-comandos').style.display='flex'">❓ Ver Guia Completo de Comandos</button>
+
+            <div class="section-title">🎙️ O que você pode perguntar</div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid var(--primary-dark); border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">📦 Estoque</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Qual o estoque do trinta e quatro?" · "Quanto tem de Yara?" · "Estoque do Chanel"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o total e onde está (Sede, vendedoras...). Funciona por código ou nome — <b>código acerta sempre</b>; nomes estrangeiros ela pode entender errado.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #15803d; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">💰 Caixa do Dia</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Como está o caixa?" · "Quanto vendemos hoje?" · "Como foi o dia?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o total vendido, quanto entrou na conta, os gastos e o saldo líquido de hoje.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #7c3aed; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🧪 Maceração</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"O que está macerando?" · "O que está chegando?" · "Como está a fábrica?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Lista as produções na fila, com quantidade e a data em que cada uma fica pronta.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #b91c1c; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🚨 Devedores</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Quem está devendo?" · "Quanto tem para receber?" · "Quanto tem de fiado?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o total a receber, quantos clientes devem e os três maiores devedores.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #b45309; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🏆 Ranking do Mês</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Qual o produto mais vendido?" · "Quem mais vendeu esse mês?" · "Ranking do mês"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o produto campeão, o melhor cliente e a vendedora destaque do mês atual.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #ea580c; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">📉 Estoque Acabando</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"O que está acabando?" · "O que precisa fabricar?" · "Tem produto acabando?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Lista os produtos com 3 unidades ou menos, e avisa quantos já zeraram.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #db2777; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🎁 Encomendas</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Tem encomenda pendente?" · "Como estão as encomendas?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde quantas encomendas estão pendentes e para quais clientes.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #0369a1; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">📈 Resumo do Mês</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Como está o mês?" · "Quanto vendemos esse mês?" · "Resumo do mês"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o total vendido, o lucro, quanto entrou no caixa e os gastos do mês.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #4c1d95; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">👤 Vendas por Vendedora</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Quanto vendeu a Cleo?" · "Como está a Kamila?" · "Vendas da Cleo"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o total do mês da pessoa, quantos produtos ela vendeu e a comissão acumulada.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #0e7490; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🚻 Códigos por Gênero</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Quais os códigos dos perfumes masculinos?" · "Lista os perfumes femininos"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Lista código e nome de todos os perfumes daquele gênero que têm estoque.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #65a30d; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">📍 Estoque por Local</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Qual o estoque na Sede?" · "O que a Cleo tem?" · "Quais perfumes masculinos tem na Sede?"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">Responde o que tem em cada local (Sede ou vendedora), com filtro de gênero se você quiser.</p>
+            </div>
+
+            <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid #a21caf; border-radius:8px; padding:15px; margin-bottom:10px;">
+                <h4 style="margin:0 0 6px 0; font-size:0.9rem; color:var(--brand-dark);">🔢 Código de um Produto</h4>
+                <p style="margin:0 0 8px 0; font-size:0.8rem; color:#666; font-style:italic;">"Qual o código do Chanel?" · "Me fala o código do Bad Boy"</p>
+                <p style="margin:0; font-size:0.72rem; color:#999;">O caminho inverso: fala o nome e ela responde o código Novera.</p>
+            </div>
+
+            <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:10px; padding:12px 15px; margin-top:20px; font-size:0.75rem; color:#92400e; line-height:1.6;">
+                <b>💡 Dicas rápidas:</b><br>
+                • Fale os códigos por extenso: N034 = <b>"trinta e quatro"</b>, N007 = <b>"sete"</b>.<br>
+                • Depois de uma resposta ela pergunta "quer saber mais alguma coisa?" — é só emendar a próxima pergunta.<br>
+                • Se ela não entender, diga <b>"ajuda"</b> para ouvir os comandos. Para sair, <b>"parar"</b>.
+            </div>
+        </div>
+
         <div id="tab-usuarios" class="tab-content">
             <div class="section-title" style="margin-top:0;">👥 Gerenciar Equipe</div>
             <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Adicione vendedores ou novos administradores ao sistema.</p>
@@ -640,6 +886,8 @@
                     </div>
                     <div class="col"><label>Comissão (%)</label><input type="number" id="u-comissao" placeholder="Ex: 10" min="0" max="100"></div>
                 </div>
+                <div class="input-group"><label>🎯 Meta de Vendas do Mês (R$) — opcional</label><input type="number" id="u-meta" placeholder="Ex: 1500" min="0" step="50"></div>
+                <div class="input-group"><label>📱 WhatsApp do Vendedor — opcional</label><input type="tel" id="u-telefone" placeholder="Ex: (35) 99999-9999"><small style="font-size:0.62rem; color:#999;">Usado no Catálogo Online: o cliente toca em "Quero esse" e cai direto no WhatsApp dele.</small></div>
                 <div class="input-group" id="div-u-senha"><label>Senha de Acesso</label><div class="password-wrapper"><input type="password" id="u-senha" placeholder="Crie uma senha forte"><button type="button" class="toggle-eye" onclick="toggleSenha('u-senha', this)">🙈</button></div></div>
                 
                 <button class="btn-salvar" id="btn-salvar-usuario" onclick="salvarUsuario()">➕ Cadastrar Usuário</button>
@@ -654,14 +902,118 @@
 
     </div>
 
+    <button id="btn-voltar-topo" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="Voltar ao topo">⬆️</button>
+    <div class="nav-more-overlay" id="nav-more-overlay" onclick="fecharMaisMenu()"></div>
     <nav class="bottom-nav">
-        <a class="nav-item" id="nav-rotulos" onclick="switchTab('rotulos')"><span class="icon">🏷️</span><span>Essências</span></a>
+        <a class="nav-item" id="nav-rotulos" onclick="switchTab('rotulos')"><span class="icon">🏷️</span><span>Essênc.</span></a>
         <a class="nav-item" id="nav-precificar" onclick="switchTab('precificar')"><span class="icon">🧪</span><span>Fábrica</span></a>
-        <a class="nav-item" id="nav-estoque" onclick="switchTab('estoque')"><span class="icon">📦</span><span>Estoque</span></a>
         <a class="nav-item" id="nav-gastos" onclick="switchTab('gastos')"><span class="icon">💸</span><span>Gastos</span></a>
+        <a class="nav-item" id="nav-estoque" onclick="switchTab('estoque')"><span class="icon">📦</span><span>Estoque</span></a>
         <a class="nav-item active" id="nav-vendas" onclick="switchTab('vendas')"><span class="icon">🛒</span><span>Vendas</span></a>
         <a class="nav-item" id="nav-dashboard" onclick="switchTab('dashboard')"><span class="icon">📊</span><span>Painel</span></a>
+        <a class="nav-item" id="nav-mais" onclick="toggleMaisMenu()"><span class="icon">⋯</span><span>Mais</span></a>
+        <div class="nav-more-panel" id="nav-more-panel">
+            <a class="nav-item-more" id="nav-estoqueparado" onclick="switchTab('estoqueparado'); fecharMaisMenu()"><span class="icon">🐌</span><span>Parado</span></a>
+            <a class="nav-item-more" id="nav-encomendas" onclick="switchTab('encomendas'); fecharMaisMenu()"><span class="icon">🎁</span><span>Encomendas</span></a>
+            <a class="nav-item-more" id="nav-clientes" onclick="switchTab('clientes'); fecharMaisMenu()"><span class="icon">👥</span><span>Clientes</span></a>
+            <a class="nav-item-more" id="nav-alexa" onclick="switchTab('alexa'); fecharMaisMenu()"><span class="icon">🗣️</span><span>Alexa</span></a>
+        </div>
     </nav>
+</div>
+
+<div id="modal-conferencia" class="modal-overlay-alert" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff; border-radius:16px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; padding:22px; position:relative; margin:15px; box-sizing:border-box;">
+        <button onclick="document.getElementById('modal-conferencia').style.display='none'" style="position:absolute; top:12px; right:15px; background:none; border:none; font-size:1.8rem; color:#999; cursor:pointer; line-height:1;">&times;</button>
+        <h3 style="margin:0 0 5px 0; color:#0369a1; font-size:1.1rem; font-weight:900;">📋 Conferência de Estoque</h3>
+        <p style="margin:0 0 15px 0; font-size:0.72rem; color:#888; line-height:1.5;">Escolha o local, conte fisicamente os produtos e corrija o número dos que não baterem (o campo fica vermelho quando é diferente do sistema). O que bater, deixa como está.</p>
+        <label style="color:#0369a1;">Local a conferir</label>
+        <select id="conf-local" onchange="prepararConferencia()"><option value="">Selecione...</option></select>
+        <div id="conf-lista" style="margin-top:12px;"></div>
+        <button class="btn-salvar" id="btn-salvar-conferencia" style="display:none; background:#0369a1; box-shadow:0 4px 0 #075985;" onclick="salvarConferencia()">✔️ Concluir Conferência</button>
+    </div>
+</div>
+
+<div id="modal-ficha-olfativa" class="modal-overlay-alert" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff; border-radius:20px; max-width:420px; width:100%; max-height:88vh; overflow-y:auto; padding:22px 20px; position:relative; margin:15px; box-sizing:border-box; text-align:left;">
+        <button onclick="document.getElementById('modal-ficha-olfativa').style.display='none'" style="position:absolute; top:12px; right:15px; background:none; border:none; font-size:1.7rem; color:#999; cursor:pointer; line-height:1;">&times;</button>
+        <input type="hidden" id="fo-linha">
+        <h3 style="margin:0 0 2px 0; color:var(--primary-dark); font-size:1.05rem; font-weight:900;">✨ Ficha Olfativa</h3>
+        <p id="fo-titulo" style="margin:0 0 15px 0; font-size:0.78rem; color:#888; font-weight:700;"></p>
+
+        <button class="btn-salvar" id="btn-gerar-ficha-ia" style="margin:0 0 15px 0; background:#4285f4; box-shadow:0 4px 0 #2b5cb8; font-size:0.85rem;" onclick="gerarFichaIAModal()">✨ Gerar com IA (você revisa antes de salvar)</button>
+
+        <div class="input-group" style="margin-bottom:10px;"><label>Descrição (curta e sedutora)</label><textarea id="fo-descricao" maxlength="200" style="min-height:60px;" placeholder="Um oriental floral envolvente..."></textarea></div>
+        <div class="row" style="margin-bottom:0;">
+            <div class="col"><label>Notas de Saída</label><input type="text" id="fo-saida" maxlength="80" placeholder="bergamota, limão"></div>
+            <div class="col"><label>Notas de Coração</label><input type="text" id="fo-coracao" maxlength="80" placeholder="jasmim, rosa"></div>
+        </div>
+        <div class="input-group" style="margin-bottom:10px;"><label>Notas de Fundo</label><input type="text" id="fo-fundo" maxlength="80" placeholder="âmbar, baunilha, almíscar"></div>
+        <div class="input-group" style="margin-bottom:10px;"><label>Família Olfativa (1 a 2, separadas por ·)</label><input type="text" id="fo-familia" maxlength="50" placeholder="Amadeirado · Especiado"></div>
+        <div class="input-group" style="margin-bottom:10px;"><label>Ocasiões de Uso (separadas por ·)</label><input type="text" id="fo-ocasioes" maxlength="110" placeholder="Trabalho · Balada · Encontro"></div>
+        <div class="input-group" style="margin-bottom:10px;"><label>Dica de Aplicação</label><textarea id="fo-dica" maxlength="160" style="min-height:46px;" placeholder="Borrife nos pulsos e atrás das orelhas..."></textarea></div>
+        <div class="input-group" style="margin-bottom:14px;"><label>Ingredientes (genéricos)</label><textarea id="fo-ingredientes" maxlength="180" style="min-height:46px;" placeholder="Álcool cosmético, essência importada, fixador..."></textarea></div>
+
+        <button class="btn-salvar" style="margin:0;" onclick="salvarFichaOlfativa()">💾 Salvar Ficha</button>
+    </div>
+</div>
+
+<div id="modal-alexa-comandos" class="modal-overlay-alert" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff; border-radius:16px; width:100%; max-width:520px; max-height:85vh; overflow-y:auto; padding:25px; position:relative; margin:15px; box-sizing:border-box;">
+        <button onclick="document.getElementById('modal-alexa-comandos').style.display='none'" style="position:absolute; top:12px; right:15px; background:none; border:none; font-size:1.8rem; color:#999; cursor:pointer; line-height:1;">&times;</button>
+
+        <h3 style="margin:0 0 5px 0; color:#0369a1; font-size:1.1rem; font-weight:900;">📖 Guia Completo da Alexa</h3>
+        <p style="margin:0 0 18px 0; font-size:0.72rem; color:#888;">Você não precisa decorar as frases ao pé da letra — variações parecidas também funcionam.</p>
+
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px; margin-bottom:15px; font-size:0.78rem; color:#1e40af; line-height:1.7;">
+            <b>🔑 Jeitos de chamar</b> <span style="font-size:0.65rem; color:#60a5fa;">(essas palavras são fixas da Amazon)</span><br>
+            • "Alexa, <b>abra</b> minha perfumaria"<br>
+            • "Alexa, <b>pergunte pra</b> minha perfumaria [pergunta]"<br>
+            • "Alexa, <b>peça pra</b> minha perfumaria [pergunta]"<br>
+            • "Alexa, <b>inicie</b> / <b>comece</b> / <b>use</b> minha perfumaria"<br>
+            <span style="font-size:0.68rem; color:#60a5fa;">Depois de cada resposta ela pergunta "quer saber mais alguma coisa?" — é só emendar a próxima, sem chamar de novo.</span>
+        </div>
+
+        <div style="font-size:0.78rem; color:#444; line-height:1.7;">
+            <p style="margin:0 0 3px 0; font-weight:900; color:var(--primary-dark);">📦 ESTOQUE <span style="font-weight:600; color:#999; font-size:0.68rem;">(código por extenso: N034 = "trinta e quatro")</span></p>
+            <p style="margin:0 0 12px 0; color:#666;">"qual o estoque do trinta e quatro" · "quanto tem de Yara" · "quantas unidades tem do sete" · "estoque do quinze" · "verifica o estoque do Bad Boy" · "consulta o estoque do vinte e oito"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#15803d;">💰 CAIXA DE HOJE</p>
+            <p style="margin:0 0 12px 0; color:#666;">"como está o caixa" · "qual o caixa de hoje" · "resumo do caixa" · "quanto vendemos hoje" · "quanto vendeu hoje" · "como estão as vendas de hoje" · "como foi o dia" · "quanto entrou hoje"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#7c3aed;">🧪 MACERAÇÃO</p>
+            <p style="margin:0 0 12px 0; color:#666;">"o que está macerando" · "como está a maceração" · "o que está chegando" · "como está a fábrica" · "o que tem na fila de maceração" · "tem produto ficando pronto" · "quando fica pronto o próximo produto"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#b91c1c;">🚨 DEVEDORES</p>
+            <p style="margin:0 0 12px 0; color:#666;">"quem está devendo" · "quem está me devendo" · "quanto tem para receber" · "quais são os devedores" · "quem deve para a gente" · "tem dinheiro para receber" · "quanto tem de fiado"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#b45309;">🏆 RANKING DO MÊS</p>
+            <p style="margin:0 0 12px 0; color:#666;">"qual o produto mais vendido" · "quais os mais vendidos" · "ranking do mês" · "quem mais vendeu esse mês" · "quem é o melhor cliente" · "qual o campeão de vendas"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#ea580c;">📉 ESTOQUE ACABANDO</p>
+            <p style="margin:0 0 12px 0; color:#666;">"o que está acabando" · "quais produtos estão acabando" · "o que está no fim" · "tem produto acabando" · "o que precisa fabricar"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#db2777;">🎁 ENCOMENDAS</p>
+            <p style="margin:0 0 12px 0; color:#666;">"tem encomenda pendente" · "quais são as encomendas" · "como estão as encomendas" · "tem pedido especial pendente" · "tem alguma encomenda"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#0369a1;">📈 RESUMO DO MÊS</p>
+            <p style="margin:0 0 12px 0; color:#666;">"como está o mês" · "resumo do mês" · "quanto vendemos esse mês" · "como estão as vendas do mês" · "qual o resultado do mês"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#4c1d95;">👤 VENDAS POR VENDEDORA</p>
+            <p style="margin:0 0 12px 0; color:#666;">"quanto vendeu a Cleo" · "quanto a Kamila vendeu" · "como está a Cleo" · "vendas da Kamila" · "quanto vendeu a Cleo esse mês"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#0e7490;">🚻 CÓDIGOS POR GÊNERO</p>
+            <p style="margin:0 0 12px 0; color:#666;">"quais os códigos dos perfumes masculinos" · "quais são os perfumes femininos" · "lista os perfumes infantis" · "quais perfumes masculinos temos" · "me fala os perfumes femininos"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#65a30d;">📍 ESTOQUE POR LOCAL</p>
+            <p style="margin:0 0 12px 0; color:#666;">"qual o estoque na sede" · "o que tem na sede" · "o que a Cleo tem" · "estoque da Kamila" · "qual o estoque na sede dos perfumes masculinos" · "quais perfumes femininos tem com a Cleo" · "o que tem de masculino na sede"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#a21caf;">🔢 CÓDIGO DE UM PRODUTO</p>
+            <p style="margin:0 0 12px 0; color:#666;">"qual o código do Chanel" · "qual é o código do Bad Boy" · "me fala o código do Yara" · "código do One Million"</p>
+
+            <p style="margin:0 0 3px 0; font-weight:900; color:#666;">🆘 DENTRO DA CONVERSA</p>
+            <p style="margin:0; color:#666;">"ajuda" (lista o que ela sabe) · "parar" ou "cancelar" (encerra)</p>
+        </div>
+    </div>
 </div>
 
 <div id="modal-zoom-imagem" class="modal-overlay-alert" style="z-index: 10005; flex-direction: column; padding: 20px; align-items: center; justify-content: center;" onclick="fecharModalImagem()">
@@ -710,7 +1062,14 @@
         <h3 class="modal-title-alert" id="preview-title" style="margin-bottom: 15px; font-size: 1.1rem;">Pronto!</h3>
         <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 15px;">Aperte e segure a imagem abaixo para compartilhar, ou clique no botão verde para baixar.</p>
         <div id="recibo-img-container" style="box-shadow: 0 10px 20px rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden; margin-bottom: 20px; background: #fff;"></div>
-        <div style="display: flex; gap: 10px;"><button class="btn-modal-cancel" onclick="document.getElementById('modal-recibo-preview').style.display='none'">Fechar</button><button class="btn-modal-confirm" id="btn-baixar-img" style="background: #25D366; box-shadow: 0 4px 0 #1b9c4b;">⬇️ Baixar</button></div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn-modal-confirm" id="btn-zap-img" style="display:none; background: #25D366; box-shadow: 0 4px 0 #1b9c4b;">📲 Enviar a Imagem (WhatsApp)</button>
+            <button class="btn-modal-confirm" id="btn-zap-texto" style="display:none; background: #128C7E; box-shadow: 0 4px 0 #0b5e54;">💬 Enviar como Texto (WhatsApp)</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-modal-cancel" onclick="document.getElementById('modal-recibo-preview').style.display='none'">Fechar</button>
+                <button class="btn-modal-confirm" id="btn-baixar-img" style="background: #966178; box-shadow: 0 4px 0 #7a4a5e;">⬇️ Baixar</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -718,7 +1077,7 @@
     <div class="modal-box-alert" style="width: 95%; max-width: 400px; padding: 30px 20px;">
         <button onclick="document.getElementById('modal-gerar-catalogo').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
         <h3 class="modal-title-alert" style="margin-bottom: 5px; color: var(--brand-dark);">📄 Catálogo Novera</h3>
-        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Filtre o tipo de produto e gênero que deseja incluir no PDF.</p>
+        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Filtre o que deseja incluir no PDF ou na página online.</p>
         
         <div style="text-align: left; margin-bottom: 15px;"><label style="margin-bottom:10px;">Categorias (Tipos)</label><div id="cat-checkbox-container" style="max-height: 120px; overflow-y: auto; background: #fafafa; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;"></div></div>
         
@@ -734,6 +1093,8 @@
 
         <div style="text-align: left; margin-bottom: 15px;"><label class="checkbox-recibo" style="margin-bottom: 8px;"><input type="checkbox" id="cat-filtro-estoque" checked><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Apenas com Estoque</span><span class="chk-desc" style="font-size: 0.7rem;">Oculta produtos esgotados</span></div></label><label class="checkbox-recibo"><input type="checkbox" id="cat-filtro-exibir-qtd"><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Exibir Qtd. no PDF</span><span class="chk-desc" style="font-size: 0.7rem;">Mostra quantas unidades restam</span></div></label></div>
         <button class="btn-salvar" style="margin-top: 5px; background: var(--primary-dark); box-shadow: 0 4px 10px rgba(150, 97, 120, 0.3);" onclick="gerarCatalogoPDFFrontend()">⬇️ Gerar e Baixar PDF</button>
+        <button class="btn-salvar" style="margin-top: 10px; background: #25D366; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);" onclick="gerarLinkCatalogoOnline()">🔗 Criar Link Online p/ Cliente</button>
+        <p style="font-size: 0.65rem; color: #aaa; margin: 8px 0 0;">O link abre uma página com esses mesmos filtros, sempre com preços e estoque atualizados.</p>
     </div>
 </div>
 
@@ -825,6 +1186,40 @@
 </div>
 
 <div id="modal-editar-gasto" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px;"><button onclick="document.getElementById('modal-editar-gasto').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button><h3 class="modal-title-alert" style="margin-bottom: 20px; color: var(--brand-dark);">✏️ Editar Gasto</h3><input type="hidden" id="edit-g-linha"><div class="row" style="text-align: left;"><div class="col"><label>Data</label><input type="date" id="edit-g-data"></div><div class="col"><label>Sócio</label><input type="text" id="edit-g-socio" list="lista-socios"></div></div><div class="row" style="text-align: left;"><div class="col"><label>Local</label><input type="text" id="edit-g-local" list="lista-locais"></div></div><div class="input-group" style="text-align: left;"><label>Item</label><input type="text" id="edit-g-item"></div><div class="row" style="text-align: left;"><div class="col"><label>Quantidade</label><input type="number" id="edit-g-qtd" oninput="calcularEditGasto()"></div><div class="col"><label>Valor Unit.</label><input type="text" id="edit-g-valor" class="mask-money" oninput="calcularEditGasto()"></div></div><div class="input-group" style="text-align: left;"><label>Total</label><input type="text" id="edit-g-total" class="mask-money" readonly></div><button class="btn-salvar" onclick="salvarEdicaoGasto()" style="margin-bottom: 0;">💾 Salvar Alterações</button></div></div>
+
+<div id="modal-detalhe-log" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px; max-width: 460px;"><button onclick="document.getElementById('modal-detalhe-log').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button><h3 class="modal-title-alert" style="margin-bottom: 15px; color: var(--brand-dark);">📜 Detalhe do Registro</h3><div style="text-align: left;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;"><span style="font-weight:800; font-size:0.8rem; color:var(--brand-dark);">👤 <span id="modal-log-usuario"></span></span><span style="font-size:0.7rem; color:#888;">🕒 <span id="modal-log-data"></span></span></div><div style="margin-bottom:12px;"><span id="modal-log-acao" style="background:#966178; color:white; padding:3px 8px; border-radius:4px; font-size:0.65rem; font-weight:800; letter-spacing:0.5px;"></span></div><p id="modal-log-detalhe" style="font-size:0.8rem; color:#444; margin:0; line-height:1.6; white-space:pre-line; background:#faf7f8; border:1px solid var(--border-color); border-radius:10px; padding:12px;"></p></div></div></div>
+
+<div id="modal-sugestao-compras" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px; max-width: 520px;"><button onclick="document.getElementById('modal-sugestao-compras').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
+    <h3 class="modal-title-alert" style="margin-bottom: 8px; color: var(--brand-dark);">🤖 Sugestão de Compras</h3>
+    <p style="font-size: 0.75rem; color: #888; margin: 0 0 15px 0; line-height: 1.4;">Baseado nos perfumes abaixo do mínimo (contando os que já estão macerando). Revise as quantidades e preços antes de confirmar.</p>
+    <div class="input-group" style="text-align: left; background:#faf7f8; border:1px solid var(--border-color); border-radius:10px; padding:10px 12px;">
+        <label>🧪 Rendimento: 1 essência produz quantos perfumes?</label>
+        <input type="number" id="sc-rendimento" value="5" min="1" onchange="renderizarSugestaoCompras()" style="max-width: 100px;">
+    </div>
+    <div id="lista-sugestao-compras" style="text-align: left; max-height: 45vh; overflow-y: auto; margin: 12px 0;"></div>
+    <button id="btn-confirmar-sugestao" class="btn-salvar" style="background: #2e7d32; box-shadow: 0 4px 0 #14532d; margin-bottom: 0;" onclick="confirmarSugestaoCompras()">✅ Adicionar Selecionados à Fila</button>
+</div></div>
+
+<div id="modal-transferir-estoque" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px; max-width: 420px;"><button onclick="document.getElementById('modal-transferir-estoque').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
+    <h3 class="modal-title-alert" style="margin-bottom: 4px; color: var(--brand-dark);">🔄 Transferir Estoque</h3>
+    <p id="ts-nome-produto" style="font-size: 0.8rem; color: #888; margin: 0 0 15px 0; font-weight: 700;"></p>
+    <div style="text-align: left;">
+        <div class="input-group">
+            <label>De onde sai</label>
+            <select id="ts-local-origem" onchange="atualizarSaldoOrigemTransferencia()"></select>
+            <p id="ts-saldo-origem" style="font-size: 0.7rem; color: #888; margin: 5px 0 0 0;"></p>
+        </div>
+        <div class="input-group">
+            <label>Para onde vai</label>
+            <select id="ts-local-destino"></select>
+        </div>
+        <div class="input-group">
+            <label>Quantidade</label>
+            <input type="number" id="ts-qtd" min="1" value="1">
+        </div>
+    </div>
+    <button id="btn-confirmar-transferencia" class="btn-salvar" style="background: #0369a1; box-shadow: 0 4px 0 #075985; margin-bottom: 0;" onclick="confirmarTransferirEstoque()">✅ Confirmar Transferência</button>
+</div></div>
 
 <div id="modal-editar-venda" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px; text-align:left;"><button onclick="document.getElementById('modal-editar-venda').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button><h3 class="modal-title-alert" style="margin-bottom: 20px; color: var(--brand-dark); text-align:center;">✏️ Editar Venda</h3><input type="hidden" id="edit-v-linha"><div class="row"><div class="col"><label>Data</label><input type="date" id="edit-v-data"></div><div class="col"><label>Cliente</label><input type="text" id="edit-v-cliente" list="lista-clientes"></div></div><div class="input-group"><label>Produto Vendido</label><select id="edit-v-produto" onchange="autoPreencherEdicaoVenda()"></select></div><div class="input-group"><label>Sócio</label><input type="text" id="edit-v-socio" list="lista-socios-dinamica"></div><div class="row"><div class="col"><label>Qtd</label><input type="number" id="edit-v-qtd" oninput="autoPreencherEdicaoVenda()"></div><div class="col"><label>Valor Total</label><input type="text" id="edit-v-valor" class="mask-money"></div></div><div class="row"><div class="col"><label>Status PG</label>
     <select id="edit-v-status" onchange="onStatusVendaChange(true)">
@@ -1058,41 +1453,94 @@
         </div>
         
         <div style="padding: 20px; max-height: 55vh; overflow-y: auto; color: var(--brand-dark); font-size: 0.85rem; line-height: 1.6;">
-            
+
             <div style="margin-bottom: 25px;">
-                <h4 style="color: #b45309; border-bottom: 2px solid #fde047; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🛒 1. Como registrar uma Venda</h4>
-                <p style="margin-bottom: 8px;"><b>1º Passo:</b> Acesse a aba <b>Vendas</b> (ícone do carrinho) e digite o Nome do Cliente.</p>
-                <p style="margin-bottom: 8px;"><b>2º Passo:</b> Escolha o produto na lista, ou clique no botão 📷 para ler o QR Code da etiqueta!</p>
-                <p style="margin-bottom: 8px;"><b>3º Passo:</b> Em <b>Status PG</b>, deixe <b>"Pago"</b> se o cliente pagou na hora, ou mude para <b>"Pendente"</b> se ele comprou fiado para pagar depois.</p>
-                <p style="margin-bottom: 8px;"><b>4º Passo:</b> Selecione de qual prateleira está tirando o produto, confira a quantidade e clique no botão azul <b>"➕ INSERIR NO CARRINHO"</b>.</p>
-                <p style="margin-bottom: 8px;"><b>5º Passo:</b> O produto vai aparecer no resumo. Se ele quiser mais itens, repita o processo. Para concluir, clique no botão verde <b>"✅ FINALIZAR VENDA"</b>.</p>
+                <h4 style="color: var(--primary-dark); border-bottom: 2px solid #f3d8e2; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🧭 1. Se localizando no app</h4>
+                <p style="margin-bottom: 8px;">Sua barra de navegação, aqui embaixo da tela:</p>
+                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; justify-content:space-around; text-align:center; font-size:0.55rem; font-weight:800; color:#a1a1aa; text-transform:uppercase; margin-bottom:8px;">
+                    <span>🛒<br>Vendas</span><span>📦<br>Estoque</span><span>⏳<br>Maceração</span><span>📊<br>Painel</span><span>⋯<br>Mais</span>
+                </div>
+                <p style="margin-bottom: 8px;">O botão <b>⋯ Mais</b> guarda o resto: <b>🎁 Encomendas</b>, <b>👥 Clientes</b> e <b>💡 Sugerir</b>. O ícone colorido e maior mostra onde você está.</p>
+                <p style="margin-bottom: 0;">💡 Rolou muito a tela? Aparece uma <b>setinha roxa ⬆️</b> no canto — um toque e você volta pro topo.</p>
             </div>
 
             <div style="margin-bottom: 25px;">
-                <h4 style="color: #991b1b; border-bottom: 2px solid #fca5a5; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🧾 2. Fiados, Recibos e Cobranças</h4>
-                <p style="margin-bottom: 8px;"><b>• O cliente pagou o fiado?</b> Vá no <i>Histórico de Vendas</i> lá embaixo, ache o pedido dele que está amarelo (Pendente) e clique no botão verde <b>💲</b> para dar baixa na mesma hora!</p>
-                <p style="margin-bottom: 8px;"><b>• Menu Docs & Lotes:</b> No topo da tela de Vendas, clique no sub-menu <b>"📄 Docs & Lotes"</b>. Ele tem duas ferramentas mágicas para você:</p>
-                <p style="margin-bottom: 8px; margin-left: 15px;"><b>1. Lote Recibos:</b> Selecione um cliente que já pagou e clique em "Gerar Imagem" para mandar um recibo lindão no WhatsApp dele.</p>
-                <p style="margin-bottom: 8px; margin-left: 15px;"><b>2. Lote Cobrança:</b> Selecione um cliente devedor. Clique no botão verde 📋 <b>Texto</b> para copiar uma mensagem amigável de cobrança, ou no botão laranja 📸 <b>Img</b> para enviar uma imagem com o lembrete da dívida!</p>
-            </div>
-            
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #166534; border-bottom: 2px solid #bbf7d0; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📦 3. Como consultar o Estoque</h4>
-                <p style="margin-bottom: 8px;"><b>• Onde achar:</b> A aba <b>Estoque</b> mostra exatamente o que temos pronto para entrega imediata na prateleira.</p>
-                <p style="margin-bottom: 8px;"><b>• Filtros Rápidos:</b> Use os menus no topo para encontrar perfumes só Femininos, Masculinos ou Infantis.</p>
-                <p style="margin-bottom: 8px;"><b>• Avisos:</b> Se o produto estiver com a etiqueta <b>"⏳ Lote Vindo"</b>, significa que o estoque zerou, mas a fábrica já tem uma leva macerando. Logo ele chega!</p>
+                <h4 style="color: #b45309; border-bottom: 2px solid #fde047; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🛒 2. Registrando uma Venda</h4>
+                <p style="margin-bottom: 8px;"><b>1º</b> Na aba <b>Vendas</b>, digite o nome do cliente (o app sugere os seus conforme você digita).</p>
+                <p style="margin-bottom: 8px;"><b>2º</b> Escolha o produto na lista — ela é organizada por tipo, e os símbolos ajudam: 🌸 feminino · 🔷 masculino · 🧸 infantil. Ou use o 📷 pra ler o QR Code da etiqueta!</p>
+                <p style="margin-bottom: 8px;"><b>3º</b> Em <b>Status PG</b>: <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PAGO</span> se pagou na hora, <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PENDENTE</span> se ficou fiado.</p>
+                <p style="margin-bottom: 8px;"><b>4º</b> Confira o local de retirada e a quantidade, e toque em:</p>
+                <div style="background:#e3f2fd; color:#1565c0; border:1px dashed #90caf9; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">➕ INSERIR NO CARRINHO</div>
+                <p style="margin-bottom: 8px;"><b>5º</b> Quer mais itens? Repita. No final:</p>
+                <div style="background:#2e7d32; color:#fff; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">✅ FINALIZAR VENDA COMPLETA</div>
+                <p style="margin-bottom: 0;">🔥 <b>Viu produto com foguinho e "+X%" na lista?</b> É <b>comissão extra</b> naquele produto HOJE — venda ele e ganhe mais!</p>
             </div>
 
             <div style="margin-bottom: 25px;">
-                <h4 style="color: #0369a1; border-bottom: 2px solid #bae6fd; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📊 4. Suas Comissões e Painel</h4>
-                <p style="margin-bottom: 8px;"><b>• Acompanhe seu dinheiro:</b> A aba <b>Painel</b> é o seu termômetro. Lá mostra o total de tudo que você vendeu no mês e as comissões.</p>
-                <p style="margin-bottom: 8px;"><b>• Comissão Pendente vs Aprovada:</b> O que você vende vai para a área "Pendente". Quando o cliente paga e a gerência confere a entrada no caixa, ela fica verde como "Aprovada" e pronta para repasse!</p>
-                <p style="margin-bottom: 8px;"><b>• Suba no Pódio:</b> Dispute o 1º lugar de vendas do mês no 🏆 <b>Ranking da Equipe</b> e arrase nas metas!</p>
+                <h4 style="color: #991b1b; border-bottom: 2px solid #fca5a5; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">💲 3. Fiado, Cobrança e Recibo (com WhatsApp!)</h4>
+                <p style="margin-bottom: 8px;">Cada venda em aberto no seu histórico tem esses botões:</p>
+                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; gap:8px; justify-content:center; margin-bottom:8px;">
+                    <span style="background:#ffedd5; border:1px solid #fde047; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">🔔</span>
+                    <span style="background:#dcfce7; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">📲</span>
+                    <span style="background:#e8f5e9; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">💲</span>
+                    <span style="background:#fff; border:1px solid #eee; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">✏️</span>
+                </div>
+                <p style="margin-bottom: 4px;">🔔 <b>Sininho</b> = gera a imagem bonita de cobrança (dá pra enviar a imagem ou o texto direto no WhatsApp).</p>
+                <p style="margin-bottom: 4px;">📲 <b>Zapzinho</b> = abre o WhatsApp do cliente com a cobrança escrita e pronta. Se faltar o telefone, o app pede na hora e já guarda.</p>
+                <p style="margin-bottom: 8px;">💲 <b>Cifrão</b> = o cliente pagou! Dá baixa na hora — e o app já oferece gerar o recibo em seguida, sem procurar nada.</p>
+                <p style="margin-bottom: 0;">📄 <b>Docs &amp; Lotes</b> (no topo de Vendas): recibos e cobranças de <b>várias compras de uma vez</b> — nos seletores, é só digitar que a lista filtra sozinha.</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #166534; border-bottom: 2px solid #bbf7d0; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📦 4. Estoque: achando o produto certo</h4>
+                <p style="margin-bottom: 8px;">Cada produto mostra o que interessa pra vender:</p>
+                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.78rem; margin-bottom:8px;">
+                    <span style="background:var(--primary-dark); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.65rem;">N034</span> <b>Perfume Boss Bottled 40ml</b>
+                    <span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">MASCULINO</span>
+                    <span style="background:#f6ebef; color:#a86f88; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">🌳 AMADEIRADO</span>
+                    <br><span style="color:#166534; font-weight:800;">Disponível: 9 un</span> · <span style="color:#888;">📍 Sede: 6 · Cléo: 3</span>
+                </div>
+                <p style="margin-bottom: 4px;">🌳 <b>Cliente pediu "um amadeirado"? Um "doce"?</b> Use o filtro <b>"Todas as Famílias Olfativas"</b> ou digite a família na busca — aparecem só os daquele perfil, com preço e onde estão.</p>
+                <p style="margin-bottom: 4px;">⏳ <b>"Chega em X dias"</b> = acabou, mas a fábrica já está produzindo. Use isso pra vender: "te reservo pra semana que vem?"</p>
+                <p style="margin-bottom: 8px;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>
+                <p style="margin-bottom: 0;">🔗 <b>SEU CATÁLOGO ONLINE (arma secreta!):</b> no topo do Estoque, toque em <b>📖 Catálogo → Criar Link Online</b>. Gera um link SEU pra mandar aos clientes (ou o QR pra imprimir): eles veem a vitrine com preços sempre atualizados, tocam em "💬 Quero esse!" e caem direto no <b>seu</b> WhatsApp com o pedido pronto. As visitas aparecem no seu Painel!</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: var(--primary-dark); border-bottom: 2px solid #f3d8e2; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🎁 5. Encomendas: nunca perca uma venda</h4>
+                <p style="margin-bottom: 8px;"><b>Produto esgotado e o cliente quer?</b> Vá em <b>⋯ Mais → Encomendas</b> e anote o pedido (a lista só mostra o que zerou).</p>
+                <p style="margin-bottom: 8px;">✨ <b>A mágica:</b> quando o estoque chegar, <b>a venda é lançada sozinha no seu nome</b>, com a sua comissão — você nem precisa lembrar! A encomenda some da lista e vira uma venda Pendente pra você cobrar.</p>
+                <p style="margin-bottom: 0;">Você vê só as suas encomendas; as das colegas são delas.</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #7c3aed; border-bottom: 2px solid #ddd6fe; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">👥 6. Seus Clientes (sua carteira!)</h4>
+                <p style="margin-bottom: 4px;">Em <b>⋯ Mais → Clientes</b> fica a sua carteira. Todo cliente que compra com você <b>entra sozinho</b>.</p>
+                <p style="margin-bottom: 4px;">📱 <b>Cadastre o WhatsApp</b> de cada um: é isso que libera a cobrança em 1 toque no botão 📲.</p>
+                <p style="margin-bottom: 0;">🎂 <b>Cadastre o aniversário</b>: o sistema avisa no dia — desculpa perfeita pra oferecer um perfume de presente rsrs.</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #0369a1; border-bottom: 2px solid #bae6fd; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📊 7. Painel: seu dinheiro e suas conquistas</h4>
+                <p style="margin-bottom: 8px;"><b>Suas comissões em 3 estados:</b> <span style="color:#b45309; font-weight:800;">Futura</span> (cliente ainda não pagou) → <span style="color:#b91c1c; font-weight:800;">Liberada</span> (cliente pagou, falta a empresa repassar) → <span style="color:#15803d; font-weight:800;">Recebida</span> (já caiu pra você!).</p>
+                <p style="margin-bottom: 6px;"><b>🎯 Sua meta do mês</b> com barra de progresso:</p>
+                <div style="background:#e5e7eb; border-radius:20px; height:14px; overflow:hidden; margin-bottom:8px;"><div style="width:63%; height:100%; border-radius:20px; background:linear-gradient(90deg,#fbbf24,#f59e0b);"></div></div>
+                <p style="margin-bottom: 6px;"><b>🔥 Sequência:</b> venda todo dia e não deixe a corrente quebrar! <b>🏆 Troféus:</b> conquistas viram festa na tela e ficam pra sempre na sua:</p>
+                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:8px 10px; display:inline-flex; align-items:center; gap:8px; margin-bottom:8px;"><span style="font-size:1.4rem;">🏛️</span><b style="color:#92400e; font-size:0.78rem;">Minha Sala de Troféus</b><span style="font-size:0.65rem; color:#b45309;">(toque pra ver os detalhes)</span></div>
+                <p style="margin-bottom: 0;"><b>🎖️ Patente de carreira:</b> Bronze → Prata → Ouro → Diamante. Só sobe, nunca desce. E o <b>🎯 Radar de Recompra</b> te mostra quem comprou há 45+ dias — o frasco está acabando, chame no 💬!</p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #64748b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">✨ 8. Truques rápidos</h4>
+                <p style="margin-bottom: 4px;">🌙 <b>Modo escuro:</b> o botãozinho da lua no topo. Só muda no seu aparelho.</p>
+                <p style="margin-bottom: 4px;">⏳ <b>Maceração:</b> veja o que está sendo produzido e quando fica pronto — combine chegadas com clientes.</p>
+                <p style="margin-bottom: 4px;">💡 <b>Sugerir:</b> cliente pediu algo que nem existe? Mande a sugestão pra fábrica em ⋯ Mais → Sugerir.</p>
+                <p style="margin-bottom: 0;">✍️ Em campos com sugestões, <b>tocar já seleciona o texto</b> — é só digitar por cima, sem apagar.</p>
             </div>
 
             <!-- O AVISO DE COMO REABRIR O MANUAL -->
             <div style="margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 8px; border-left: 4px solid #94a3b8;">
-                <p style="margin: 0; font-size: 0.8rem; color: #475569;"><b>💡 Esqueceu alguma coisa?</b> Fique tranquilo! Você pode reler este manual a qualquer momento clicando no ícone de <b>Configurações (⚙️)</b> lá no topo da tela.</p>
+                <p style="margin: 0; font-size: 0.8rem; color: #475569;"><b>💡 Esqueceu alguma coisa?</b> Releia este manual quando quiser: ícone de <b>Configurações (⚙️)</b> no topo → <b>Abrir Guia Rápido</b>.</p>
             </div>
 
         </div>
@@ -1156,7 +1604,13 @@
                 <label style="color:var(--brand-dark); font-weight:800; font-size: 0.8rem; display: block; margin-bottom: 5px;">Estoque Mínimo (Alerta no Telegram)</label>
                 <input type="number" id="cfg-estoque-min" placeholder="Ex: 5" style="width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #fde047; outline: none; font-weight: bold; box-sizing: border-box;">
             </div>
-            
+
+            <div style="margin-bottom: 12px;">
+                <label style="color:var(--brand-dark); font-weight:800; font-size: 0.8rem; display: block; margin-bottom: 5px;">🐌 Dias p/ Considerar Estoque Parado</label>
+                <input type="number" id="cfg-dias-parado" placeholder="Ex: 30" style="width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #fde047; outline: none; font-weight: bold; box-sizing: border-box;">
+                <p style="font-size:0.65rem; color:#888; margin: 4px 0 0 0;">Controla o selo "⏳/🐌 há X dias" no Estoque e o valor inicial do filtro na tela Estoque Parado.</p>
+            </div>
+
             <div style="margin-bottom: 12px;">
                 <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Tipos de Produtos Finais (Separados por vírgula)</label>
                 <input type="text" id="cfg-tipos-prod" placeholder="Ex: Perfume, Vela..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
@@ -1171,7 +1625,38 @@
                 <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">Locais de Estoque Padrões (Separados por vírgula)</label>
                 <input type="text" id="cfg-locais" placeholder="Ex: Sede, Carro..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
             </div>
-            
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">📱 WhatsApp Padrão da Loja (Catálogo Online)</label>
+                <input type="tel" id="cfg-telefone-loja" placeholder="Ex: (35) 99999-9999" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+                <small style="font-size:0.65rem; color:#999;">Recebe os pedidos do catálogo quando o vendedor do link não tem WhatsApp cadastrado.</small>
+            </div>
+
+            <div style="margin: 20px 0 5px 0; color: #7c3aed; border-left: 4px solid #7c3aed; padding-left: 10px; font-size: 1rem; font-weight: 900;">🎨 Identidade Visual</div>
+            <p style="font-size:0.7rem; color:#888; margin: 5px 0 12px 0;">A cara do app: nome, logo e paleta. Mexeu na cor, a tela já mostra na hora (pré-visualização) — só grava de verdade no "Salvar e Aplicar".</p>
+
+            <div class="input-group" style="margin-bottom: 10px;">
+                <label>Nome da Marca (aparece no topo do app)</label>
+                <input type="text" id="cfg-marca-nome" placeholder="Ex: Novera Scent" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            <div class="input-group" style="margin-bottom: 12px;">
+                <label>Logo (link da imagem — vazio = logo Novera)</label>
+                <input type="text" id="cfg-marca-logo" placeholder="https://... (opcional)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Cor Primária (botões/destaques)</label><input type="color" id="cfg-cor-primaria" value="#B87C96" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Cor Escura da Marca (títulos)</label><input type="color" id="cfg-cor-primaria-escura" value="#966178" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Fundo do Tema Claro</label><input type="color" id="cfg-cor-fundo-claro" value="#fdfbfb" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Fundo do Tema Escuro</label><input type="color" id="cfg-cor-fundo-escuro" value="#1d1522" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <div class="row" style="margin-bottom: 8px;">
+                <div class="col"><label>Painel do Tema Escuro</label><input type="color" id="cfg-cor-painel-escuro" value="#3b3050" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+                <div class="col"><label>Cartões/Campos (Escuro)</label><input type="color" id="cfg-cor-superficie-escura" value="#453a5c" oninput="previewIdentidadeVisual()" style="width:100%; height:42px; padding:2px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; cursor:pointer;"></div>
+            </div>
+            <button type="button" style="background: #fff; width: 100%; padding: 10px; border: 1px dashed #7c3aed; color: #7c3aed; border-radius: 8px; font-weight: 800; font-size: 0.8rem; cursor: pointer; margin-bottom: 15px;" onclick="restaurarIdentidadePadrao()">↩️ Restaurar Padrão Novera</button>
+
             <button style="background: #b45309; width: 100%; padding: 12px; border: none; color: white; border-radius: 8px; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 10px rgba(180, 83, 9, 0.3);" onclick="salvarParametrosSistema()">💾 Salvar e Aplicar</button>
         </div>
     </div>
