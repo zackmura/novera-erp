@@ -2033,9 +2033,124 @@ function confirmarTransferirEstoque() {
     });
 }
 
-function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => padronizarTexto(e.tipo)).filter(t => t)); let html = `<label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="cat-todas" onchange="toggleTodasCategorias(this)" checked style="width:16px; height:16px; flex-shrink:0;"> <strong>Selecionar Todas</strong></label><div style="border-top:1px dashed #E8DDE1; margin-bottom:10px;"></div>`;[...tipos].forEach(t => { let nomeBonito = t.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); html += `<label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin-bottom:8px; cursor:pointer;"><input type="checkbox" class="chk-cat-tipo" value="${t}" checked onchange="verificarCategorias()" style="width:16px; height:16px; flex-shrink:0;"> ${nomeBonito}</label>`; }); document.getElementById('cat-checkbox-container').innerHTML = html; document.getElementById('modal-gerar-catalogo').style.display = 'flex'; }
+function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => padronizarTexto(e.tipo)).filter(t => t)); let html = `<label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="cat-todas" onchange="toggleTodasCategorias(this)" checked style="width:16px; height:16px; flex-shrink:0;"> <strong>Selecionar Todas</strong></label><div style="border-top:1px dashed #E8DDE1; margin-bottom:10px;"></div>`;[...tipos].forEach(t => { let nomeBonito = t.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); html += `<label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin-bottom:8px; cursor:pointer;"><input type="checkbox" class="chk-cat-tipo" value="${t}" checked onchange="verificarCategorias()" style="width:16px; height:16px; flex-shrink:0;"> ${nomeBonito}</label>`; }); document.getElementById('cat-checkbox-container').innerHTML = html; const listaProdCat = document.getElementById('cat-lista-produtos'); if (listaProdCat) { listaProdCat.style.display = 'none'; document.getElementById('cat-produtos-rows').innerHTML = ''; document.getElementById('cat-prod-busca').value = ''; document.getElementById('cat-ajuste-pct').value = ''; const vFixoEl = document.getElementById('cat-valor-fixo'); if (vFixoEl) vFixoEl.value = ''; } document.getElementById('modal-gerar-catalogo').style.display = 'flex'; }
 function toggleTodasCategorias(source) { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); checkboxes.forEach(cb => cb.checked = source.checked); }
 function verificarCategorias() { const checkboxes = document.querySelectorAll('.chk-cat-tipo'); const todas = document.getElementById('cat-todas'); const marcadas = document.querySelectorAll('.chk-cat-tipo:checked').length; todas.checked = (marcadas === checkboxes.length); }
+
+// ==========================================
+// 🎯 CATÁLOGO SOB MEDIDA: escolher produtos a dedo e (Diretoria) preços próprios
+// Vale pro PDF e pro Link Online. Nada disso mexe nos preços reais do sistema.
+// ==========================================
+function montarListaProdutosCatalogo() {
+    const box = document.getElementById('cat-lista-produtos');
+    if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+
+    // Preserva o que já estava marcado/digitado se a pessoa fechar e reabrir a lista
+    const estadoAnterior = {};
+    document.querySelectorAll('.cat-prod-row').forEach(row => {
+        const inpAnt = row.querySelector('.inp-cat-preco');
+        estadoAnterior[row.dataset.nome] = { marcado: row.querySelector('.chk-cat-prod').checked, preco: inpAnt ? inpAnt.value : '' };
+    });
+
+    const tiposSel = Array.from(document.querySelectorAll('.chk-cat-tipo:checked')).map(cb => String(cb.value).toLowerCase().trim());
+    const genSel = Array.from(document.querySelectorAll('.chk-cat-genero:checked')).map(cb => String(cb.value).toLowerCase().trim());
+    const ehAdminCat = (usuarioCargo === 'Admin');
+
+    const itensLista = Object.values(estoqueAgrupado)
+        .filter(e => tiposSel.indexOf(String(e.tipo).toLowerCase().trim()) !== -1 && genSel.indexOf(String(e.genero || 'Unissex').toLowerCase().trim()) !== -1)
+        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+
+    document.getElementById('cat-produtos-rows').innerHTML = itensLista.map(e => {
+        const ant = estadoAnterior[e.nome] || {};
+        const precoBase = parseFloat(e.preco) || 0;
+        return `<div class="cat-prod-row" data-nome="${String(e.nome).replace(/"/g, '&quot;')}" data-busca="${padronizarTexto(e.nome + ' ' + (e.codigo || ''))}" style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed #eee;">
+            <input type="checkbox" class="chk-cat-prod" ${ant.marcado === false ? '' : 'checked'} style="width:16px; height:16px; flex-shrink:0;">
+            <span style="flex:1; min-width:0; font-size:0.72rem; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.codigo ? `<b style="color:var(--primary-dark);">${e.codigo}</b> · ` : ''}${e.nome}</span>
+            ${ehAdminCat ? `<input type="number" class="inp-cat-preco" data-base="${precoBase}" value="${ant.preco || ''}" placeholder="${precoBase ? precoBase.toFixed(2) : 'R$'}" step="0.5" min="0" style="width:64px; padding:5px; border:1px solid #e3c6d2; border-radius:6px; font-size:0.7rem; flex-shrink:0;">` : ''}
+        </div>`;
+    }).join('') || '<p style="font-size:0.7rem; color:#999; text-align:center;">Nenhum produto nesses filtros.</p>';
+
+    document.getElementById('cat-box-ajuste').style.display = ehAdminCat ? 'flex' : 'none';
+    box.style.display = 'block';
+    filtrarListaProdutosCatalogo();
+}
+
+function filtrarListaProdutosCatalogo() {
+    const termo = padronizarTexto(document.getElementById('cat-prod-busca').value || '');
+    document.querySelectorAll('.cat-prod-row').forEach(row => {
+        row.style.display = (!termo || row.dataset.busca.indexOf(termo) !== -1) ? 'flex' : 'none';
+    });
+    // Marcar age nos visíveis quando há busca; Desmarcar SEMPRE zera tudo (intuição manda)
+    const btnM = document.getElementById('btn-cat-marcar');
+    if (btnM) btnM.innerHTML = termo ? '✔️ Marcar visíveis' : '✔️ Marcar todos';
+    atualizarContadorSelecaoCatalogo();
+}
+
+function marcarTodosProdutosCatalogo(marcar) {
+    // ✖️ Desmarcar limpa TUDO (até o que a busca esconde) — foi assim que home sprays
+    // entravam de carona em catálogo "só de perfumes". ✔️ Marcar respeita a busca.
+    document.querySelectorAll('.cat-prod-row').forEach(row => {
+        if (!marcar || row.style.display !== 'none') row.querySelector('.chk-cat-prod').checked = marcar;
+    });
+    atualizarContadorSelecaoCatalogo();
+}
+
+// 🧮 Placar da seleção: mostra o total marcado e DENUNCIA marcados escondidos pela busca
+// (foi isso que fez home sprays entrarem de carona num catálogo "só de perfumes")
+function atualizarContadorSelecaoCatalogo() {
+    const contadorEl = document.getElementById('cat-sel-contador');
+    if (!contadorEl) return;
+    const rows = Array.from(document.querySelectorAll('.cat-prod-row'));
+    if (!rows.length) { contadorEl.innerHTML = ''; return; }
+    const marcadas = rows.filter(r => r.querySelector('.chk-cat-prod').checked);
+    const foraDaBusca = marcadas.filter(r => r.style.display === 'none').length;
+    let html = `✅ ${marcadas.length} de ${rows.length} produtos no catálogo`;
+    if (foraDaBusca > 0 && padronizarTexto(document.getElementById('cat-prod-busca').value || '')) {
+        html += ` <span style="color:#b45309;">— ⚠️ ${foraDaBusca} marcado(s) FORA desta busca (também entram!)</span>`;
+    }
+    contadorEl.innerHTML = html;
+}
+
+function aplicarAjustePrecoCatalogo(modo) {
+    // ⚡ Só mexe nos produtos VISÍVEIS na busca — filtre "perfume" e mude a categoria inteira
+    const linhasVisiveis = Array.from(document.querySelectorAll('.cat-prod-row')).filter(r => r.style.display !== 'none');
+    if (!linhasVisiveis.length) return mostrarAlerta("Atenção", "Nenhum produto visível na lista pra ajustar.", "warning");
+
+    let mexidos = 0;
+    if (modo === 'valor') {
+        const vFixo = parseFloat(document.getElementById('cat-valor-fixo').value);
+        if (isNaN(vFixo) || vFixo < 0) return mostrarAlerta("Atenção", "Digite o valor em R$ (ex: 80).", "warning");
+        linhasVisiveis.forEach(r => { const inp = r.querySelector('.inp-cat-preco'); if (inp) { inp.value = vFixo.toFixed(2); mexidos++; } });
+        mostrarAlerta("Pronto!", `${mexidos} produto(s) visível(is) definido(s) em ${fmt(vFixo)} — só neste catálogo, os preços reais do sistema continuam intactos.`, "success");
+    } else {
+        const pct = parseFloat(document.getElementById('cat-ajuste-pct').value);
+        if (isNaN(pct)) return mostrarAlerta("Atenção", "Digite a porcentagem: 10 pra aumentar 10%, -5 pra baixar 5%.", "warning");
+        linhasVisiveis.forEach(r => {
+            const inp = r.querySelector('.inp-cat-preco');
+            if (inp) { const base = parseFloat(inp.dataset.base) || 0; if (base > 0) { inp.value = (Math.round(base * (1 + pct / 100) * 100) / 100).toFixed(2); mexidos++; } }
+        });
+        mostrarAlerta("Pronto!", `${mexidos} produto(s) visível(is) ajustado(s) em ${pct > 0 ? '+' : ''}${pct}% — só neste catálogo, os preços reais do sistema continuam intactos.`, "success");
+    }
+}
+
+// Devolve a personalização ({sel, precos}) ou null se está tudo no padrão
+function coletarSelecaoProdutosCatalogo() {
+    const rows = document.querySelectorAll('.cat-prod-row');
+    if (!rows.length) return null;
+    const sel = [], precos = {};
+    let desmarcouAlgum = false, mudouPreco = false;
+    rows.forEach(row => {
+        const nome = row.dataset.nome;
+        if (row.querySelector('.chk-cat-prod').checked) sel.push(nome); else desmarcouAlgum = true;
+        const inp = row.querySelector('.inp-cat-preco');
+        if (inp && inp.value !== '') {
+            const v = parseFloat(inp.value);
+            if (!isNaN(v) && v >= 0 && v !== (parseFloat(inp.dataset.base) || 0)) { precos[nome] = v; mudouPreco = true; }
+        }
+    });
+    if (!desmarcouAlgum && !mudouPreco) return null;
+    return { sel, precos: mudouPreco ? precos : null };
+}
 
 // 🎴 CARTÃO DO CATÁLOGO: QR emoldurado com a identidade da marca + instrução de uso,
 // pronto pra imprimir e colar nas sacolinhas — ninguém se assusta com QR pelado rsrs
@@ -2118,7 +2233,7 @@ async function montarCartaoQrCatalogo(hostEl, linkQr) {
 
 // 🔗 CATÁLOGO ONLINE: monta o link da página pública (catalogo.html) com os MESMOS filtros
 // do modal e entrega pronto pra enviar — o cliente abre no celular e vê tudo atualizado.
-function gerarLinkCatalogoOnline() {
+async function gerarLinkCatalogoOnline() {
     const tipos = Array.from(document.querySelectorAll('.chk-cat-tipo:checked')).map(cb => String(cb.value).toLowerCase().trim());
     if (!tipos.length) return mostrarAlerta("Aviso", "Selecione pelo menos uma categoria.", "warning");
     const generos = Array.from(document.querySelectorAll('.chk-cat-genero:checked')).map(cb => String(cb.value).toLowerCase().trim());
@@ -2130,13 +2245,33 @@ function gerarLinkCatalogoOnline() {
     if (generos.length < document.querySelectorAll('.chk-cat-genero').length) dadosLink.g = generos.join(',');
     if (document.getElementById('cat-filtro-estoque').checked) dadosLink.e = 1;
     if (document.getElementById('cat-filtro-exibir-qtd').checked) dadosLink.q = 1;
-    dadosLink.v = usuarioLogado; // 💬 assinatura do link: o "Quero esse" do cliente cai no WhatsApp DESTE vendedor
 
-    // 🔒 Embaralha os parâmetros num código (base64): o cliente não vê nome de vendedor nem filtros na URL
-    const jsonLink = JSON.stringify(dadosLink);
-    const tokenLink = btoa(unescape(encodeURIComponent(jsonLink))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const urlPagina = new URL('catalogo.html', window.location.href);
-    urlPagina.search = 'c=' + tokenLink;
+    const customCatLink = coletarSelecaoProdutosCatalogo();
+
+    if (customCatLink) {
+        // 🎯 Catálogo sob medida (produtos escolhidos/preços próprios): a configuração é grande,
+        // então vai pro servidor e o cliente recebe um link CURTO com código (?k=abc123)
+        dadosLink.sel = customCatLink.sel;
+        if (customCatLink.precos) dadosLink.p = customCatLink.precos;
+        mostrarLoading("Salvando catálogo personalizado...");
+        try {
+            const resLk = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'salvar_catalogo_link', usuario: usuarioLogado, dados: dadosLink }) });
+            const jsonLk = await resLk.json();
+            if (!jsonLk.sucesso || !jsonLk.codigo) throw new Error(jsonLk.erro || 'Falha ao salvar.');
+            urlPagina.search = 'k=' + jsonLk.codigo;
+        } catch (e) {
+            ocultarLoading();
+            return mostrarAlerta("Erro", "Não consegui salvar o catálogo personalizado no servidor. " + (e.message || ''), "error");
+        }
+        ocultarLoading();
+    } else {
+        // 🔒 Catálogo padrão: parâmetros embaralhados num código (base64) — nada legível na URL
+        dadosLink.v = usuarioLogado; // 💬 assinatura do link: o "Quero esse" cai no WhatsApp DESTE vendedor
+        const jsonLink = JSON.stringify(dadosLink);
+        const tokenLink = btoa(unescape(encodeURIComponent(jsonLink))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        urlPagina.search = 'c=' + tokenLink;
+    }
     const link = urlPagina.href;
 
     document.getElementById('modal-gerar-catalogo').style.display = 'none';
@@ -2282,11 +2417,19 @@ async function gerarCatalogoPDFFrontend() {
         let genE = String(e.genero || "Unissex").toLowerCase().trim();
         if (generosSelecionados.indexOf(genE) === -1) return false;
 
-        if (apenasEstoque && e.totalQtd <= 0) return false; 
-        return true; 
-    }); 
-    
-    if (itensFiltrados.length === 0) { 
+        if (apenasEstoque && e.totalQtd <= 0) return false;
+        return true;
+    });
+
+    // 🎯 Personalização fina: só os produtos escolhidos a dedo, com os preços deste catálogo
+    const customCatPdf = coletarSelecaoProdutosCatalogo();
+    if (customCatPdf) {
+        const selSetPdf = new Set(customCatPdf.sel);
+        itensFiltrados = itensFiltrados.filter(e => selSetPdf.has(e.nome));
+        if (customCatPdf.precos) itensFiltrados = itensFiltrados.map(e => customCatPdf.precos[e.nome] != null ? { ...e, preco: customCatPdf.precos[e.nome] } : e);
+    }
+
+    if (itensFiltrados.length === 0) {
         ocultarLoading(); 
         return mostrarAlerta("Aviso", "Nenhum produto atende a esses filtros.", "warning"); 
     } 
@@ -2387,15 +2530,35 @@ async function gerarCatalogoPDFFrontend() {
         <h2 style="font-size: 12px; font-weight: 600; margin: 6px 0 0 0; text-transform: uppercase; letter-spacing: 3px; color: #b8a0ab;">Catálogo de Produtos</h2>
     </div>`);
 
+    // 🚻 Dentro de cada categoria, os gêneros ganham seu próprio bloco (com subtítulo
+    // quando há mais de um) — femininos e masculinos nunca mais misturados na página
+    const ordemGeneroCat = ['feminino', 'masculino', 'unissex', 'infantil'];
+    const chaveGenCat = (g) => { const gn = String(g || 'unissex').toLowerCase().trim(); return ordemGeneroCat.indexOf(gn) === -1 ? 'unissex' : gn; };
+    const rotuloGeneroCat = { feminino: '🌸 Femininos', masculino: '🔷 Masculinos', unissex: '⚪ Unissex', infantil: '🧸 Infantis' };
+    const corGeneroCat = { feminino: '#a86f88', masculino: '#6b7482', unissex: '#9aa2ae', infantil: '#a86f88' };
+
     tiposOrdenados.forEach(tipoKey => {
-        const itensGrupo = gruposCat[tipoKey].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
         const nomeGrupo = tipoKey.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         blocosCat.push({ cabecalho: true, html: `<div style="text-align: center; padding: 16px 0 12px 0;">
             <div style="font-family: 'Playfair Display', serif; font-size: 18px; color: #966178; letter-spacing: 4px; text-transform: uppercase;">— ${nomeGrupo}${nomeGrupo.toLowerCase().endsWith('s') ? '' : 's'} —</div>
         </div>` });
-        // 💎 Um cartão por linha: cada produto tem seu momento de vitrine
-        itensGrupo.forEach(item => {
-            blocosCat.push(`<div style="padding-bottom: 14px;">${cardCatalogo(item)}</div>`);
+
+        const porGeneroCat = {};
+        gruposCat[tipoKey].forEach(it => { const gk = chaveGenCat(it.genero); (porGeneroCat[gk] = porGeneroCat[gk] || []).push(it); });
+        const gensDoGrupo = ordemGeneroCat.filter(gk => porGeneroCat[gk]);
+        const mostrarSubtitulo = gensDoGrupo.length > 1; // categoria de gênero único fica limpa, sem subtítulo redundante
+
+        gensDoGrupo.forEach(gk => {
+            if (mostrarSubtitulo) {
+                blocosCat.push({ cabecalho: true, html: `<div style="text-align: center; padding: 10px 0 10px 0;">
+                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 3px; color: ${corGeneroCat[gk]}; text-transform: uppercase;">${rotuloGeneroCat[gk]}</span>
+                    <div style="height: 1px; width: 130px; margin: 7px auto 0; background: linear-gradient(90deg, rgba(255,255,255,0), ${corGeneroCat[gk]}55, rgba(255,255,255,0));"></div>
+                </div>` });
+            }
+            // 💎 Um cartão por linha: cada produto tem seu momento de vitrine
+            porGeneroCat[gk].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''))).forEach(item => {
+                blocosCat.push(`<div style="padding-bottom: 14px;">${cardCatalogo(item)}</div>`);
+            });
         });
     });
 
@@ -5707,7 +5870,7 @@ function fazerLogout(motivo) {
 
     // Aviso com a cara da Novera no lugar do alerta genérico do navegador (que expunha o domínio)
     const overlaySair = document.createElement('div');
-    overlaySair.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:100000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlaySair.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:100010; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
     overlaySair.innerHTML = `
         <div style="background:#fff; border-radius:20px; max-width:340px; width:100%; padding:30px 25px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.4); font-family:'Montserrat', sans-serif;">
             <div style="font-size:3rem; margin-bottom:8px;">🔒</div>

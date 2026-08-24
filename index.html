@@ -1092,6 +1092,30 @@
         </div>
 
         <div style="text-align: left; margin-bottom: 15px;"><label class="checkbox-recibo" style="margin-bottom: 8px;"><input type="checkbox" id="cat-filtro-estoque" checked><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Apenas com Estoque</span><span class="chk-desc" style="font-size: 0.7rem;">Oculta produtos esgotados</span></div></label><label class="checkbox-recibo"><input type="checkbox" id="cat-filtro-exibir-qtd"><div class="chk-info"><span class="chk-title" style="font-size: 0.85rem;">Exibir Qtd. no PDF</span><span class="chk-desc" style="font-size: 0.7rem;">Mostra quantas unidades restam</span></div></label></div>
+        <div style="text-align: left; margin-bottom: 15px;">
+            <button class="btn-salvar" style="margin: 0; background: #fdf5f7; color: #966178; border: 1px dashed #e3c6d2; box-shadow: none; font-size: 0.8rem;" onclick="montarListaProdutosCatalogo()">🎯 Escolher Produtos e Preços (opcional)</button>
+            <div id="cat-lista-produtos" style="display:none; margin-top: 10px; background: #fafafa; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;">
+                <input type="text" id="cat-prod-busca" placeholder="🔍 Filtrar produtos..." oninput="filtrarListaProdutosCatalogo()" style="width: 100%; padding: 8px 12px; border: 1px solid #e3c6d2; border-radius: 20px; box-sizing: border-box; font-size: 0.8rem; margin-bottom: 8px;">
+                <div id="cat-box-ajuste" style="display:none; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="number" id="cat-ajuste-pct" placeholder="% (ex: 10 ou -5)" step="1" style="flex: 1; padding: 8px; border: 1px solid #e3c6d2; border-radius: 8px; font-size: 0.75rem; min-width: 0;">
+                        <button onclick="aplicarAjustePrecoCatalogo('pct')" style="background: #966178; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 0.7rem; font-weight: 800; cursor: pointer; white-space: nowrap;">📈 Aplicar %</button>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="number" id="cat-valor-fixo" placeholder="R$ fixo (ex: 80)" step="0.5" min="0" style="flex: 1; padding: 8px; border: 1px solid #e3c6d2; border-radius: 8px; font-size: 0.75rem; min-width: 0;">
+                        <button onclick="aplicarAjustePrecoCatalogo('valor')" style="background: #2e7d32; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 0.7rem; font-weight: 800; cursor: pointer; white-space: nowrap;">💰 Definir R$</button>
+                    </div>
+                    <p style="font-size: 0.6rem; color: #b45309; margin: 0;">⚡ Aplica só nos produtos <b>visíveis na busca acima</b> — filtre "perfume" e mude a categoria inteira de uma vez!</p>
+                </div>
+                <div id="cat-produtos-rows" style="max-height: 190px; overflow-y: auto;" onchange="atualizarContadorSelecaoCatalogo()"></div>
+                <p id="cat-sel-contador" style="font-size: 0.65rem; font-weight: 800; color: #2e7d32; margin: 8px 0 0; text-align: center;"></p>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button id="btn-cat-marcar" onclick="marcarTodosProdutosCatalogo(true)" style="flex:1; background:#e8f5e9; color:#2e7d32; border:1px solid #bbf7d0; border-radius:8px; padding:6px; font-size:0.65rem; font-weight:800; cursor:pointer;">✔️ Marcar todos</button>
+                    <button id="btn-cat-desmarcar" onclick="marcarTodosProdutosCatalogo(false)" style="flex:1; background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; border-radius:8px; padding:6px; font-size:0.65rem; font-weight:800; cursor:pointer;">✖️ Desmarcar TUDO</button>
+                </div>
+                <p style="font-size: 0.62rem; color: #999; margin: 8px 0 0;">Vale pro PDF e pro Link Online. Preço em branco = preço normal do sistema.</p>
+            </div>
+        </div>
         <button class="btn-salvar" style="margin-top: 5px; background: var(--primary-dark); box-shadow: 0 4px 10px rgba(150, 97, 120, 0.3);" onclick="gerarCatalogoPDFFrontend()">⬇️ Gerar e Baixar PDF</button>
         <button class="btn-salvar" style="margin-top: 10px; background: #25D366; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);" onclick="gerarLinkCatalogoOnline()">🔗 Criar Link Online p/ Cliente</button>
         <p style="font-size: 0.65rem; color: #aaa; margin: 8px 0 0;">O link abre uma página com esses mesmos filtros, sempre com preços e estoque atualizados.</p>
@@ -1590,7 +1614,7 @@
 <!-- ========================================== -->
     <!-- MODAL RESTRITO: PARÂMETROS GLOBAIS         -->
     <!-- ========================================== -->
-    <div id="modal-parametros" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.75); z-index: 999999; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; backdrop-filter: blur(3px);">
+    <div id="modal-parametros" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.75); z-index: 10005; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; backdrop-filter: blur(3px);">
         
         <div style="background-color: #ffffff; border-radius: 16px; width: 100%; max-width: 450px; padding: 25px; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto;">
             

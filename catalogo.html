@@ -40,6 +40,8 @@
 
     .miolo { max-width: 860px; margin: 0 auto; padding: 6px 14px 40px; }
     .secao { text-align: center; font-family: 'Playfair Display', serif; font-size: 1.15rem; color: var(--pd); letter-spacing: 4px; text-transform: uppercase; padding: 30px 0 16px; }
+    .subsecao { text-align: center; font-size: 0.68rem; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; padding: 10px 0 12px; }
+    .subsecao .subfilete { height: 1px; width: 130px; margin: 7px auto 0; }
 
     .cartao { border: 1px solid var(--filete, #eadfe4); border-radius: 18px; overflow: hidden; background: #fff; display: flex; flex-direction: column; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(150,97,120,0.06); scroll-margin-top: 20px; }
     .cartao.destaque { animation: brilhar 2.2s ease; }
@@ -169,9 +171,11 @@
 <script>
     const API_BASE = 'https://bdfernando.alwaysdata.net/api';
 
-    // 🎯 Filtros que vieram no link — chegam embaralhados no código "c" (o cliente não vê
-    // vendedor nem filtros na URL). Links antigos com parâmetros abertos seguem funcionando.
+    // 🎯 Filtros que vieram no link — três formatos, do mais novo pro mais antigo:
+    // ?k=abc123 (catálogo sob medida salvo no servidor), ?c=... (código embaralhado)
+    // e os parâmetros abertos dos primeiros links. Nenhum link já enviado quebra.
     const qs = new URLSearchParams(location.search);
+    const kCodigo = String(qs.get('k') || '').trim();
     let pl = {};
     if (qs.get('c')) {
         try {
@@ -179,14 +183,23 @@
             while (b64.length % 4) b64 += '=';
             pl = JSON.parse(decodeURIComponent(escape(atob(b64)))) || {};
         } catch (e) { pl = {}; }
-    } else {
+    } else if (!kCodigo) {
         pl = { t: qs.get('t') || '', g: qs.get('g') || '', e: qs.get('e') === '1' ? 1 : 0, q: qs.get('q') === '1' ? 1 : 0, v: qs.get('v') || '' };
     }
-    const fTipos   = String(pl.t || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const fGeneros = String(pl.g || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const soComEstoque = pl.e == 1;
-    const mostrarQtd   = pl.q == 1;
-    const vendedorLink = String(pl.v || '').trim();
+    let fTipos = [], fGeneros = [], soComEstoque = false, mostrarQtd = false, vendedorLink = '';
+    let selProdutos = null, selSetCache = null, precosLink = null;
+    function aplicarConfigLink(p) {
+        p = p || {};
+        fTipos   = String(p.t || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        fGeneros = String(p.g || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        soComEstoque = p.e == 1;
+        mostrarQtd   = p.q == 1;
+        vendedorLink = String(p.v || '').trim();
+        selProdutos = (Array.isArray(p.sel) && p.sel.length) ? p.sel : null;
+        selSetCache = null;
+        precosLink = (p.p && typeof p.p === 'object') ? p.p : null;
+    }
+    aplicarConfigLink(pl);
 
     let dados = null;
     let vendedor = null;      // {nome, telefone} — vem do servidor, nunca a lista toda
@@ -406,7 +419,9 @@
     }
 
     function itensDoLink() {
+        if (selProdutos && !selSetCache) selSetCache = new Set(selProdutos.map(semAcento));
         return dados.itens.filter(i => {
+            if (selSetCache && !selSetCache.has(semAcento(i.nome))) return false; // 🎯 só os escolhidos a dedo
             if (fTipos.length && fTipos.indexOf(semAcento(i.tipo)) === -1) return false;
             if (fGeneros.length && fGeneros.indexOf(semAcento(i.genero || 'Unissex')) === -1) return false;
             if (soComEstoque && !i.disp) return false;
@@ -459,11 +474,26 @@
         const grupos = {};
         itens.forEach(i => { const k = String(i.tipo || 'Outros').trim(); (grupos[k] = grupos[k] || []).push(i); });
 
+        // 🚻 Dentro de cada categoria, um bloco por gênero (subtítulo só quando há mais de um)
+        const ordemGen = ['feminino', 'masculino', 'unissex', 'infantil'];
+        const chaveGen = (g) => { const gn = semAcento(g || 'unissex'); return ordemGen.indexOf(gn) === -1 ? 'unissex' : gn; };
+        const rotuloGen = { feminino: '🌸 Femininos', masculino: '🔷 Masculinos', unissex: '⚪ Unissex', infantil: '🧸 Infantis' };
+        const corGen = { feminino: '#a86f88', masculino: '#6b7482', unissex: '#9aa2ae', infantil: '#a86f88' };
+
         let html = '';
         Object.keys(grupos).sort((a, b) => { const ia = idx(a), ib = idx(b); return ia !== ib ? ia - ib : a.localeCompare(b); }).forEach(tipo => {
             const nomeGrupo = tipo.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             html += `<div class="secao">— ${esc(nomeGrupo)}${nomeGrupo.toLowerCase().endsWith('s') ? '' : 's'} —</div>`;
-            grupos[tipo].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''))).forEach(i => { html += cartaoHtml(i); });
+
+            const porGen = {};
+            grupos[tipo].forEach(i => { const gk = chaveGen(i.genero); (porGen[gk] = porGen[gk] || []).push(i); });
+            const gensDoGrupo = ordemGen.filter(gk => porGen[gk]);
+            const mostrarSub = gensDoGrupo.length > 1;
+
+            gensDoGrupo.forEach(gk => {
+                if (mostrarSub) html += `<div class="subsecao" style="color:${corGen[gk]}">${rotuloGen[gk]}<div class="subfilete" style="background:linear-gradient(90deg, rgba(255,255,255,0), ${corGen[gk]}55, rgba(255,255,255,0));"></div></div>`;
+                porGen[gk].sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''))).forEach(i => { html += cartaoHtml(i); });
+            });
         });
         el.innerHTML = html;
         document.getElementById('rodape').style.display = 'block';
@@ -480,11 +510,20 @@
 
     async function carregar() {
         try {
-            const r = await fetch(API_BASE + '/catalogo-publico' + (vendedorLink ? ('?v=' + encodeURIComponent(vendedorLink)) : ''));
+            const paramApi = kCodigo ? ('?k=' + encodeURIComponent(kCodigo)) : (vendedorLink ? ('?v=' + encodeURIComponent(vendedorLink)) : '');
+            const r = await fetch(API_BASE + '/catalogo-publico' + paramApi);
             const json = await r.json();
             if (!json.sucesso) throw new Error('resposta sem sucesso');
             dados = json;
             vendedor = json.vendedor || null;
+
+            // 🎯 Catálogo sob medida: aplica a configuração salva (filtros, seleção e preços próprios)
+            if (kCodigo && json.cfgLink) aplicarConfigLink(json.cfgLink);
+            if (precosLink) {
+                const mapaPrecos = {};
+                Object.keys(precosLink).forEach(n => { mapaPrecos[semAcento(n)] = precosLink[n]; });
+                dados.itens = dados.itens.map(i => mapaPrecos[semAcento(i.nome)] != null ? Object.assign({}, i, { preco: mapaPrecos[semAcento(i.nome)] }) : i);
+            }
 
             // 🎨 Identidade visual da marca (white-label): nome, logo e cores vêm do sistema
             if (json.marca) {
