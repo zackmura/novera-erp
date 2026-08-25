@@ -2248,30 +2248,32 @@ async function gerarLinkCatalogoOnline() {
 
     const urlPagina = new URL('catalogo.html', window.location.href);
     const customCatLink = coletarSelecaoProdutosCatalogo();
-
     if (customCatLink) {
-        // 🎯 Catálogo sob medida (produtos escolhidos/preços próprios): a configuração é grande,
-        // então vai pro servidor e o cliente recebe um link CURTO com código (?k=abc123)
         dadosLink.sel = customCatLink.sel;
         if (customCatLink.precos) dadosLink.p = customCatLink.precos;
-        mostrarLoading("Salvando catálogo personalizado...");
-        try {
-            const resLk = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'salvar_catalogo_link', usuario: usuarioLogado, dados: dadosLink }) });
-            const jsonLk = await resLk.json();
-            if (!jsonLk.sucesso || !jsonLk.codigo) throw new Error(jsonLk.erro || 'Falha ao salvar.');
-            urlPagina.search = 'k=' + jsonLk.codigo;
-        } catch (e) {
+    }
+
+    // 🔗 TODO link vira código CURTO no servidor (?k=abc123) — link comprido cheio de letras
+    // parece golpe no WhatsApp e ninguém clica. O formato longo fica só como plano B de emergência.
+    mostrarLoading("Gerando seu link...");
+    try {
+        const resLk = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'salvar_catalogo_link', usuario: usuarioLogado, dados: dadosLink }) });
+        const jsonLk = await resLk.json();
+        if (!jsonLk.sucesso || !jsonLk.codigo) throw new Error(jsonLk.erro || 'Falha ao salvar.');
+        urlPagina.search = 'k=' + jsonLk.codigo;
+    } catch (e) {
+        if (customCatLink) {
+            // Personalizado NÃO tem plano B (a configuração só existe no servidor)
             ocultarLoading();
             return mostrarAlerta("Erro", "Não consegui salvar o catálogo personalizado no servidor. " + (e.message || ''), "error");
         }
-        ocultarLoading();
-    } else {
-        // 🔒 Catálogo padrão: parâmetros embaralhados num código (base64) — nada legível na URL
-        dadosLink.v = usuarioLogado; // 💬 assinatura do link: o "Quero esse" cai no WhatsApp DESTE vendedor
+        // Catálogo padrão: cai no código embaralhado antigo — feio, mas nunca deixa na mão
+        dadosLink.v = usuarioLogado;
         const jsonLink = JSON.stringify(dadosLink);
         const tokenLink = btoa(unescape(encodeURIComponent(jsonLink))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         urlPagina.search = 'c=' + tokenLink;
     }
+    ocultarLoading();
     const link = urlPagina.href;
 
     document.getElementById('modal-gerar-catalogo').style.display = 'none';
