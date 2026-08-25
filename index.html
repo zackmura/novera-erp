@@ -1469,18 +1469,18 @@
 
 <!-- MODAL DE TUTORIAL / GUIA RÁPIDO (COM ONBOARDING INTELIGENTE E AVISO DE REABERTURA) -->
 <div id="modal-tutorial" class="modal-overlay-alert" style="z-index: 10006; display: none;">
-    <div class="modal-box-alert" style="width: 95%; max-width: 500px; padding: 0; text-align: left; background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-        
-        <div style="background: var(--primary-dark); color: #fff; padding: 25px 20px; text-align: center; position: relative;">
-            <button onclick="fecharTutorialUsuario()" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.2); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #fff; cursor: pointer;">×</button>
-            <span id="guia-emoji" style="font-size: 3rem;">📖</span>
-            <h3 id="titulo-tutorial-nome" style="margin: 10px 0 0; font-family: 'Playfair Display', serif; font-size: 1.4rem;">Guia Rápido Novera</h3>
-            <p id="guia-subtitulo" style="margin: 5px 0 0; font-size: 0.8rem; opacity: 0.85;">Uma lição de cada vez — no seu ritmo!</p>
-        </div>
-        
-        <div id="guia-conteudo" style="padding: 20px; max-height: 52vh; overflow-y: auto; color: var(--brand-dark); font-size: 0.85rem; line-height: 1.65;"></div>
+    <div class="modal-box-alert" style="width: 95%; max-width: 500px; padding: 0; text-align: left; background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: 86vh;">
 
-        <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid var(--border-color);">
+        <div style="background: var(--primary-dark); color: #fff; padding: 14px 20px 12px; text-align: center; position: relative; flex-shrink: 0;">
+            <button onclick="fecharTutorialUsuario()" style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.2); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #fff; cursor: pointer;">×</button>
+            <span id="guia-emoji" style="font-size: 1.9rem; display: block; line-height: 1.2;">📖</span>
+            <h3 id="titulo-tutorial-nome" style="margin: 4px 0 0; font-family: 'Playfair Display', serif; font-size: 1.15rem;">Guia Rápido Novera</h3>
+            <p id="guia-subtitulo" style="margin: 3px 0 0; font-size: 0.72rem; opacity: 0.85;">Uma lição de cada vez — no seu ritmo!</p>
+        </div>
+
+        <div id="guia-conteudo" style="padding: 16px 20px; flex: 1 1 auto; min-height: 0; overflow-y: auto; color: var(--brand-dark); font-size: 0.85rem; line-height: 1.65;"></div>
+
+        <div style="padding: 10px 16px 14px; background: #fafafa; border-top: 1px solid var(--border-color); flex-shrink: 0;">
             <div style="background:#f0e5ea; border-radius:20px; height:6px; overflow:hidden; margin-bottom:10px;"><div id="guia-barra" style="width:0%; height:100%; background:var(--primary-dark); border-radius:20px; transition:width 0.3s ease;"></div></div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <button id="btn-guia-voltar" onclick="navegarGuia(-1)" style="flex:1; background:#fff; color:#966178; border:1px solid #f3d8e2; border-radius:10px; padding:12px; font-weight:800; font-size:0.8rem; cursor:pointer; font-family:'Montserrat',sans-serif;">◀ Voltar</button>
