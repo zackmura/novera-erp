@@ -110,6 +110,22 @@
     .btn-enviar-pedido { width: 100%; background: #25D366; color: #fff; border: none; border-radius: 14px; padding: 15px; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 0 #1b9c4b; }
     .btn-limpar { width: 100%; background: none; border: none; color: #b08585; font-size: 0.68rem; font-weight: 700; margin-top: 10px; cursor: pointer; font-family: 'Montserrat', sans-serif; }
 
+    /* 💡 Como usar / ingredientes — fechado por padrão, abre no toque */
+    .mais-info { margin-top: 11px; border-top: 1px dashed var(--borda-mais, #eadfe4); padding-top: 8px; }
+    .mais-info summary { font-size: 0.62rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cor-mais, #a86f88); cursor: pointer; list-style: none; }
+    .mais-info summary::-webkit-details-marker { display: none; }
+    .mais-info summary::after { content: ' ▾'; }
+    .mais-info[open] summary::after { content: ' ▴'; }
+    .mais-info p { font-size: 0.72rem; color: #6d5c66; line-height: 1.55; margin-top: 7px; }
+    .mais-info p b { color: var(--cor-mais, #a86f88); }
+
+    /* 🔍 Foto ampliada (lightbox) */
+    .foto-grande { position: fixed; inset: 0; background: rgba(20, 13, 26, 0.92); z-index: 150; display: none; align-items: center; justify-content: center; flex-direction: column; padding: 20px; cursor: zoom-out; backdrop-filter: blur(4px); }
+    .foto-grande img { max-width: 94vw; max-height: 82vh; object-fit: contain; border-radius: 14px; box-shadow: 0 30px 70px rgba(0,0,0,0.6); animation: crescer 0.22s ease; }
+    @keyframes crescer { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .foto-grande .fg-nome { color: #fff; font-family: 'Playfair Display', serif; font-size: 1.05rem; margin-top: 14px; text-align: center; }
+    .foto-grande .fg-fechar { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.15); border: none; color: #fff; width: 38px; height: 38px; border-radius: 50%; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
+
     .aviso { text-align: center; padding: 60px 20px; color: #a08a94; font-size: 0.85rem; line-height: 1.7; }
     .aviso .giro { font-size: 2rem; display: inline-block; animation: girar 1.2s linear infinite; }
     @keyframes girar { to { transform: rotate(360deg); } }
@@ -167,6 +183,12 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="foto-grande" id="foto-grande" onclick="fecharFotoGrande()">
+    <button class="fg-fechar" onclick="fecharFotoGrande()">×</button>
+    <img id="fg-img" src="" alt="">
+    <div class="fg-nome" id="fg-nome"></div>
+</div>
 
 <script>
     const API_BASE = 'https://bdfernando.alwaysdata.net/api';
@@ -343,6 +365,18 @@
         window.open('https://wa.me/' + zapNumero(vendedor.telefone) + '?text=' + encodeURIComponent(msg), '_blank');
     }
 
+    // 🔍 Foto ampliada: toca na imagem do cartão e ela abre em tela cheia
+    function abrirFotoGrande(imgEl) {
+        if (!imgEl || !imgEl.src) return;
+        document.getElementById('fg-img').src = imgEl.src;
+        document.getElementById('fg-nome').innerText = imgEl.alt || '';
+        document.getElementById('foto-grande').style.display = 'flex';
+    }
+    function fecharFotoGrande() {
+        document.getElementById('foto-grande').style.display = 'none';
+        document.getElementById('fg-img').src = '';
+    }
+
     // 🔗 Compartilha o link direto de UM produto (abre já rolado e destacado nele)
     async function compartilharProduto(slug) {
         const url = location.origin + location.pathname + location.search + '#p-' + slug;
@@ -375,15 +409,22 @@
         const chave = chaveItem(item);
         const foto = melhorFoto(item.foto);
         const fotoHtml = foto
-            ? `<div class="foto" style="--letterbox:${pal.letterbox}"><img src="${esc(foto)}" alt="${esc(nome)}" loading="lazy"></div>`
+            ? `<div class="foto" style="--letterbox:${pal.letterbox}; cursor: zoom-in;" onclick="abrirFotoGrande(this.querySelector('img'))" title="Toque para ampliar"><img src="${esc(foto)}" alt="${esc(nome)}" loading="lazy"></div>`
             : `<div class="foto" style="background:linear-gradient(160deg, ${pal.letterbox}, ${pal.filete});"><span class="ns" style="color:${pal.placTxt}">NS</span></div>`;
 
         const f = item.ficha || {};
         const nota = (rot, val) => val ? `<div class="nota"><b style="color:${pal.suave}">${rot}</b>${esc(val)}</div>` : '';
         const chips = f.ocasioes ? `<div class="chips">${String(f.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o =>
             `<span class="chip" style="border-color:${pal.chipBorda}; background:${pal.chipFundo}; color:${pal.medio}">${esc(o)}</span>`).join('')}</div>` : '';
+        // 💡 Dica de aplicação + ingredientes: guardados num bloco discreto que abre no toque
+        const maisInfo = (f.dica || f.ingredientes) ? `
+            <details class="mais-info" style="--cor-mais:${pal.medio}; --borda-mais:${pal.filete}">
+                <summary>💡 Como usar &nbsp;·&nbsp; Ingredientes</summary>
+                ${f.dica ? `<p><b>Como usar:</b> ${esc(f.dica)}</p>` : ''}
+                ${f.ingredientes ? `<p><b>Ingredientes:</b> ${esc(f.ingredientes)}</p>` : ''}
+            </details>` : '';
         const fichaHtml = (f.descricao ? `<div class="descricao">“${esc(String(f.descricao).substring(0, 220))}”</div>` : '') +
-            (f.notas_saida ? `<div class="filete" style="background:linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0))"></div>${nota('SAÍDA', f.notas_saida)}${nota('CORAÇÃO', f.notas_coracao)}${nota('FUNDO', f.notas_fundo)}` : '') + chips;
+            (f.notas_saida ? `<div class="filete" style="background:linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0))"></div>${nota('SAÍDA', f.notas_saida)}${nota('CORAÇÃO', f.notas_coracao)}${nota('FUNDO', f.notas_fundo)}` : '') + chips + maisInfo;
 
         const disp = item.disp
             ? `<span class="disp-ok">DISPONÍVEL${mostrarQtd ? ' · ' + item.qtd + ' UN' : ''}</span>`
