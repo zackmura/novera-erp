@@ -370,6 +370,7 @@
 
         <div id="tab-vendas" class="tab-content active">
            <div id="banner-bonus-comissao" style="display:none;"></div>
+           <div id="banner-promos-cliente" style="display:none;"></div>
            <div id="banner-chegando-em-breve" style="display:none;"></div>
            <div class="sub-nav-container">
                 <button id="btn-sub-registro" class="sub-nav-btn active" onclick="toggleVendasTab('registro')">🛒 PDV Rápido</button>
@@ -1077,7 +1078,8 @@
     <div class="modal-box-alert" style="width: 95%; max-width: 400px; padding: 30px 20px;">
         <button onclick="document.getElementById('modal-gerar-catalogo').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
         <h3 class="modal-title-alert" style="margin-bottom: 5px; color: var(--brand-dark);">📄 Catálogo Novera</h3>
-        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 20px;">Filtre o que deseja incluir no PDF ou na página online.</p>
+        <p style="font-size: 0.8rem; color: #888; margin-top: 0; margin-bottom: 10px;">Filtre o que deseja incluir no PDF ou na página online.</p>
+        <button onclick="abrirMeusCatalogos()" style="background: none; border: none; color: #0369a1; font-size: 0.72rem; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; margin-bottom: 14px; font-family: 'Montserrat', sans-serif;">🗂️ Ver meus links já criados (copiar / desativar)</button>
         
         <div style="text-align: left; margin-bottom: 15px;"><label style="margin-bottom:10px;">Categorias (Tipos)</label><div id="cat-checkbox-container" style="max-height: 120px; overflow-y: auto; background: #fafafa; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;"></div></div>
         

@@ -8,6 +8,9 @@
 <meta property="og:title" content="Catálogo Novera Scent">
 <meta property="og:description" content="Perfumes e cosméticos de alta perfumaria. Veja os produtos, notas olfativas e preços atualizados.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://novera.vivainteligente.net/logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
@@ -71,6 +74,26 @@
     .rodape-cartao { display: flex; justify-content: space-between; align-items: baseline; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--filete, #eadfe4); }
     .preco { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.35rem; }
     .disp-ok { font-size: 0.62rem; color: #5a8a68; font-weight: 700; letter-spacing: 1px; }
+    .selo-q { display: inline-block; vertical-align: middle; background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; border: 1px solid #fcd34d; border-radius: 20px; padding: 3px 10px; font-family: 'Montserrat', sans-serif; font-size: 0.55rem; font-weight: 800; letter-spacing: 1.5px; margin-left: 6px; white-space: nowrap; }
+    .preco-de { font-size: 0.75rem; color: #b0a0a8; text-decoration: line-through; margin-right: 4px; }
+    .chip-oferta { display: inline-block; vertical-align: middle; background: #e8f5e9; border: 1px solid #bbf7d0; color: #166534; border-radius: 20px; padding: 3px 10px; font-family: 'Montserrat', sans-serif; font-size: 0.55rem; font-weight: 800; letter-spacing: 1px; margin-left: 4px; white-space: nowrap; }
+
+    /* ✨ Faixa de Destaques: a VITRINE da vitrine — banda dourada que salta da página */
+    .destaques { max-width: 832px; margin: 20px 14px 4px; padding: 16px 0 4px; background: linear-gradient(150deg, #fffaf0, #fdf0f5 55%, #fff6ea); border: 1px solid #f2ddba; border-radius: 20px; box-shadow: 0 6px 22px rgba(180, 130, 60, 0.12), inset 0 1px 0 #fffdf7; position: relative; overflow: hidden; }
+    @media (min-width: 880px) { .destaques { margin-left: auto; margin-right: auto; } }
+    .destaques h3 { text-align: center; font-family: 'Playfair Display', serif; font-size: 1.05rem; color: #a16207; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 2px; }
+    .destaques .sub-dest { text-align: center; font-size: 0.58rem; color: #c08a3e; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 12px; }
+    .destaques .trilho { display: flex; gap: 12px; overflow-x: auto; padding: 4px 16px 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+    .destaques .trilho::-webkit-scrollbar { display: none; }
+    .destaques::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 34px; background: linear-gradient(90deg, rgba(255,250,240,0), #fff6ea); pointer-events: none; border-radius: 0 20px 20px 0; }
+    .mini-card { flex: 0 0 138px; scroll-snap-align: start; background: #fff; border: 1px solid #f0dcc0; border-radius: 16px; overflow: hidden; cursor: pointer; text-align: center; box-shadow: 0 4px 14px rgba(150, 97, 120, 0.14); transition: transform 0.15s ease; }
+    .mini-card:active { transform: scale(0.96); }
+    .mini-card .mc-foto { width: 100%; height: 140px; background: #f6ebef; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .mini-card .mc-foto img { width: 100%; height: 100%; object-fit: cover; }
+    .mini-card .mc-tag { position: absolute; top: 7px; left: 7px; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.5px; border-radius: 14px; padding: 3px 9px; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+    .mini-card .mc-nome { font-size: 0.66rem; font-weight: 700; color: var(--tinta); padding: 8px 7px 2px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
+    .mini-card .mc-preco { font-size: 0.78rem; font-weight: 800; color: var(--pd); padding: 2px 4px 10px; font-family: 'Playfair Display', serif; }
+    .mini-card .mc-preco s { color: #b0a0a8; font-weight: 500; font-size: 0.6rem; margin-right: 4px; font-family: 'Montserrat', sans-serif; }
     .disp-enc { font-size: 0.62rem; color: #b08585; font-weight: 700; letter-spacing: 1px; }
 
     .acoes-cartao { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
@@ -150,6 +173,11 @@
 </div>
 <div class="chips-familia" id="chips-genero" style="margin-top: 14px;"></div>
 <div class="chips-familia" id="chips-familia"></div>
+<div class="destaques" id="destaques" style="display:none;">
+    <h3>✨ Destaques</h3>
+    <p class="sub-dest" id="destaques-sub">os favoritos de todo mundo · arraste pro lado →</p>
+    <div class="trilho" id="destaques-trilho"></div>
+</div>
 
 <main class="miolo" id="lista">
     <div class="aviso"><span class="giro">✦</span><br><br>Preparando a vitrine...</div>
@@ -352,15 +380,22 @@
     function enviarPedidoWhatsApp() {
         const s = lerSacola();
         if (!s.length || !temZap()) return;
+        pingPedido();
         const total = s.reduce((acc, x) => acc + (x.preco * x.qtd), 0);
         const linhas = s.map(x => `• ${x.qtd}x ${x.codigo ? x.codigo + ' – ' : ''}${x.nome}${x.preco > 0 ? ' (' + fmtBRL(x.preco * x.qtd) + ')' : ''}`).join('\n');
         const msg = `Oi${vendedor.nome ? ', ' + vendedor.nome : ''}! 😍 Montei meu pedido pelo catálogo:\n\n${linhas}\n\n${total > 0 ? 'Total: ' + total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' 💛' : 'Pode me passar os valores? 💛'}`;
         window.open('https://wa.me/' + zapNumero(vendedor.telefone) + '?text=' + encodeURIComponent(msg), '_blank');
     }
 
+    // 🛒 Conta a intenção de compra (meio do funil: visita → pedido → venda) — nunca trava nada
+    function pingPedido() {
+        try { fetch(API_BASE + '/catalogo-visita?t=pedido' + (vendedorLink ? ('&v=' + encodeURIComponent(vendedorLink)) : '')).catch(() => {}); } catch (e) {}
+    }
+
     function queroEsse(chave) {
         const item = dados.itens.find(i => chaveItem(i) === chave);
         if (!item || !temZap()) return;
+        pingPedido();
         const msg = `Oi${vendedor.nome ? ', ' + vendedor.nome : ''}! Vi o catálogo e me interessei no ${item.codigo ? item.codigo + ' – ' : ''}${nomeVitrine(item)} 😍 Ainda tem?`;
         window.open('https://wa.me/' + zapNumero(vendedor.telefone) + '?text=' + encodeURIComponent(msg), '_blank');
     }
@@ -426,9 +461,11 @@
         const fichaHtml = (f.descricao ? `<div class="descricao">“${esc(String(f.descricao).substring(0, 220))}”</div>` : '') +
             (f.notas_saida ? `<div class="filete" style="background:linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0))"></div>${nota('SAÍDA', f.notas_saida)}${nota('CORAÇÃO', f.notas_coracao)}${nota('FUNDO', f.notas_fundo)}` : '') + chips + maisInfo;
 
+        // ⏳ Esgotado com lote na fábrica: mostra o prazo — "sob encomenda" vira reserva, não desistência
+        const txtChega = (item.chega != null) ? (item.chega <= 0 ? ' · CHEGANDO! 🎉' : ` · CHEGA EM ~${item.chega} DIA${item.chega > 1 ? 'S' : ''}`) : '';
         const disp = item.disp
             ? `<span class="disp-ok">DISPONÍVEL${mostrarQtd ? ' · ' + item.qtd + ' UN' : ''}</span>`
-            : `<span class="disp-enc">SOB ENCOMENDA</span>`;
+            : `<span class="disp-enc">SOB ENCOMENDA${txtChega}</span>`;
 
         // 🛍️ Sacolinha é o caminho principal (dá pra pedir 1 ou 10 do mesmo jeito);
         // pedir só um item vira o atalho secundário — o cliente bate o olho e entende
@@ -448,10 +485,12 @@
                     <span class="meta" style="color:${pal.micro}">${f.familia ? `<span style="color:${pal.medio}; font-weight:800;">${esc(f.familia)}</span> &nbsp;·&nbsp; ` : ''}${iconeGenero(item.genero)}</span>
                 </div>
                 <div class="insp" style="color:${pal.micro}">Inspiração</div>
-                <div class="nome">${esc(nome)}</div>
+                <div class="nome">${esc(nome)}${item.queridinho ? ' <span class="selo-q">⭐ QUERIDINHO</span>' : ''}</div>
                 ${fichaHtml}
                 <div class="rodape-cartao">
-                    <span class="preco" style="color:${pal.forte}">${fmtBRL(item.preco)}</span>
+                    <span>${item.precoDe
+                        ? `<span class="preco-de">${fmtBRL(item.precoDe)}</span> <span class="preco" style="color:#2e7d32">${fmtBRL(item.preco)}</span> <span class="chip-oferta">🔥 -${item.promoPct}%${item.promoAte ? ' · ATÉ ' + item.promoAte.split('-').reverse().slice(0, 2).join('/') : ''}</span>`
+                        : `<span class="preco" style="color:${pal.forte}">${fmtBRL(item.preco)}</span>`}</span>
                     ${disp}
                 </div>
                 ${botoes}
@@ -541,6 +580,44 @@
         atualizarFab();
     }
 
+    // ✨ Faixa de Destaques: ofertas primeiro, queridinhos depois — toca e rola até o cartão
+    function desenharDestaques() {
+        const base = itensDoLink();
+        const ofertas = base.filter(i => i.precoDe);
+        const queridos = base.filter(i => i.queridinho && !i.precoDe);
+        const lista = ofertas.concat(queridos).slice(0, 10);
+        const areaD = document.getElementById('destaques');
+        if (lista.length < 2) { areaD.style.display = 'none'; return; }
+
+        document.getElementById('destaques-sub').innerText = ofertas.length
+            ? '🔥 ofertas especiais e os mais amados · arraste pro lado →'
+            : 'os favoritos de todo mundo · arraste pro lado →';
+
+        document.getElementById('destaques-trilho').innerHTML = lista.map(i => {
+            const foto = melhorFoto(i.foto);
+            const tag = i.precoDe
+                ? `<span class="mc-tag" style="background:linear-gradient(135deg,#16a34a,#15803d); color:#fff;">🔥 -${i.promoPct}%</span>`
+                : `<span class="mc-tag" style="background:linear-gradient(135deg,#fde68a,#fbbf24); color:#78350f;">⭐ TOP</span>`;
+            const fotoMc = foto ? `<img src="${esc(foto)}" alt="" loading="lazy">` : `<span style="font-family:'Playfair Display', serif; color:#c9a2b4;">NS</span>`;
+            const precoMc = i.precoDe ? `<s>${fmtBRL(i.precoDe)}</s><span style="color:#166534;">${fmtBRL(i.preco)}</span>` : fmtBRL(i.preco);
+            return `<div class="mini-card" onclick="irParaProduto('${slugProduto(i)}')">
+                <div class="mc-foto">${tag}${fotoMc}</div>
+                <div class="mc-nome">${esc(nomeVitrine(i))}</div>
+                <div class="mc-preco">${precoMc}</div>
+            </div>`;
+        }).join('');
+        areaD.style.display = 'block';
+    }
+
+    function irParaProduto(slug) {
+        // Limpa busca e filtros primeiro — o cartão pode estar escondido por eles
+        document.getElementById('busca').value = '';
+        familiaAtiva = ''; generoAtivo = '';
+        renderizar();
+        const alvo = document.getElementById('p-' + slug);
+        if (alvo) { alvo.scrollIntoView({ behavior: 'smooth', block: 'center' }); alvo.classList.remove('destaque'); void alvo.offsetWidth; alvo.classList.add('destaque'); }
+    }
+
     // 📍 Link direto de produto (#p-N034): rola até o cartão e dá o brilho de destaque
     function focarProdutoDoLink() {
         const hash = String(location.hash || '').replace('#', '');
@@ -555,6 +632,17 @@
             const r = await fetch(API_BASE + '/catalogo-publico' + paramApi);
             const json = await r.json();
             if (!json.sucesso) throw new Error('resposta sem sucesso');
+
+            // ⏻ Catálogo desativado pela loja: aviso elegante em vez de preços velhos
+            if (json.expirado) {
+                if (json.marca) {
+                    if (json.marca.nome) document.getElementById('marca-nome').innerText = json.marca.nome;
+                    if (json.marca.corEscura) document.documentElement.style.setProperty('--pd', json.marca.corEscura);
+                }
+                document.getElementById('lista').innerHTML = '<div class="aviso" style="padding-top:80px;"><span style="font-size:2.5rem;">🌙</span><br><br><b style="color:var(--pd);">Este catálogo foi encerrado.</b><br>Os produtos e preços dele não valem mais —<br>peça o link novinho para quem te enviou este. 💬</div>';
+                return;
+            }
+
             dados = json;
             vendedor = json.vendedor || null;
 
@@ -565,6 +653,15 @@
                 Object.keys(precosLink).forEach(n => { mapaPrecos[semAcento(n)] = precosLink[n]; });
                 dados.itens = dados.itens.map(i => mapaPrecos[semAcento(i.nome)] != null ? Object.assign({}, i, { preco: mapaPrecos[semAcento(i.nome)] }) : i);
             }
+
+            // 💸 Promoções: o desconto vira "de X por Y" — preço final já vale na sacolinha e no pedido
+            dados.itens = dados.itens.map(i => {
+                if (i.promoPct > 0 && parseFloat(i.preco) > 0) {
+                    const cheio = parseFloat(i.preco);
+                    return Object.assign({}, i, { precoDe: cheio, preco: Math.round(cheio * (1 - i.promoPct / 100) * 100) / 100 });
+                }
+                return i;
+            });
 
             // 🎨 Identidade visual da marca (white-label): nome, logo e cores vêm do sistema
             if (json.marca) {
@@ -590,6 +687,7 @@
             }).filter(Boolean);
             if (JSON.stringify(sacolaLimpa) !== JSON.stringify(sacolaAtual)) gravarSacola(sacolaLimpa);
 
+            desenharDestaques();
             renderizar();
             setTimeout(focarProdutoDoLink, 400);
 

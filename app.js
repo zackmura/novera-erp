@@ -173,10 +173,12 @@ let logsGlobal = [];
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
+let descontosProdutoGlobal = []; // 💸 descontos ativos por produto (catálogo + PDF + aviso à equipe)
 let sugestoesProducaoGlobal = []; // sugestões de fabricação enviadas pelos vendedores
 let clientesGlobal = []; // cadastro de clientes (nome, telefone, aniversário)
 let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe só as dele)
 let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: só os dele; admin: equipe toda)
+let catalogoLinksGlobal = []; // 🗂️ links de catálogo criados (vendedor: os seus; admin: todos, com liga/desliga)
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -586,10 +588,12 @@ async function sincronizarDadosUnico() {
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
+            descontosProdutoGlobal = dados.descontosProduto || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
             conquistasGlobal = dados.conquistas || [];
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
+            catalogoLinksGlobal = dados.catalogoLinks || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -1804,8 +1808,8 @@ function renderizarBonusAtivos() {
     const cont = document.getElementById('lista-bonus-ativos');
     if (!cont) return;
 
-    if (!bonusComissaoGlobal.length) {
-        cont.innerHTML = `<p style='color:#999; font-size:0.8rem; margin: 5px 0 0 0;'>Nenhum bônus ativo no momento. Defina um bônus nos produtos parados abaixo. 👇</p>`;
+    if (!bonusComissaoGlobal.length && !descontosProdutoGlobal.length) {
+        cont.innerHTML = `<p style='color:#999; font-size:0.8rem; margin: 5px 0 0 0;'>Nenhum incentivo ativo no momento. Defina um 🔥 bônus ou 💸 desconto nos produtos parados abaixo. 👇</p>`;
         return;
     }
 
@@ -1825,6 +1829,25 @@ function renderizarBonusAtivos() {
             <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px; flex:0 0 auto;" onclick="removerBonusComissao('${encodeURIComponent(b.nomeProduto)}')" title="Remover bônus">🗑️</button>
         </div>`;
     });
+
+    // 💸 Descontos ativos: a alavanca que PUXA o cliente (catálogo, PDF e aviso pra equipe)
+    [...descontosProdutoGlobal].sort((a, b) => (parseFloat(b.percentual) || 0) - (parseFloat(a.percentual) || 0)).forEach(dd => {
+        const prod = estoqueAgrupado[padronizarTexto(dd.nomeProduto)];
+        const qtd = prod ? (prod.totalQtd || 0) : 0;
+        const precoCheio = prod ? (parseFloat(prod.preco) || 0) : 0;
+        const precoPromo = precoCheio > 0 ? precoCheio * (1 - dd.percentual / 100) : 0;
+        const codigoBadge = prod && prod.codigo ? `<span style="background:var(--primary-dark); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:5px;">${prod.codigo}</span>` : '';
+        const txtValidade = dd.validade ? ` · ⏰ até ${dd.validade.split('-').reverse().join('/')}` : ' · sem prazo';
+        html += `
+        <div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="min-width:0;">
+                <span style="font-size:0.85rem; font-weight:800; color:#166534;">💸 -${dd.percentual}%</span>
+                <span style="font-size:0.82rem; color:var(--brand-dark); font-weight:700; margin-left:6px;">${codigoBadge}${dd.nomeProduto}</span>
+                <span style="font-size:0.7rem; color:#15803d; display:block; margin-top:2px;">${precoCheio > 0 ? `de <s>${fmt(precoCheio)}</s> por <b>${fmt(precoPromo)}</b>` : ''}${txtValidade} · 📦 ${qtd} un</span>
+            </div>
+            <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px; flex:0 0 auto;" onclick="removerDescontoProduto('${encodeURIComponent(dd.nomeProduto)}')" title="Remover desconto">🗑️</button>
+        </div>`;
+    });
     cont.innerHTML = html;
 }
 
@@ -1841,6 +1864,8 @@ function renderizarEstoqueParado() {
 
     const mapaBonus = {};
     bonusComissaoGlobal.forEach(b => mapaBonus[b.nomeProduto] = b);
+    const mapaDescEP = {};
+    descontosProdutoGlobal.forEach(dd => mapaDescEP[dd.nomeProduto] = dd);
 
     let itens = [];
     for (let key in estoqueAgrupado) {
@@ -1856,7 +1881,7 @@ function renderizarEstoqueParado() {
         }
         if (piorDias === null || piorDias < diasFiltro) continue;
 
-        itens.push({ nome: e.nome, codigo: e.codigo, qtd: e.totalQtd, dias: piorDias, bonus: mapaBonus[e.nome] || null });
+        itens.push({ nome: e.nome, codigo: e.codigo, qtd: e.totalQtd, preco: parseFloat(e.preco) || 0, dias: piorDias, bonus: mapaBonus[e.nome] || null, desconto: mapaDescEP[e.nome] || null });
     }
 
     itens.sort((a, b) => b.dias - a.dias);
@@ -1873,6 +1898,7 @@ function renderizarEstoqueParado() {
         const corDias = item.dias >= diasFiltro * 2 ? '#991b1b' : '#92400e';
         const iconeDias = item.dias >= diasFiltro * 2 ? '🐌' : '⏳';
 
+        // 🔥 Arma 1: bônus de comissão (EMPURRA pelo vendedor)
         let blocoBonus;
         if (item.bonus) {
             blocoBonus = `
@@ -1883,9 +1909,32 @@ function renderizarEstoqueParado() {
         } else {
             blocoBonus = `
             <div style="display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
-                <input type="number" id="ep-bonus-input-${i}" placeholder="Ex: 2" min="0.1" step="0.1" style="flex:1 1 80px; width:auto; min-width:80px; padding:8px; border-radius:8px; border:1px solid var(--border-color); box-sizing:border-box;">
-                <span style="font-size:0.8rem; color:#888; white-space:nowrap;">% bônus</span>
-                <button class="btn-salvar" style="margin:0; padding:8px 16px; font-size:0.75rem; background:#0369a1; box-shadow:0 4px 0 #075985; white-space:nowrap; width:auto; flex:0 0 auto;" onclick="salvarBonusComissao(${i})">✔️ Definir</button>
+                <span style="font-size:0.9rem;">🔥</span>
+                <input type="number" id="ep-bonus-input-${i}" placeholder="Ex: 2" min="0.1" step="0.1" style="flex:1 1 70px; width:auto; min-width:70px; padding:8px; border-radius:8px; border:1px solid var(--border-color); box-sizing:border-box;">
+                <span style="font-size:0.75rem; color:#888; white-space:nowrap;">% bônus vendedor</span>
+                <button class="btn-salvar" style="margin:0; padding:8px 14px; font-size:0.75rem; background:#0369a1; box-shadow:0 4px 0 #075985; white-space:nowrap; width:auto; flex:0 0 auto;" onclick="salvarBonusComissao(${i})">✔️ Definir</button>
+            </div>`;
+        }
+
+        // 💸 Arma 2: desconto pro cliente (PUXA pelo preço no catálogo/PDF)
+        let blocoDesconto;
+        if (item.desconto) {
+            const precoPromoItem = item.preco > 0 ? item.preco * (1 - item.desconto.percentual / 100) : 0;
+            const validadeTxt = item.desconto.validade ? ` até ${item.desconto.validade.split('-').reverse().join('/')}` : '';
+            blocoDesconto = `
+            <div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:8px; padding:10px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span style="font-size:0.8rem; font-weight:800; color:#166534;">💸 Desconto ativo: -${item.desconto.percentual}%${item.preco > 0 ? ` (de <s>${fmt(item.preco)}</s> por ${fmt(precoPromoItem)})` : ''}${validadeTxt}</span>
+                <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px;" onclick="removerDescontoProduto('${encodeURIComponent(item.nome)}')" title="Remover desconto">🗑️</button>
+            </div>`;
+        } else {
+            blocoDesconto = `
+            <div style="display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap;">
+                <span style="font-size:0.9rem;">💸</span>
+                <input type="number" id="ep-desc-input-${i}" placeholder="Ex: 15" min="1" max="89" step="1" oninput="previewDescontoParado(${i})" style="flex:1 1 60px; width:auto; min-width:60px; padding:8px; border-radius:8px; border:1px solid var(--border-color); box-sizing:border-box;">
+                <span style="font-size:0.75rem; color:#888; white-space:nowrap;">% off</span>
+                <input type="date" id="ep-desc-val-${i}" title="Validade (opcional — vazio = sem prazo)" style="flex:1 1 110px; width:auto; min-width:110px; padding:7px; border-radius:8px; border:1px solid var(--border-color); box-sizing:border-box; font-size:0.75rem;">
+                <button class="btn-salvar" style="margin:0; padding:8px 14px; font-size:0.75rem; background:#166534; box-shadow:0 4px 0 #14532d; white-space:nowrap; width:auto; flex:0 0 auto;" onclick="salvarDescontoProduto(${i})">✔️ Ativar</button>
+                <span id="ep-desc-preview-${i}" style="font-size:0.7rem; font-weight:800; color:#15803d; width:100%;"></span>
             </div>`;
         }
 
@@ -1895,8 +1944,9 @@ function renderizarEstoqueParado() {
                 <h4 style="margin:0; font-size:0.9rem; color:var(--brand-dark);">${codigoBadge}${item.nome}</h4>
                 <span style="color:${corDias}; font-weight:900; font-size:0.85rem;">${iconeDias} há ${item.dias} dias</span>
             </div>
-            <p style="margin:5px 0 0 0; font-size:0.75rem; color:#666;">📦 Estoque total: <b>${item.qtd} un</b></p>
+            <p style="margin:5px 0 0 0; font-size:0.75rem; color:#666;">📦 Estoque total: <b>${item.qtd} un</b>${item.preco > 0 ? ` · 💰 ${fmt(item.preco)}` : ''}</p>
             ${blocoBonus}
+            ${blocoDesconto}
         </div>`;
     });
 
@@ -1920,6 +1970,52 @@ function salvarBonusComissao(index) {
     })
     .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
     .finally(() => ocultarLoading());
+}
+
+// 💸 Preview ao vivo: digita a % e já vê "de R$50 por R$42,50" antes de ativar
+function previewDescontoParado(index) {
+    const item = estoqueParadoAtual[index];
+    const alvo = document.getElementById('ep-desc-preview-' + index);
+    if (!item || !alvo) return;
+    const pct = parseFloat(document.getElementById('ep-desc-input-' + index).value);
+    alvo.innerText = (!isNaN(pct) && pct > 0 && pct < 90 && item.preco > 0)
+        ? `→ de ${fmt(item.preco)} por ${fmt(item.preco * (1 - pct / 100))}`
+        : '';
+}
+
+function salvarDescontoProduto(index) {
+    const item = estoqueParadoAtual[index];
+    if (!item) return;
+    const pct = parseFloat(document.getElementById('ep-desc-input-' + index).value);
+    if (isNaN(pct) || pct <= 0 || pct >= 90) return mostrarAlerta("Atenção", "Digite um percentual de desconto entre 1 e 89.", "warning");
+    const validade = document.getElementById('ep-desc-val-' + index).value || '';
+
+    const precoPromo = item.preco > 0 ? ` (de ${fmt(item.preco)} por ${fmt(item.preco * (1 - pct / 100))})` : '';
+    mostrarLoading("Ativando desconto...");
+    const msgLog = `💸 Definiu desconto de -${pct}% em [${item.nome}]${validade ? ` até ${validade}` : ''} (parado há ${item.dias} dias)`;
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_desconto_produto", nome_produto: item.nome, percentual: pct, validade: validade, log_detalhe: msgLog }) })
+    .then(r => r.json())
+    .then(res => {
+        if (res.sucesso) { mostrarAlerta("Desconto Ativo!", `-${pct}% em ${item.nome}${precoPromo}. Já vale no catálogo online, no PDF e a equipe foi avisada na tela de vendas.${validade ? ` Expira sozinho em ${validade.split('-').reverse().join('/')}.` : ''}`, "success"); sincronizarDadosUnico(); }
+        else mostrarAlerta("Erro", res.erro || "Falha ao ativar o desconto.", "error");
+    })
+    .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+    .finally(() => ocultarLoading());
+}
+
+function removerDescontoProduto(nomeEncoded) {
+    const nome = decodeURIComponent(nomeEncoded);
+    abrirConfirmacao("Remover Desconto?", `O desconto de "${nome}" será removido — catálogo online e PDF voltam ao preço cheio na hora.`, "💸", "#A05252", "#803f3f", "🗑️ Remover", () => {
+        mostrarLoading("Removendo desconto...");
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "remover_desconto_produto", nome_produto: nome, log_detalhe: `💸 Removeu o desconto de [${nome}]` }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { mostrarAlerta("Removido!", "Desconto removido — preço cheio de volta.", "success"); sincronizarDadosUnico(); }
+            else mostrarAlerta("Erro", res.erro || "Falha ao remover.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha na conexão.", "error"))
+        .finally(() => ocultarLoading());
+    });
 }
 
 function removerBonusComissao(nomeEncoded) {
@@ -2150,6 +2246,80 @@ function coletarSelecaoProdutosCatalogo() {
     });
     if (!desmarcouAlgum && !mudouPreco) return null;
     return { sel, precos: mudouPreco ? precos : null };
+}
+
+// ==========================================
+// 🗂️ MEUS LINKS DE CATÁLOGO: histórico com copiar, abrir e liga/desliga
+// Promoção acabou? Desativa o link e quem abrir vê "catálogo encerrado".
+// ==========================================
+function abrirMeusCatalogos() {
+    const antigo = document.getElementById('modal-meus-catalogos');
+    if (antigo) antigo.remove();
+
+    const ehAdminLk = (usuarioCargo === 'Admin');
+    const linhas = catalogoLinksGlobal.map(lk => {
+        const urlLk = new URL('catalogo.html', window.location.href); urlLk.search = 'k=' + lk.codigo;
+        const resumo = [
+            lk.qtdSel > 0 ? `🎯 ${lk.qtdSel} produtos` : (lk.tipos ? `📂 ${lk.tipos}` : '📖 completo'),
+            lk.generos ? `🚻 ${lk.generos}` : '',
+            lk.temPrecos ? '💰 preço próprio' : '',
+            lk.soEstoque ? '📦 só c/ estoque' : ''
+        ].filter(Boolean).join(' · ');
+        return `
+        <div style="border:1px solid ${lk.ativo ? '#e3c6d2' : '#fca5a5'}; background:${lk.ativo ? '#fff' : '#fef2f2'}; border-radius:12px; padding:10px 12px; margin-bottom:8px; text-align:left;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <span style="font-size:0.72rem; font-weight:800; color:#966178;">?k=${lk.codigo} ${lk.ativo ? '<span style="background:#e8f5e9; color:#2e7d32; padding:1px 8px; border-radius:10px; font-size:0.55rem;">ATIVO</span>' : '<span style="background:#fee2e2; color:#b91c1c; padding:1px 8px; border-radius:10px; font-size:0.55rem;">DESATIVADO</span>'}</span>
+                <span style="font-size:0.6rem; color:#999;">${lk.data || ''}</span>
+            </div>
+            <p style="font-size:0.62rem; color:#888; margin:5px 0 8px; text-transform:capitalize;">${resumo}${ehAdminLk && lk.criadoPor ? ` · 👤 ${lk.criadoPor}` : ''}</p>
+            <div style="display:flex; gap:6px;">
+                <button onclick="copiarLinkCatalogoSalvo('${urlLk.href}', this)" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">📋 Copiar</button>
+                <button onclick="window.open('${urlLk.href}', '_blank')" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">👀 Abrir</button>
+                <button onclick="alternarLinkCatalogo(${lk.linha}, ${lk.ativo ? 'false' : 'true'})" style="flex:1; background:${lk.ativo ? '#fef2f2' : '#e8f5e9'}; color:${lk.ativo ? '#b91c1c' : '#2e7d32'}; border:1px solid ${lk.ativo ? '#fca5a5' : '#bbf7d0'}; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">${lk.ativo ? '⏻ Desativar' : '🔛 Reativar'}</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-meus-catalogos';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:400px; width:100%; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="padding:20px 20px 10px; text-align:center; position:relative;">
+                <button onclick="document.getElementById('modal-meus-catalogos').remove()" style="position:absolute; top:14px; right:14px; background:#f3e8ed; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#966178; cursor:pointer;">×</button>
+                <div style="font-size:2rem;">🗂️</div>
+                <h3 style="margin:4px 0 2px; color:#966178; font-size:1.05rem; font-weight:900;">${ehAdminLk ? 'Links de Catálogo da Equipe' : 'Meus Links de Catálogo'}</h3>
+                <p style="margin:0; color:#999; font-size:0.68rem;">Promoção acabou? Desative o link — quem abrir verá "catálogo encerrado".</p>
+            </div>
+            <div style="padding:12px 16px 18px; overflow-y:auto;">
+                ${linhas || '<p style="text-align:center; color:#999; font-size:0.75rem; padding:20px 0;">Nenhum link criado ainda.<br>Gere o primeiro no botão verde do Catálogo! 🔗</p>'}
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+async function copiarLinkCatalogoSalvo(linkTxt, btn) {
+    try { await navigator.clipboard.writeText(linkTxt); }
+    catch (e) { const ta = document.createElement('textarea'); ta.value = linkTxt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+    btn.innerHTML = '✅ Copiado!';
+    setTimeout(() => { btn.innerHTML = '📋 Copiar'; }, 2000);
+}
+
+function alternarLinkCatalogo(idLink, ativar) {
+    mostrarLoading(ativar ? "Reativando link..." : "Desativando link...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'alternar_catalogo_link', usuario: usuarioLogado, id_link: idLink, ativo: ativar }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                const lkLocal = catalogoLinksGlobal.find(l => l.linha == idLink);
+                if (lkLocal) lkLocal.ativo = ativar;
+                abrirMeusCatalogos(); // redesenha a lista já com o novo estado
+                sincronizarDadosUnico();
+            } else { mostrarAlerta("Erro", res.erro || "Falha ao alterar o link.", "error"); }
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
 }
 
 // 🎴 CARTÃO DO CATÁLOGO: QR emoldurado com a identidade da marca + instrução de uso,
@@ -2488,6 +2658,11 @@ async function gerarCatalogoPDFFrontend() {
             ? `<span style="font-size: 8.5px; color: #5a8a68; font-weight: 700; letter-spacing: 1px;">DISPONÍVEL · ${e.totalQtd} UN</span>`
             : `<span style="font-size: 8.5px; color: #b08585; font-weight: 700; letter-spacing: 1px;">SOB ENCOMENDA</span>`) : "";
 
+        // 💸 Produto em promoção: preço cheio riscado + preço novo (ancoragem que converte)
+        const descCat = descontosProdutoGlobal.find(dd => dd.nomeProduto === e.nome);
+        const precoBaseCat = parseFloat(e.preco) || 0;
+        const precoFinalCat = (descCat && precoBaseCat > 0) ? precoBaseCat * (1 - descCat.percentual / 100) : precoBaseCat;
+
         const rotCat = rotulosGlobal.find(rr => rr.codigo === e.codigo);
         const fichaCat = rotCat ? lerFichaDoRotulo(rotCat) : null;
         let htmlFichaCat = '';
@@ -2517,7 +2692,9 @@ async function gerarCatalogoPDFFrontend() {
                 <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #2C2A2B; line-height: 1.2; margin-top: 2px;">${nomeSemTipo}</div>
                 ${htmlFichaCat}
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 9px; border-top: 1px solid ${pal.filete};">
-                    <span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: ${pal.forte};">${safeFmt(e.preco)}</span>
+                    <span>${(descCat && precoBaseCat > 0)
+                        ? `<span style="font-size: 11px; color: ${pal.micro}; text-decoration: line-through;">${safeFmt(precoBaseCat)}</span> <span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: #2e7d32;">${safeFmt(precoFinalCat)}</span> <span style="background: #e8f5e9; border: 1px solid #bbf7d0; color: #166534; border-radius: 20px; padding: 2.5px 9px; font-size: 7.5px; font-weight: 800; letter-spacing: 1px;">🔥 -${descCat.percentual}% OFF</span>`
+                        : `<span style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 19px; color: ${pal.forte};">${safeFmt(e.preco)}</span>`}</span>
                     ${dispHtml}
                 </div>
             </div>
@@ -3383,6 +3560,34 @@ function renderizarBannerBonusComissao() {
     banner.style.display = 'block';
 }
 
+// 💸 Avisa a equipe dos produtos em PROMOÇÃO pro cliente — pra ninguém cobrar preço cheio
+// de quem chegou pelo catálogo com desconto anunciado
+function renderizarBannerPromosCliente() {
+    const banner = document.getElementById('banner-promos-cliente');
+    if (!banner) return;
+
+    if (usuarioCargo === 'Admin' || !descontosProdutoGlobal.length) { banner.style.display = 'none'; return; }
+
+    const itensPromo = descontosProdutoGlobal
+        .map(dd => ({ desc: dd, estoque: estoqueAgrupado[padronizarTexto(dd.nomeProduto)] }))
+        .filter(x => x.estoque && x.estoque.totalQtd > 0);
+
+    if (!itensPromo.length) { banner.style.display = 'none'; return; }
+
+    let html = `<div style="background:#e8f5e9; border:1px solid #86efac; border-radius:12px; padding:15px; margin-bottom:15px;">
+        <p style="margin:0 0 10px 0; font-weight:900; color:#166534; font-size:0.85rem;">💸 PROMOÇÃO ATIVA — COBRE O PREÇO COM DESCONTO!</p>`;
+    itensPromo.forEach(({ desc, estoque }) => {
+        const precoCheio = parseFloat(estoque.preco) || 0;
+        const precoPromo = precoCheio > 0 ? precoCheio * (1 - desc.percentual / 100) : 0;
+        const codigoBadge = estoque.codigo ? `${estoque.codigo}: ` : '';
+        const validadeTxt = desc.validade ? ` (até ${desc.validade.split('-').reverse().join('/')})` : '';
+        html += `<p style="margin:0 0 6px 0; font-size:0.78rem; color:#14532d; line-height:1.5;"><b>${codigoBadge}${estoque.nome}</b> está com <b>-${desc.percentual}%</b>${precoCheio > 0 ? `: de <s>${fmt(precoCheio)}</s> por <b>${fmt(precoPromo)}</b>` : ''}${validadeTxt} — o cliente pode chegar já sabendo desse preço pelo catálogo! 📲</p>`;
+    });
+    html += `</div>`;
+    banner.innerHTML = html;
+    banner.style.display = 'block';
+}
+
 // Avisa o vendedor sobre produtos SEM estoque disponível agora, mas com maceração a caminho (visual discreto, pra não competir com o aviso de bônus)
 function renderizarAvisoChegandoEmBreve() {
     const banner = document.getElementById('banner-chegando-em-breve');
@@ -3521,12 +3726,14 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
         grupos[tipoKey].forEach(e => {
             const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
             const bonusItem = comBonus ? mapaBonus[e.nome] : null;
-            const iconeLinha = bonusItem ? '🔥' : iconeGenero(e.codigo);
+            const descItem = descontosProdutoGlobal.find(dd => dd.nomeProduto === e.nome);
+            const iconeLinha = bonusItem ? '🔥' : (descItem ? '💸' : iconeGenero(e.codigo));
             const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' ');
             const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
+            const sufixoDesc = descItem ? ` PROMO -${descItem.percentual}%` : '';
             const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
-            const estiloBonus = bonusItem ? ' style="background:#fef3c7; color:#b45309; font-weight:800;"' : '';
-            html += `<option value="${e.nome}"${estiloBonus}>${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}</option>`;
+            const estiloBonus = bonusItem ? ' style="background:#fef3c7; color:#b45309; font-weight:800;"' : (descItem ? ' style="background:#e8f5e9; color:#166534; font-weight:800;"' : '');
+            html += `<option value="${e.nome}"${estiloBonus}>${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}${sufixoDesc}</option>`;
         });
         html += `</optgroup>`;
     });
@@ -3536,6 +3743,7 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
 function renderizarVendas() {
     const isAdmin = (usuarioCargo === 'Admin');
     renderizarBannerBonusComissao();
+    renderizarBannerPromosCliente();
     renderizarAvisoChegandoEmBreve();
     // Filtra a lista de clientes e devedores para o vendedor ver só os dele
     const listaVendasPermitidas = isAdmin ? vendasGlobal : vendasGlobal.filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
@@ -4399,20 +4607,20 @@ function salvarEdicaoVenda() {
         }); 
 }
 
-// 🔗 Soma as visitas do catálogo online: total, últimos 7 dias e hoje (nomeVendedor null = equipe toda)
+// 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
 function estatisticasVisitasCatalogo(nomeVendedor) {
     const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
     const isoCorte = corte7.toISOString().split('T')[0];
     const hojeIso = new Date().toISOString().split('T')[0];
-    let total = 0, sete = 0, hoje = 0;
+    let total = 0, sete = 0, hoje = 0, ped = 0, ped7 = 0;
     visitasCatalogoGlobal.forEach(vi => {
         if (nomeVendedor && normalizarNomeBusca(vi.vendedor) !== normalizarNomeBusca(nomeVendedor)) return;
-        const h = parseInt(vi.hits) || 0;
-        total += h;
-        if (vi.data >= isoCorte) sete += h;
+        const h = parseInt(vi.hits) || 0, p = parseInt(vi.pedidos) || 0;
+        total += h; ped += p;
+        if (vi.data >= isoCorte) { sete += h; ped7 += p; }
         if (vi.data === hojeIso) hoje += h;
     });
-    return { total, sete, hoje };
+    return { total, sete, hoje, ped, ped7 };
 }
 
 function renderizarDashboard() {
@@ -4768,9 +4976,10 @@ function renderizarDashboard() {
                     <h3 style="color:#0f766e; font-size:0.75rem; font-weight:900; margin:0;">🔗 MEU CATÁLOGO ONLINE</h3>
                     <span style="font-size:0.6rem; color:#0d9488; font-weight:700;">${vcMeu.hoje > 0 ? `👀 ${vcMeu.hoje} hoje!` : ''}</span>
                 </div>
-                <div style="display:flex; gap:10px; margin-top:10px; text-align:center;">
-                    <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#0f766e; display:block;">${vcMeu.sete}</span><span style="font-size:0.58rem; color:#888;">visitas · 7 dias</span></div>
+                <div style="display:flex; gap:8px; margin-top:10px; text-align:center;">
+                    <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#0f766e; display:block;">${vcMeu.sete}</span><span style="font-size:0.58rem; color:#888;">visitas · 7d</span></div>
                     <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#0f766e; display:block;">${vcMeu.total}</span><span style="font-size:0.58rem; color:#888;">visitas · total</span></div>
+                    <div style="flex:1; background:#fff; border-radius:10px; padding:8px;"><span style="font-size:1.2rem; font-weight:900; color:#c2410c; display:block;">🛒 ${vcMeu.ped7}</span><span style="font-size:0.58rem; color:#888;">pedidos · 7d</span></div>
                 </div>
                 <p style="font-size:0.62rem; color:#0d9488; margin:8px 0 0 0; text-align:center;">${vcMeu.total === 0 ? 'Gere seu link em Estoque → Catálogo e divulgue — cada visita é um cliente olhando a vitrine! 🚀' : 'Cada visita é um cliente na sua vitrine. Continue divulgando! 💪'}</p>
             </div>`;
@@ -5190,7 +5399,7 @@ function renderizarDashboard() {
             .sort((a, b) => b.sete - a.sete || b.total - a.total)
             .map(vLinha => `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ccfbf1; padding:6px 0;">
                 <span style="font-size:0.78rem; font-weight:700; color:#134e4a;">${vLinha.nome === '(link geral)' ? '🌐 Link geral (sem vendedor)' : '👤 ' + vLinha.nome}${vLinha.hoje > 0 ? ` <span style="font-size:0.58rem; color:#0d9488;">· ${vLinha.hoje} hoje</span>` : ''}</span>
-                <span style="font-size:0.72rem; color:#0f766e;"><b>${vLinha.sete}</b> em 7d · ${vLinha.total} total</span>
+                <span style="font-size:0.72rem; color:#0f766e;"><b>${vLinha.sete}</b> em 7d · ${vLinha.total} total${vLinha.ped7 > 0 ? ` · <b style="color:#c2410c;">🛒 ${vLinha.ped7}</b>` : ''}</span>
             </div>`).join('');
         htmlVisitasCatAdmin = `
             <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #f0fdfa; border: 1px solid #99f6e4;">
@@ -5199,7 +5408,7 @@ function renderizarDashboard() {
                     <span style="font-size:0.7rem; color:#0d9488; font-weight:800;">${vcGeral.sete} visitas · 7d</span>
                 </div>
                 ${linhasVc || `<p style="font-size:0.72rem; color:#5eead4; text-align:center; margin:8px 0;">Nenhuma visita registrada ainda — peça pra equipe divulgar os links! 📣</p>`}
-                ${linhasVc ? `<p style="font-size:0.6rem; color:#0d9488; margin:8px 0 0 0; text-align:center; font-style:italic;">Total geral: ${vcGeral.total} visitas${vcGeral.hoje > 0 ? ` · ${vcGeral.hoje} só hoje 👀` : ''} — visita alta e venda baixa? Vale revisar preço, foto ou abordagem.</p>` : ''}
+                ${linhasVc ? `<p style="font-size:0.6rem; color:#0d9488; margin:8px 0 0 0; text-align:center; font-style:italic;">🔍 Funil 7 dias: ${vcGeral.sete} visitas → 🛒 ${vcGeral.ped7} pedidos${vcGeral.sete > 0 ? ` (${((vcGeral.ped7 / vcGeral.sete) * 100).toFixed(0)}% de conversão)` : ''} · Total histórico: ${vcGeral.total} visitas</p>` : ''}
             </div>`;
     }
 
@@ -5975,10 +6184,12 @@ async function sincronizarDadosSilencioso() {
             logsGlobal = dados.logs || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
+            descontosProdutoGlobal = dados.descontosProduto || [];
             sugestoesProducaoGlobal = dados.sugestoesProducao || [];
             clientesGlobal = dados.clientes || [];
             conquistasGlobal = dados.conquistas || [];
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
+            catalogoLinksGlobal = dados.catalogoLinks || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
