@@ -305,6 +305,12 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
     50% { box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35), 0 0 0 10px rgba(251, 191, 36, 0); transform: scale(1.05); }
 }
 .ajuda-pulso { animation: pulsoAjuda 1.6s ease infinite; }
+
+/* 🙈 Campos de senha "disfarçados": são type=text com bolinhas desenhadas pelo CSS.
+   O gerenciador de senhas do celular (Samsung Pass / Google) só fareja type=password —
+   assim o aviso "salvar senha?" para de pipocar no topo da tela. */
+.senha-mascarada { -webkit-text-security: disc; }
+.senha-mascarada.senha-visivel { -webkit-text-security: none; }
 .modal-box-alert { background: #fff; width: 90%; max-width: 380px; border-radius: 24px; padding: 30px 20px 20px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3); animation: popIn 0.3s ease-out; position: relative; max-height: 90vh; overflow-y: auto;}
 .modal-icon-alert { font-size: 3.5rem; margin-bottom: 10px; display: inline-block;}
 .modal-title-alert { font-size: 1.3rem; font-weight: 900; color: var(--brand-dark); margin: 0 0 10px; text-transform: uppercase;}

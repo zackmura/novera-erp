@@ -632,7 +632,16 @@ async function sincronizarDadosUnico() {
     } catch (e) { mostrarAlerta("Falha de Conexão", "Erro ao carregar dados.", "error"); } finally { ocultarLoading(); }   
 }
 
-function toggleSenha(inputId, btnElement) { const input = document.getElementById(inputId); if (input.type === "password") { input.type = "text"; btnElement.innerText = "👁️"; } else { input.type = "password"; btnElement.innerText = "🙈"; } }
+function toggleSenha(inputId, btnElement) {
+    const input = document.getElementById(inputId);
+    // Campos novos: a máscara é CSS (bolinhas), então o olhinho alterna a classe
+    if (input.classList.contains('senha-mascarada')) {
+        const visivel = input.classList.toggle('senha-visivel');
+        btnElement.innerText = visivel ? "👁️" : "🙈";
+        return;
+    }
+    if (input.type === "password") { input.type = "text"; btnElement.innerText = "👁️"; } else { input.type = "password"; btnElement.innerText = "🙈"; }
+}
 
 function iniciarSessaoLocal(usuario, cargo, token) {
     localStorage.setItem('novera_last_user', usuario);
