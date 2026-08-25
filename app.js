@@ -2276,6 +2276,7 @@ function abrirMeusCatalogos() {
                 <button onclick="copiarLinkCatalogoSalvo('${urlLk.href}', this)" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">📋 Copiar</button>
                 <button onclick="window.open('${urlLk.href}', '_blank')" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">👀 Abrir</button>
                 <button onclick="alternarLinkCatalogo(${lk.linha}, ${lk.ativo ? 'false' : 'true'})" style="flex:1; background:${lk.ativo ? '#fef2f2' : '#e8f5e9'}; color:${lk.ativo ? '#b91c1c' : '#2e7d32'}; border:1px solid ${lk.ativo ? '#fca5a5' : '#bbf7d0'}; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">${lk.ativo ? '⏻ Desativar' : '🔛 Reativar'}</button>
+                <button onclick="excluirLinkCatalogo(${lk.linha}, '${lk.codigo}')" title="Excluir de vez" style="flex:0 0 36px; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:8px; padding:7px 0; font-size:0.7rem; cursor:pointer;">🗑️</button>
             </div>
         </div>`;
     }).join('');
@@ -2304,6 +2305,23 @@ async function copiarLinkCatalogoSalvo(linkTxt, btn) {
     catch (e) { const ta = document.createElement('textarea'); ta.value = linkTxt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
     btn.innerHTML = '✅ Copiado!';
     setTimeout(() => { btn.innerHTML = '📋 Copiar'; }, 2000);
+}
+
+function excluirLinkCatalogo(idLink, codigoLk) {
+    abrirConfirmacao("Excluir este link?", `O link ?k=${codigoLk} sumirá da sua lista PARA SEMPRE. Quem já recebeu esse link verá "catálogo encerrado" ao abrir. (Se for algo temporário, prefira Desativar — dá pra reativar depois.)`, "🗑️", "#A05252", "#803f3f", "🗑️ Excluir de vez", () => {
+        mostrarLoading("Excluindo link...");
+        fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'excluir_catalogo_link', usuario: usuarioLogado, id_link: idLink }) })
+            .then(r => r.json())
+            .then(res => {
+                if (res.sucesso) {
+                    catalogoLinksGlobal = catalogoLinksGlobal.filter(l => l.linha != idLink);
+                    abrirMeusCatalogos(); // redesenha a lista já sem o excluído
+                    sincronizarDadosUnico();
+                } else { mostrarAlerta("Erro", res.erro || "Falha ao excluir o link.", "error"); }
+            })
+            .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+            .finally(() => ocultarLoading());
+    });
 }
 
 function alternarLinkCatalogo(idLink, ativar) {
