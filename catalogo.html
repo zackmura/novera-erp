@@ -151,6 +151,9 @@
 
     .aviso { text-align: center; padding: 60px 20px; color: #a08a94; font-size: 0.85rem; line-height: 1.7; }
     .aviso .giro { font-size: 2rem; display: inline-block; animation: girar 1.2s linear infinite; }
+
+    /* 🔒 Sacolinha ou foto ampliada aberta = página de trás congelada */
+    html:has(.overlay-sacola[style*="flex"]), html:has(.foto-grande[style*="flex"]) { overflow: hidden; }
     @keyframes girar { to { transform: rotate(360deg); } }
 
     .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; background: #2C2A2B; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 0.75rem; font-weight: 700; z-index: 120; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }

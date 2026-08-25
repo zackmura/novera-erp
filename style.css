@@ -296,6 +296,14 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
 #modal-confirmar { z-index: 100000 !important; }
 #custom-modal { z-index: 100002 !important; }
 
+/* 🔒 Modal aberto = página de trás CONGELADA: o dedo rolando no modal não arrasta
+   a tela por baixo. Cobre os modais fixos (display: flex inline) e os dinâmicos
+   (criados por JS com display:flex no cssText). */
+html:has(.modal-overlay-alert[style*="display: flex"]),
+html:has(.modal-overlay-alert[style*="display:flex"]),
+html:has(#modal-parametros[style*="display: flex"]),
+html:has([id^="modal-"][style*="display:flex"]) { overflow: hidden; }
+
 /* ❓ Botão de ajuda contextual: DOURADO (cor que não existe em mais nada do app — salta aos olhos);
    pulsa até a pessoa concluir o guia */
 .btn-ajuda-tela { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #78350f; border: 1px solid #f59e0b; border-radius: 24px; padding: 9px 18px; font-size: 0.75rem; font-weight: 800; cursor: pointer; font-family: 'Montserrat', sans-serif; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35); letter-spacing: 0.3px; }

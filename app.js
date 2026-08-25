@@ -179,6 +179,15 @@ let clientesGlobal = []; // cadastro de clientes (nome, telefone, aniversário)
 let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe só as dele)
 let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: só os dele; admin: equipe toda)
 let catalogoLinksGlobal = []; // 🗂️ links de catálogo criados (vendedor: os seus; admin: todos, com liga/desliga)
+let aceleradoresGlobal = []; // 💰 aceleradores de meta fechados (2% sobre vendas pagas acima da meta)
+
+// 💰 Regras do acelerador (configuráveis nos Parâmetros Globais)
+function configAcelerador() {
+    return {
+        pct: parseFloat(configuracoesGlobais.acelerador_pct) || 2,
+        inicio: configuracoesGlobais.acelerador_inicio || '2026-09-01'
+    };
+}
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -370,6 +379,9 @@ function switchTab(tabId) {
     if (tabId === 'clientes') { renderizarClientes(); }
     if (tabId === 'gastos' && !document.getElementById('g-data').value) { document.getElementById('g-data').valueAsDate = new Date(); document.getElementById('c-data').valueAsDate = new Date(); }
     if (tabId === 'vendas' && !document.getElementById('v-data').value) { document.getElementById('v-data').valueAsDate = new Date(); document.getElementById('e-data').valueAsDate = new Date(); }
+
+    // 📜 Cada aba começa do topo: o scroll de uma tela não "vaza" pra próxima
+    window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function toggleVendasTab(tab) {
@@ -594,6 +606,7 @@ async function sincronizarDadosUnico() {
             conquistasGlobal = dados.conquistas || [];
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
+            aceleradoresGlobal = dados.aceleradores || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -4634,6 +4647,21 @@ function salvarEdicaoVenda() {
         }); 
 }
 
+// 💰 Admin confirma que pagou o acelerador (mesmo ciclo do repasse de comissão)
+function acertarAcelerador(idAcel, nomeVend, valorTxt) {
+    abrirConfirmacao("Acertar Acelerador?", `Confirma que você pagou ${valorTxt} de acelerador para ${nomeVend}? Isso marca como PAGO e some da lista de pendências.`, "💰", "#15803d", "#14532d", "✔️ Sim, paguei", () => {
+        mostrarLoading("Registrando acerto...");
+        fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'acertar_acelerador', usuario: usuarioLogado, id_acelerador: idAcel }) })
+            .then(r => r.json())
+            .then(res => {
+                if (res.sucesso) { mostrarAlerta("Acertado!", `Acelerador de ${nomeVend} marcado como pago.`, "success"); sincronizarDadosUnico(); }
+                else mostrarAlerta("Erro", res.erro || "Falha ao registrar.", "error");
+            })
+            .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+            .finally(() => ocultarLoading());
+    });
+}
+
 // 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
 function estatisticasVisitasCatalogo(nomeVendedor) {
     const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
@@ -4904,7 +4932,8 @@ function renderizarDashboard() {
         let listaProd = arrProd.length ? arrProd.map((p, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${p.nome}</span><strong style="color:var(--primary-dark); font-size:0.8rem;">${p.qtd} un</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
         let listaCli = arrCli.length ? arrCli.map((c, i) => `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #e5e7eb; padding:5px 0;"><span style="font-size:0.8rem;">#${i+1} ${c.nome}</span><strong style="color:#b45309; font-size:0.8rem;">${fmt(c.val)}</strong></div>`).join('') : "<p style='color:#999; font-size:0.75rem;'>Sem dados.</p>";
 
-        // 🎯 Meta do mês: barra de progresso motivacional (só aparece se a Diretoria definiu meta pro vendedor)
+        // 🎯 CENTRAL DE METAS: barra da meta + "areia do tempo" + acelerador de 2% (vendas pagas
+        // acima da meta) + semana — tudo num card só, falando em português, sem gráfico difícil
         let htmlMeta = '';
         const meuCadastro = usuariosGlobal.find(u => String(u.usuario).toLowerCase().trim() === usuarioLogado.toLowerCase().trim());
         const minhaMeta = meuCadastro ? (parseFloat(meuCadastro.meta_mensal) || 0) : 0;
@@ -4912,6 +4941,79 @@ function renderizarDashboard() {
             const pctMeta = Math.min(100, (tVend / minhaMeta) * 100);
             const bateu = tVend >= minhaMeta;
             const faltam = Math.max(0, minhaMeta - tVend);
+            const acel = configAcelerador();
+            const hojeMeta = new Date();
+            const hojeIsoMeta = hojeMeta.toISOString().split('T')[0];
+            const ehMesCorrenteMeta = (parseInt(fM) === hojeMeta.getMonth() + 1 && parseInt(fA) === hojeMeta.getFullYear());
+            const aceleradorLigado = hojeIsoMeta >= acel.inicio;
+
+            // ⏳ Areia do tempo: quanto do mês já escorreu (só faz sentido olhando o mês atual)
+            let htmlTempo = '', fraseCorrida = '';
+            if (ehMesCorrenteMeta) {
+                const diasNoMesMeta = new Date(hojeMeta.getFullYear(), hojeMeta.getMonth() + 1, 0).getDate();
+                const diasFaltam = diasNoMesMeta - hojeMeta.getDate();
+                const pctTempo = (hojeMeta.getDate() / diasNoMesMeta) * 100;
+                htmlTempo = `
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <div style="flex:1; background:#f3f4f6; border-radius:20px; height:8px; overflow:hidden;">
+                            <div style="width:${pctTempo.toFixed(1)}%; height:100%; border-radius:20px; background:linear-gradient(90deg,#d1a054,#b45309);"></div>
+                        </div>
+                        <span style="font-size:0.62rem; font-weight:800; color:#92400e; white-space:nowrap;">⏳ ${diasFaltam === 0 ? 'ÚLTIMO DIA!' : `Faltam ${diasFaltam} dia${diasFaltam > 1 ? 's' : ''}`}</span>
+                    </div>`;
+                if (bateu) fraseCorrida = aceleradorLigado ? `🏆 Meta batida! Agora cada venda PAGA vale +${acel.pct}% de comissão — lucro puro!` : `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — você é incrível!`;
+                else if (pctMeta >= pctTempo) fraseCorrida = `🚀 Você está NA FRENTE do tempo — mantém o ritmo que a meta cai!`;
+                else fraseCorrida = `🔥 O tempo tá correndo na sua frente — faltam ${fmt(faltam)}, bora virar o jogo!`;
+            } else {
+                fraseCorrida = bateu ? `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)}!` : `${fmt(tVend)} de ${fmt(minhaMeta)} nesse período.`;
+            }
+
+            // 💰 Acelerador: só vendas PAGAS acima da meta contam (dinheiro que JÁ entrou no caixa)
+            let htmlAcelerador = '';
+            if (ehMesCorrenteMeta) {
+                if (!aceleradorLigado) {
+                    const iniBr = acel.inicio.split('-').reverse().slice(0, 2).join('/');
+                    htmlAcelerador = `<p style="font-size:0.68rem; color:#7c3aed; margin:8px 0 0; font-weight:800; text-align:center; background:#f5f3ff; border:1px dashed #c4b5fd; border-radius:8px; padding:7px;">🚀 NOVIDADE a partir de ${iniBr}: meta batida = +${acel.pct}% de comissão em cada venda paga acima dela!</p>`;
+                } else {
+                    const pfxMesAtual = `${hojeMeta.getFullYear()}-${String(hojeMeta.getMonth() + 1).padStart(2, '0')}`;
+                    const pagasMes = vendasGlobal
+                        .filter(v => String(v.socio).toLowerCase().trim() === usuarioLogado.toLowerCase().trim() && v.dataVendaIso && v.dataVendaIso.startsWith(pfxMesAtual) && v.status === 'Pago')
+                        .reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+                    const ganhoAcel = Math.max(0, pagasMes - minhaMeta) * acel.pct / 100;
+                    if (ganhoAcel > 0) {
+                        htmlAcelerador = `<p style="font-size:0.72rem; color:#15803d; margin:8px 0 0; font-weight:900; text-align:center; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px;">💰 ACELERADOR: você já garantiu <span style="font-size:0.85rem;">+${fmt(ganhoAcel)}</span> extras este mês!</p>`;
+                    } else if (bateu && pagasMes < minhaMeta) {
+                        htmlAcelerador = `<p style="font-size:0.66rem; color:#b45309; margin:8px 0 0; font-weight:700; text-align:center;">💰 O acelerador conta só vendas PAGAS (${fmt(pagasMes)} até agora) — cobre os fiados pra liberar o extra!</p>`;
+                    } else {
+                        htmlAcelerador = `<p style="font-size:0.66rem; color:#888; margin:8px 0 0; font-weight:700; text-align:center;">💰 Passou da meta? Cada venda paga acima dela te dá +${acel.pct}% de comissão extra.</p>`;
+                    }
+                }
+            }
+
+            // 🏅 Semana: meta semanal automática (mensal ÷ 4,3) — bateu, ganha medalha na Sala de Troféus
+            let htmlSemana = '';
+            if (ehMesCorrenteMeta && aceleradorLigado) {
+                const metaSemanal = minhaMeta / 4.3;
+                const dSeg = new Date(); dSeg.setDate(dSeg.getDate() - ((dSeg.getDay() + 6) % 7));
+                const segundaIso = dSeg.toISOString().split('T')[0];
+                const vendSemana = minhasVendasHist.filter(v => v.status !== 'Presente' && v.dataVendaIso >= segundaIso).reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+                const pctSem = Math.min(100, (vendSemana / metaSemanal) * 100);
+                htmlSemana = `
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <span style="font-size:0.62rem; font-weight:800; color:${pctSem >= 100 ? '#15803d' : '#666'}; white-space:nowrap;">🏅 Semana</span>
+                        <div style="flex:1; background:#f3f4f6; border-radius:20px; height:8px; overflow:hidden;">
+                            <div style="width:${pctSem.toFixed(1)}%; height:100%; border-radius:20px; background:${pctSem >= 100 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#94a3b8,#64748b)'};"></div>
+                        </div>
+                        <span style="font-size:0.62rem; font-weight:800; color:${pctSem >= 100 ? '#15803d' : '#666'}; white-space:nowrap;">${pctSem >= 100 ? 'FECHADA! 🏅' : fmt(vendSemana) + ' de ' + fmt(metaSemanal)}</span>
+                    </div>`;
+            }
+
+            // 💰 Aceleradores fechados (meses anteriores): aguardando acerto ou já pagos
+            const meusAceleradores = aceleradoresGlobal.filter(a => normalizarNomeBusca(a.vendedor) === normalizarNomeBusca(usuarioLogado));
+            const htmlAcelFechados = meusAceleradores.length ? meusAceleradores.slice(0, 3).map(a => {
+                const mesBr = a.mes.split('-').reverse().join('/');
+                return `<p style="font-size:0.66rem; margin:6px 0 0; text-align:center; color:${a.acertado ? '#15803d' : '#b45309'}; font-weight:700;">💰 Acelerador ${mesBr}: <b>${fmt(a.valor)}</b> ${a.acertado ? '— pago ✅' : '— ⏳ aguardando acerto'}</p>`;
+            }).join('') : '';
+
             htmlMeta = `
                 <div class="dash-card" style="grid-column: span 2; padding: 18px; border: 2px solid ${bateu ? '#22c55e' : '#fbbf24'}; background: ${bateu ? '#f0fdf4' : '#fffbeb'};">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -4921,9 +5023,11 @@ function renderizarDashboard() {
                     <div style="background:#e5e7eb; border-radius:20px; height:16px; overflow:hidden;">
                         <div style="width:${pctMeta.toFixed(1)}%; height:100%; border-radius:20px; background:${bateu ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#fbbf24,#f59e0b)'}; transition:width 0.6s ease;"></div>
                     </div>
-                    <p style="font-size:0.72rem; color:${bateu ? '#15803d' : '#92400e'}; margin:8px 0 0 0; font-weight:700; text-align:center;">
-                        ${bateu ? `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — você é incrível!` : `${fmt(tVend)} de ${fmt(minhaMeta)} — faltam ${fmt(faltam)}, você consegue! 🔥`}
-                    </p>
+                    ${htmlTempo}
+                    ${htmlSemana}
+                    <p style="font-size:0.72rem; color:${bateu ? '#15803d' : '#92400e'}; margin:8px 0 0 0; font-weight:700; text-align:center;">${fraseCorrida}</p>
+                    ${htmlAcelerador}
+                    ${htmlAcelFechados}
                 </div>`;
         }
 
@@ -5439,6 +5543,43 @@ function renderizarDashboard() {
             </div>`;
     }
 
+    // 💰 ACELERADORES (visão da Diretoria): pendentes de acerto + prévia acumulando no mês corrente
+    let htmlAceleradoresAdmin = '';
+    {
+        const acelCfgAdm = configAcelerador();
+        const hojeAdm = new Date();
+        const hojeIsoAdm = hojeAdm.toISOString().split('T')[0];
+        const pendentesAcel = aceleradoresGlobal.filter(a => !a.acertado);
+        const linhasPend = pendentesAcel.map(a => `
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #fde68a; padding:7px 0; gap:8px;">
+                <span style="font-size:0.78rem; font-weight:700; color:#78350f;">👤 ${a.vendedor} <span style="font-size:0.6rem; color:#b45309;">· ${a.mes.split('-').reverse().join('/')}</span></span>
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <b style="font-size:0.85rem; color:#b45309;">${fmt(a.valor)}</b>
+                    <button onclick="acertarAcelerador(${a.linha}, '${a.vendedor}', '${fmt(a.valor).replace(/'/g, '')}')" style="background:#e8f5e9; color:#166534; border:1px solid #bbf7d0; border-radius:8px; padding:6px 12px; font-size:0.65rem; font-weight:800; cursor:pointer;">✔️ Acertei</button>
+                </span>
+            </div>`).join('');
+
+        // Prévia do mês corrente (se o programa já começou): quanto cada um está acumulando
+        let linhasPrevia = '';
+        if (hojeIsoAdm >= acelCfgAdm.inicio) {
+            const pfxMesAdm = `${hojeAdm.getFullYear()}-${String(hojeAdm.getMonth() + 1).padStart(2, '0')}`;
+            linhasPrevia = usuariosGlobal.filter(u => u.cargo === 'Vendedor' && parseFloat(u.meta_mensal) > 0).map(u => {
+                const pagasU = vendasGlobal.filter(v => normalizarNomeBusca(v.socio) === normalizarNomeBusca(u.usuario) && v.dataVendaIso && v.dataVendaIso.startsWith(pfxMesAdm) && v.status === 'Pago').reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+                const ganhoU = Math.max(0, pagasU - parseFloat(u.meta_mensal)) * acelCfgAdm.pct / 100;
+                return ganhoU > 0 ? `<span style="display:inline-block; background:#fff; border:1px solid #fde68a; border-radius:14px; padding:3px 10px; font-size:0.62rem; font-weight:800; color:#92400e; margin:0 4px 4px 0;">${u.usuario}: +${fmt(ganhoU)}</span>` : '';
+            }).filter(Boolean).join('');
+        }
+
+        if (linhasPend || linhasPrevia) {
+            htmlAceleradoresAdmin = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fffbeb; border: 1px solid #fde68a;">
+                <h3 style="color:#92400e; font-size:0.8rem; font-weight:900; margin:0 0 8px 0; border-bottom:1px dashed #fde68a; padding-bottom:6px;">💰 ACELERADORES DE META (+${acelCfgAdm.pct}% s/ vendas pagas acima da meta)</h3>
+                ${linhasPend || '<p style="font-size:0.7rem; color:#a16207; margin:4px 0; text-align:center;">Nenhum acelerador pendente de acerto. ✅</p>'}
+                ${linhasPrevia ? `<p style="font-size:0.62rem; color:#a16207; margin:8px 0 4px; font-weight:800;">📈 Acumulando neste mês (fecha dia 1º):</p><div>${linhasPrevia}</div>` : ''}
+            </div>`;
+        }
+    }
+
     container.innerHTML = `
         <div class="dash-grid">
             <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
@@ -5470,6 +5611,7 @@ function renderizarDashboard() {
                 <p style="font-size:0.6rem; color:#888; margin-top:3px;">Custo do incentivo de Estoque Parado no período</p>
             </div>
 
+            ${htmlAceleradoresAdmin}
             ${htmlVisitasCatAdmin}
 
             <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
@@ -6019,6 +6161,7 @@ function mostrarFestaConquista(novas) {
 function descricaoConquista(badgeId) {
     const mapa = {
         guia_completo: 'Leu o Guia do Vendedor da primeira à última página. Formação completa — agora é vender com conhecimento! 🎓',
+        semana_meta: 'Bateu a meta da semana (a meta do mês dividida em pedacinhos semanais). Constância que enche o bolso!',
         itens10: 'Vendeu 10 ou mais itens dentro de um mesmo mês.',
         itens20: 'Vendeu 20 ou mais itens dentro de um mesmo mês. Ritmo acelerado!',
         itens50: 'Vendeu 50 ou mais itens num único mês. Máquina de vendas!',
@@ -6218,6 +6361,7 @@ async function sincronizarDadosSilencioso() {
             conquistasGlobal = dados.conquistas || [];
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
+            aceleradoresGlobal = dados.aceleradores || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -6435,6 +6579,16 @@ const PAGINAS_GUIA = [
 <p style="margin-bottom:6px;">🎖️ <b>Patente de carreira</b>: Bronze → Prata → Ouro → Diamante. Só sobe, nunca desce.</p>
 <p style="margin:0;">🎯 <b>Radar de Recompra</b>: quem comprou há 45+ dias está com o frasco acabando — chame no WhatsApp!</p>` },
 
+{ id: 'metas', emoji: '💰', titulo: 'Metas que PAGAM (o acelerador)', html: `
+<div style="background:#f0fdf4; border:2px solid #22c55e; border-radius:12px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-weight:800; color:#15803d; font-size:0.85rem;">🎉 Bater a meta não é só bonito — vira DINHEIRO EXTRA no seu bolso!</p>
+</div>
+<p style="margin-bottom:8px;"><b>A regra é simples:</b> tudo que você vender <b>ACIMA da sua meta do mês</b> ganha comissão extra (o "acelerador"). Exemplo: meta de R$ 3.000 e você vendeu R$ 4.000? Esses R$ 1.000 a mais pagam a sua comissão normal <b>+ o acelerador em cima</b>.</p>
+<p style="margin-bottom:8px;">⚠️ <b>Um detalhe importante:</b> só contam vendas <b>PAGAS</b> — fiado que o cliente ainda não pagou não entra. Ou seja: <b>cobrar seus clientes aumenta seu bônus!</b> Mais um motivo pra usar o botão 📲.</p>
+<p style="margin-bottom:8px;">🏅 <b>Meta da semana:</b> o app divide sua meta do mês em pedacinhos semanais. Bateu a semana? Medalha na sua Sala de Troféus + festa na tela!</p>
+<p style="margin-bottom:8px;">⏳ <b>No Painel</b>, o cartão da meta mostra a corrida: sua barra verde contra a barrinha do tempo. Se a verde está na frente, você ganha. E quando o acelerador começar a render, aparece: <b>"💰 você já garantiu +R$ 23,00 extras este mês!"</b></p>
+<p style="margin:0;">💵 <b>Como recebe:</b> todo dia 1º o app fecha a conta do mês anterior e a Diretoria paga junto com o acerto normal das comissões. Você acompanha no Painel: "⏳ aguardando acerto" → "pago ✅".</p>` },
+
 { id: 'dicas', emoji: '✨', titulo: 'Últimos truques (você se formou! 🎓)', html: `
 <p style="margin-bottom:6px;">🌙 <b>Modo escuro</b>: o botãozinho da lua no topo. Só muda no seu aparelho.</p>
 <p style="margin-bottom:6px;">✍️ Em campos com sugestões, <b>tocar já seleciona o texto</b> — digite por cima, sem apagar.</p>
@@ -6523,7 +6677,34 @@ function verificarTutorialUsuario() {
     const jaViu = localStorage.getItem('novera_tutorial_visto_v2_' + usuarioLogado);
     if (!jaViu) {
         setTimeout(() => { abrirGuiaVendedor(); }, 1000);
+        return; // quem está vendo o guia agora já aprende o acelerador lá dentro
     }
+
+    // 💰 Novidade do acelerador: aviso único pra quem já tinha lido o guia antigo
+    if (!localStorage.getItem('novera_novidade_acelerador_' + usuarioLogado)) {
+        setTimeout(() => { mostrarNovidadeAcelerador(); }, 1200);
+    }
+}
+
+// 🎉 Aviso de uma vez só: "agora meta batida PAGA!" — a regra em 3 linhas + atalho pra lição
+function mostrarNovidadeAcelerador() {
+    localStorage.setItem('novera_novidade_acelerador_' + usuarioLogado, 'sim');
+    const acelNov = configAcelerador();
+    const iniBrNov = acelNov.inicio.split('-').reverse().join('/');
+    const antigo = document.getElementById('modal-novidade-acelerador');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-novidade-acelerador';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.3s ease;';
+    overlay.innerHTML = `
+        <div style="background:linear-gradient(160deg, #ffffff, #f0fdf4); border-radius:24px; max-width:350px; width:100%; padding:26px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #86efac;">
+            <div style="font-size:2.6rem;">💰🎉</div>
+            <h3 style="margin:8px 0 4px; color:#15803d; font-size:1.1rem; font-weight:900;">NOVIDADE: Meta batida agora PAGA!</h3>
+            <p style="margin:0 0 12px; color:#166534; font-size:0.78rem; line-height:1.6;">A partir de <b>${iniBrNov}</b>, tudo que você vender <b>acima da sua meta do mês</b> ganha <b>+${acelNov.pct}% de comissão extra</b> (contando as vendas pagas). E meta da semana batida = medalha 🏅!</p>
+            <button class="btn-salvar" style="margin:0 0 8px 0; background:#15803d; box-shadow:0 4px 0 #14532d;" onclick="document.getElementById('modal-novidade-acelerador').remove(); abrirGuiaVendedor('metas');">📖 Entender em 1 minuto</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-novidade-acelerador').remove();">Fechar</button>
+        </div>`;
+    document.body.appendChild(overlay);
 }
 
 function fecharTutorialUsuario() {
@@ -7850,6 +8031,8 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
     if(document.getElementById('cfg-telefone-loja')) document.getElementById('cfg-telefone-loja').value = configuracoesGlobais.telefone_loja || '';
+    if(document.getElementById('cfg-acelerador-pct')) document.getElementById('cfg-acelerador-pct').value = configuracoesGlobais.acelerador_pct || 2;
+    if(document.getElementById('cfg-acelerador-inicio')) document.getElementById('cfg-acelerador-inicio').value = configuracoesGlobais.acelerador_inicio || '2026-09-01';
 
     // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
     if(document.getElementById('cfg-marca-nome')) document.getElementById('cfg-marca-nome').value = configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome;
@@ -7894,6 +8077,8 @@ function salvarParametrosSistema() {
                 categorias_compras: cats,
                 locais_estoque: locais,
                 telefone_loja: (document.getElementById('cfg-telefone-loja') ? document.getElementById('cfg-telefone-loja').value.trim() : ''),
+                acelerador_pct: (document.getElementById('cfg-acelerador-pct') ? document.getElementById('cfg-acelerador-pct').value : '2'),
+                acelerador_inicio: (document.getElementById('cfg-acelerador-inicio') ? document.getElementById('cfg-acelerador-inicio').value : '2026-09-01'),
                 ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
             }
         })
