@@ -584,7 +584,7 @@
 
            <!-- NOVO: BOTÃO DE TUTORIAL -->
             <div class="section-title" style="margin-top: 10px;">👋 Precisa de Ajuda?</div>
-            <button class="btn-salvar" style="background: #fdf5f7; color: #966178; border: 1px solid #f3d8e2; box-shadow: none; margin-top:0; width:100%; margin-bottom: 20px;" onclick="document.getElementById('modal-tutorial').style.display='flex'">📖 Abrir Guia Rápido do Sistema</button>
+            <button class="btn-salvar" style="background: #fdf5f7; color: #966178; border: 1px solid #f3d8e2; box-shadow: none; margin-top:0; width:100%; margin-bottom: 20px;" onclick="abrirGuiaVendedor()">📖 Abrir Guia Rápido do Sistema</button>
 
             <!-- BOTÃO DE PARÂMETROS RESTRITO A ADMINS -->
             <button id="btn-abrir-parametros" class="btn-salvar" style="display: none; background: #fff; color: #b45309; border: 2px solid #b45309; box-shadow: none; margin-top: 15px; margin-bottom: 10px;" onclick="abrirModalParametros()">
@@ -1473,106 +1473,20 @@
         
         <div style="background: var(--primary-dark); color: #fff; padding: 25px 20px; text-align: center; position: relative;">
             <button onclick="fecharTutorialUsuario()" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.2); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: #fff; cursor: pointer;">×</button>
-            <span style="font-size: 3rem;">📖</span>
-            <h3 id="titulo-tutorial-nome" style="margin: 10px 0 0; font-family: 'Playfair Display', serif; font-size: 1.5rem;">Guia Rápido Novera</h3>
-            <p style="margin: 5px 0 0; font-size: 0.85rem; opacity: 0.85;">Tudo o que você precisa saber para decolar nas vendas!</p>
+            <span id="guia-emoji" style="font-size: 3rem;">📖</span>
+            <h3 id="titulo-tutorial-nome" style="margin: 10px 0 0; font-family: 'Playfair Display', serif; font-size: 1.4rem;">Guia Rápido Novera</h3>
+            <p id="guia-subtitulo" style="margin: 5px 0 0; font-size: 0.8rem; opacity: 0.85;">Uma lição de cada vez — no seu ritmo!</p>
         </div>
         
-        <div style="padding: 20px; max-height: 55vh; overflow-y: auto; color: var(--brand-dark); font-size: 0.85rem; line-height: 1.6;">
+        <div id="guia-conteudo" style="padding: 20px; max-height: 52vh; overflow-y: auto; color: var(--brand-dark); font-size: 0.85rem; line-height: 1.65;"></div>
 
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: var(--primary-dark); border-bottom: 2px solid #f3d8e2; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🧭 1. Se localizando no app</h4>
-                <p style="margin-bottom: 8px;">Sua barra de navegação, aqui embaixo da tela:</p>
-                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; justify-content:space-around; text-align:center; font-size:0.55rem; font-weight:800; color:#a1a1aa; text-transform:uppercase; margin-bottom:8px;">
-                    <span>🛒<br>Vendas</span><span>📦<br>Estoque</span><span>⏳<br>Maceração</span><span>📊<br>Painel</span><span>⋯<br>Mais</span>
-                </div>
-                <p style="margin-bottom: 8px;">O botão <b>⋯ Mais</b> guarda o resto: <b>🎁 Encomendas</b>, <b>👥 Clientes</b> e <b>💡 Sugerir</b>. O ícone colorido e maior mostra onde você está.</p>
-                <p style="margin-bottom: 0;">💡 Rolou muito a tela? Aparece uma <b>setinha roxa ⬆️</b> no canto — um toque e você volta pro topo.</p>
+        <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid var(--border-color);">
+            <div style="background:#f0e5ea; border-radius:20px; height:6px; overflow:hidden; margin-bottom:10px;"><div id="guia-barra" style="width:0%; height:100%; background:var(--primary-dark); border-radius:20px; transition:width 0.3s ease;"></div></div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button id="btn-guia-voltar" onclick="navegarGuia(-1)" style="flex:1; background:#fff; color:#966178; border:1px solid #f3d8e2; border-radius:10px; padding:12px; font-weight:800; font-size:0.8rem; cursor:pointer; font-family:'Montserrat',sans-serif;">◀ Voltar</button>
+                <span id="guia-contador" style="font-size:0.68rem; color:#999; font-weight:800; white-space:nowrap;">1 / 14</span>
+                <button id="btn-guia-avancar" onclick="navegarGuia(1)" class="btn-salvar" style="flex:2; margin:0; padding:12px; font-size:0.8rem;">Avançar ▶</button>
             </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #b45309; border-bottom: 2px solid #fde047; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🛒 2. Registrando uma Venda</h4>
-                <p style="margin-bottom: 8px;"><b>1º</b> Na aba <b>Vendas</b>, digite o nome do cliente (o app sugere os seus conforme você digita).</p>
-                <p style="margin-bottom: 8px;"><b>2º</b> Escolha o produto na lista — ela é organizada por tipo, e os símbolos ajudam: 🌸 feminino · 🔷 masculino · 🧸 infantil. Ou use o 📷 pra ler o QR Code da etiqueta!</p>
-                <p style="margin-bottom: 8px;"><b>3º</b> Em <b>Status PG</b>: <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PAGO</span> se pagou na hora, <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PENDENTE</span> se ficou fiado.</p>
-                <p style="margin-bottom: 8px;"><b>4º</b> Confira o local de retirada e a quantidade, e toque em:</p>
-                <div style="background:#e3f2fd; color:#1565c0; border:1px dashed #90caf9; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">➕ INSERIR NO CARRINHO</div>
-                <p style="margin-bottom: 8px;"><b>5º</b> Quer mais itens? Repita. No final:</p>
-                <div style="background:#2e7d32; color:#fff; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">✅ FINALIZAR VENDA COMPLETA</div>
-                <p style="margin-bottom: 0;">🔥 <b>Viu produto com foguinho e "+X%" na lista?</b> É <b>comissão extra</b> naquele produto HOJE — venda ele e ganhe mais!</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #991b1b; border-bottom: 2px solid #fca5a5; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">💲 3. Fiado, Cobrança e Recibo (com WhatsApp!)</h4>
-                <p style="margin-bottom: 8px;">Cada venda em aberto no seu histórico tem esses botões:</p>
-                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; gap:8px; justify-content:center; margin-bottom:8px;">
-                    <span style="background:#ffedd5; border:1px solid #fde047; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">🔔</span>
-                    <span style="background:#dcfce7; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">📲</span>
-                    <span style="background:#e8f5e9; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">💲</span>
-                    <span style="background:#fff; border:1px solid #eee; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">✏️</span>
-                </div>
-                <p style="margin-bottom: 4px;">🔔 <b>Sininho</b> = gera a imagem bonita de cobrança (dá pra enviar a imagem ou o texto direto no WhatsApp).</p>
-                <p style="margin-bottom: 4px;">📲 <b>Zapzinho</b> = abre o WhatsApp do cliente com a cobrança escrita e pronta. Se faltar o telefone, o app pede na hora e já guarda.</p>
-                <p style="margin-bottom: 8px;">💲 <b>Cifrão</b> = o cliente pagou! Dá baixa na hora — e o app já oferece gerar o recibo em seguida, sem procurar nada.</p>
-                <p style="margin-bottom: 0;">📄 <b>Docs &amp; Lotes</b> (no topo de Vendas): recibos e cobranças de <b>várias compras de uma vez</b> — nos seletores, é só digitar que a lista filtra sozinha.</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #166534; border-bottom: 2px solid #bbf7d0; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📦 4. Estoque: achando o produto certo</h4>
-                <p style="margin-bottom: 8px;">Cada produto mostra o que interessa pra vender:</p>
-                <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.78rem; margin-bottom:8px;">
-                    <span style="background:var(--primary-dark); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.65rem;">N034</span> <b>Perfume Boss Bottled 40ml</b>
-                    <span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">MASCULINO</span>
-                    <span style="background:#f6ebef; color:#a86f88; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">🌳 AMADEIRADO</span>
-                    <br><span style="color:#166534; font-weight:800;">Disponível: 9 un</span> · <span style="color:#888;">📍 Sede: 6 · Cléo: 3</span>
-                </div>
-                <p style="margin-bottom: 4px;">🌳 <b>Cliente pediu "um amadeirado"? Um "doce"?</b> Use o filtro <b>"Todas as Famílias Olfativas"</b> ou digite a família na busca — aparecem só os daquele perfil, com preço e onde estão.</p>
-                <p style="margin-bottom: 4px;">⏳ <b>"Chega em X dias"</b> = acabou, mas a fábrica já está produzindo. Use isso pra vender: "te reservo pra semana que vem?"</p>
-                <p style="margin-bottom: 8px;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>
-                <p style="margin-bottom: 0;">🔗 <b>SEU CATÁLOGO ONLINE (arma secreta!):</b> no topo do Estoque, toque em <b>📖 Catálogo → Criar Link Online</b>. Gera um link SEU pra mandar aos clientes (ou o QR pra imprimir): eles veem a vitrine com preços sempre atualizados, tocam em "💬 Quero esse!" e caem direto no <b>seu</b> WhatsApp com o pedido pronto. As visitas aparecem no seu Painel!</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: var(--primary-dark); border-bottom: 2px solid #f3d8e2; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">🎁 5. Encomendas: nunca perca uma venda</h4>
-                <p style="margin-bottom: 8px;"><b>Produto esgotado e o cliente quer?</b> Vá em <b>⋯ Mais → Encomendas</b> e anote o pedido (a lista só mostra o que zerou).</p>
-                <p style="margin-bottom: 8px;">✨ <b>A mágica:</b> quando o estoque chegar, <b>a venda é lançada sozinha no seu nome</b>, com a sua comissão — você nem precisa lembrar! A encomenda some da lista e vira uma venda Pendente pra você cobrar.</p>
-                <p style="margin-bottom: 0;">Você vê só as suas encomendas; as das colegas são delas.</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #7c3aed; border-bottom: 2px solid #ddd6fe; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">👥 6. Seus Clientes (sua carteira!)</h4>
-                <p style="margin-bottom: 4px;">Em <b>⋯ Mais → Clientes</b> fica a sua carteira. Todo cliente que compra com você <b>entra sozinho</b>.</p>
-                <p style="margin-bottom: 4px;">📱 <b>Cadastre o WhatsApp</b> de cada um: é isso que libera a cobrança em 1 toque no botão 📲.</p>
-                <p style="margin-bottom: 0;">🎂 <b>Cadastre o aniversário</b>: o sistema avisa no dia — desculpa perfeita pra oferecer um perfume de presente rsrs.</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #0369a1; border-bottom: 2px solid #bae6fd; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">📊 7. Painel: seu dinheiro e suas conquistas</h4>
-                <p style="margin-bottom: 8px;"><b>Suas comissões em 3 estados:</b> <span style="color:#b45309; font-weight:800;">Futura</span> (cliente ainda não pagou) → <span style="color:#b91c1c; font-weight:800;">Liberada</span> (cliente pagou, falta a empresa repassar) → <span style="color:#15803d; font-weight:800;">Recebida</span> (já caiu pra você!).</p>
-                <p style="margin-bottom: 6px;"><b>🎯 Sua meta do mês</b> com barra de progresso:</p>
-                <div style="background:#e5e7eb; border-radius:20px; height:14px; overflow:hidden; margin-bottom:8px;"><div style="width:63%; height:100%; border-radius:20px; background:linear-gradient(90deg,#fbbf24,#f59e0b);"></div></div>
-                <p style="margin-bottom: 6px;"><b>🔥 Sequência:</b> venda todo dia e não deixe a corrente quebrar! <b>🏆 Troféus:</b> conquistas viram festa na tela e ficam pra sempre na sua:</p>
-                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:8px 10px; display:inline-flex; align-items:center; gap:8px; margin-bottom:8px;"><span style="font-size:1.4rem;">🏛️</span><b style="color:#92400e; font-size:0.78rem;">Minha Sala de Troféus</b><span style="font-size:0.65rem; color:#b45309;">(toque pra ver os detalhes)</span></div>
-                <p style="margin-bottom: 0;"><b>🎖️ Patente de carreira:</b> Bronze → Prata → Ouro → Diamante. Só sobe, nunca desce. E o <b>🎯 Radar de Recompra</b> te mostra quem comprou há 45+ dias — o frasco está acabando, chame no 💬!</p>
-            </div>
-
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #64748b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 10px; font-size: 1rem;">✨ 8. Truques rápidos</h4>
-                <p style="margin-bottom: 4px;">🌙 <b>Modo escuro:</b> o botãozinho da lua no topo. Só muda no seu aparelho.</p>
-                <p style="margin-bottom: 4px;">⏳ <b>Maceração:</b> veja o que está sendo produzido e quando fica pronto — combine chegadas com clientes.</p>
-                <p style="margin-bottom: 4px;">💡 <b>Sugerir:</b> cliente pediu algo que nem existe? Mande a sugestão pra fábrica em ⋯ Mais → Sugerir.</p>
-                <p style="margin-bottom: 0;">✍️ Em campos com sugestões, <b>tocar já seleciona o texto</b> — é só digitar por cima, sem apagar.</p>
-            </div>
-
-            <!-- O AVISO DE COMO REABRIR O MANUAL -->
-            <div style="margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 8px; border-left: 4px solid #94a3b8;">
-                <p style="margin: 0; font-size: 0.8rem; color: #475569;"><b>💡 Esqueceu alguma coisa?</b> Releia este manual quando quiser: ícone de <b>Configurações (⚙️)</b> no topo → <b>Abrir Guia Rápido</b>.</p>
-            </div>
-
-        </div>
-        
-        <div style="padding: 15px 20px; background: #fafafa; border-top: 1px solid var(--border-color); text-align: center;">
-            <button class="btn-salvar" style="margin: 0; width: 100%; box-shadow: 0 4px 10px rgba(150, 97, 120, 0.2);" onclick="fecharTutorialUsuario()">Entendi, vamos vender! 🚀</button>
         </div>
 
     </div>

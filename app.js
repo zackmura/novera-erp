@@ -6009,6 +6009,7 @@ function mostrarFestaConquista(novas) {
 // 📖 O "porquê" de cada troféu — o critério que a vendedora cumpriu pra ganhar
 function descricaoConquista(badgeId) {
     const mapa = {
+        guia_completo: 'Leu o Guia do Vendedor da primeira à última página. Formação completa — agora é vender com conhecimento! 🎓',
         itens10: 'Vendeu 10 ou mais itens dentro de um mesmo mês.',
         itens20: 'Vendeu 20 ou mais itens dentro de um mesmo mês. Ritmo acelerado!',
         itens50: 'Vendeu 50 ou mais itens num único mês. Máquina de vendas!',
@@ -6273,30 +6274,255 @@ async function sincronizarDadosSilencioso() {
 // ==========================================
 // MÓDULO: ONBOARDING / TUTORIAL INTELIGENTE
 // ==========================================
+// ==========================================
+// 📖 GUIA DO VENDEDOR PAGINADO: uma lição por página, na linguagem de quem
+// nunca vendeu nada na vida — o "treinamento de motorista" do app.
+// Cada aba tem um botão ❓ que abre o guia direto na lição daquela tela.
+// ==========================================
+const PAGINAS_GUIA = [
+{ id: 'inicio', emoji: '👋', titulo: 'Bem-vindo(a)!', html: `
+<p style="margin-bottom:10px;"><b>Este aplicativo é a sua loja no bolso.</b> Com ele você vende perfumes e cosméticos, controla o que tem pra entregar, cobra clientes pelo WhatsApp e acompanha quanto vai receber de comissão — tudo pelo celular.</p>
+<p style="margin-bottom:10px;">🧡 <b>Você não precisa ser vendedor profissional.</b> O app foi feito pra te guiar: ele avisa o que está acabando, monta cobranças prontas, cria seu catálogo pra divulgar e até lança venda sozinho quando uma encomenda sua fica pronta.</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-size:0.78rem;"><b>Como usar este guia:</b> leia uma página de cada vez tocando em <b>Avançar ▶</b>. Sem pressa — ele fica salvo e você pode voltar sempre. E em cada tela do app existe um botãozinho <b>❓ Como usar esta tela</b> que abre a lição certa na hora da dúvida!</p>
+</div>
+<p style="margin:0;">Vamos começar? 🚀</p>` },
+
+{ id: 'navegacao', emoji: '🧭', titulo: 'Se localizando no app', html: `
+<p style="margin-bottom:8px;">Tudo acontece pela <b>barra de baixo</b> da tela:</p>
+<div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; justify-content:space-around; text-align:center; font-size:0.55rem; font-weight:800; color:#a1a1aa; text-transform:uppercase; margin-bottom:10px;">
+    <span>🛒<br>Vendas</span><span>📦<br>Estoque</span><span>⏳<br>Maceração</span><span>📊<br>Painel</span><span>⋯<br>Mais</span>
+</div>
+<p style="margin-bottom:6px;">• <b>🛒 Vendas</b> — onde você registra o que vendeu e cobra os clientes.</p>
+<p style="margin-bottom:6px;">• <b>📦 Estoque</b> — o que existe pra vender AGORA (seu, da Sede e das colegas).</p>
+<p style="margin-bottom:6px;">• <b>⏳ Maceração</b> — o que a fábrica está produzindo e quando fica pronto.</p>
+<p style="margin-bottom:6px;">• <b>📊 Painel</b> — seu dinheiro: vendas, comissões, metas e troféus.</p>
+<p style="margin-bottom:10px;">• <b>⋯ Mais</b> — guarda o resto: <b>🎁 Encomendas</b>, <b>👥 Clientes</b> e <b>💡 Sugerir</b>.</p>
+<p style="margin:0;">💡 Rolou a tela demais? Aparece uma <b>setinha ⬆️</b> no canto — um toque e você volta pro topo.</p>` },
+
+{ id: 'estoque', emoji: '📦', titulo: 'Consultando o Estoque', html: `
+<p style="margin-bottom:8px;">A aba <b>📦 Estoque</b> mostra TUDO que a empresa tem pronto — não só o que está com você! Cada produto aparece assim:</p>
+<div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.78rem; margin-bottom:10px;">
+    <span style="background:var(--primary-dark); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.65rem;">N034</span> <b>Perfume Boss Bottled 40ml</b>
+    <span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">MASCULINO</span>
+    <span style="background:#f6ebef; color:#a86f88; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800;">🌳 AMADEIRADO</span>
+    <br><span style="color:#166534; font-weight:800;">Disponível: 9 un</span> · <span style="color:#888;">📍 Sede: 6 · Cléo: 3</span>
+</div>
+<p style="margin-bottom:6px;">• <b>N034</b> é o código do produto (também está na etiqueta do frasco).</p>
+<p style="margin-bottom:6px;">• <b>📍 Sede: 6 · Cléo: 3</b> mostra ONDE está cada unidade. Isso importa muito — você vai ver na lição da venda!</p>
+<p style="margin-bottom:6px;">• <b>🌳 Família olfativa</b>: cliente pediu "um doce"? "um amadeirado"? Use o filtro <b>Todas as Famílias</b> no topo e apareça só o perfil que ela quer.</p>
+<p style="margin-bottom:6px;">• <b>⏳ "Chega em X dias"</b>: acabou, mas a fábrica já está fazendo. Use pra vender: "te reservo pra semana que vem?"</p>
+<p style="margin:0;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>` },
+
+{ id: 'vender', emoji: '🛒', titulo: 'Registrando uma Venda', html: `
+<p style="margin-bottom:10px;">Vendeu? Registre NA HORA — é o registro que garante sua comissão. Passo a passo:</p>
+<p style="margin-bottom:8px;"><b>1º</b> Na aba <b>Vendas</b>, digite o nome do cliente (o app sugere os seus).</p>
+<p style="margin-bottom:8px;"><b>2º</b> Escolha o produto na lista (🌸 feminino · 🔷 masculino · 🧸 infantil) ou toque no 📷 e aponte pro QR Code da etiqueta.</p>
+<p style="margin-bottom:8px;"><b>3º</b> Em <b>Status PG</b>: <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PAGO</span> se recebeu na hora · <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PENDENTE</span> se ficou fiado.</p>
+<p style="margin-bottom:8px;"><b>4º</b> Escolha <b>de qual local</b> sai o produto e confira a quantidade. Depois:</p>
+<div style="background:#e3f2fd; color:#1565c0; border:1px dashed #90caf9; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">➕ INSERIR NO CARRINHO</div>
+<p style="margin-bottom:8px;"><b>5º</b> Cliente quer mais coisas? Repita. No final, um toque só:</p>
+<div style="background:#2e7d32; color:#fff; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:10px;">✅ FINALIZAR VENDA COMPLETA</div>
+<p style="margin:0;">🔥 <b>Produto com foguinho e "+X%" na lista?</b> Comissão EXTRA hoje. 💸 <b>Com "PROMO -X%"?</b> Tem desconto ativo — cobre o preço promocional!</p>` },
+
+{ id: 'vendersede', emoji: '🚚', titulo: 'Venda até o que NÃO está com você!', html: `
+<div style="background:#fef3c7; border:2px solid #fbbf24; border-radius:12px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-weight:800; color:#92400e; font-size:0.85rem;">⚡ ESTA É A LIÇÃO QUE MAIS AUMENTA SUAS VENDAS!</p>
+</div>
+<p style="margin-bottom:8px;">Muita gente acha que só pode vender o que está na própria bolsa. <b>ERRADO!</b> Você pode vender QUALQUER produto que apareça no Estoque — mesmo que esteja na Sede ou com outra vendedora.</p>
+<p style="margin-bottom:8px;"><b>Como funciona:</b></p>
+<p style="margin-bottom:6px;"><b>1º</b> Sua cliente quer o Boss Bottled, mas ele está na <b>Sede</b>? Registre a venda normalmente e, no campo do local, escolha <b>Sede</b>.</p>
+<p style="margin-bottom:6px;"><b>2º</b> A gerência vê seu pedido na hora, <b>separa o produto</b> e te entrega no próximo encontro.</p>
+<p style="margin-bottom:6px;"><b>3º</b> Você entrega pra sua cliente e pronto: <b>a venda é SUA, a comissão é SUA.</b> 💰</p>
+<div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem; color:#166534;"><b>Exemplo real:</b> a cliente da Cléo quer um perfume que só tem na Sede. A Cléo registra a venda escolhendo local "Sede" → o Fernando separa e entrega pra Cléo → a Cléo entrega pra cliente. Ninguém perdeu venda!</p>
+</div>
+<p style="margin:0;">📌 Regra de ouro: <b>nunca responda "não tenho"</b>. Olhe o Estoque — se existe em QUALQUER local, você pode vender.</p>` },
+
+{ id: 'filtros', emoji: '🔍', titulo: 'Os Filtros do Histórico de Vendas', html: `
+<p style="margin-bottom:8px;">Lá embaixo na aba Vendas fica o <b>Histórico</b> — todas as suas vendas. Com muitos registros, os <b>filtros</b> acham qualquer coisa em segundos. Toque em <b>🔍 Ocultar/Mostrar Filtros</b> pra abri-los:</p>
+<p style="margin-bottom:6px;">• <b>FILTRAR DATA POR</b>: escolha se o Dia/Mês vale pra <b>data da venda</b> ou pra <b>data do pagamento</b>.</p>
+<p style="margin-bottom:6px;">• <b>STATUS</b>: só os <b>Pendentes</b> (fiado a receber), só os <b>Pagos</b>, ou Todos.</p>
+<p style="margin-bottom:6px;">• <b>DIA / MÊS</b>: um dia exato ou o mês inteiro.</p>
+<p style="margin-bottom:6px;">• <b>CLIENTE</b>: digite parte do nome — "mari" acha Mariana e Marília.</p>
+<p style="margin-bottom:6px;">• <b>PRODUTO</b>: por nome ou código (N034 ou só 34).</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem;"><b>Uso do dia a dia:</b> "quem ainda me deve?" → Status: <b>Pendente</b>. "O que a Mariana já comprou?" → Cliente: <b>mari</b>. "Quanto vendi em julho?" → Mês: <b>julho</b>.</p>
+</div>
+<p style="margin:0;">⚠️ A lista parece vazia mas você TEM vendas? Provavelmente um filtro ficou ativo — o app avisa em amarelo, e o botão <b>Limpar Filtros</b> zera tudo.</p>` },
+
+{ id: 'cobrar', emoji: '💲', titulo: 'Recebendo Fiado e Cobrando', html: `
+<p style="margin-bottom:8px;">Cada venda fiada (amarela) no seu histórico tem esses botões:</p>
+<div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; display:flex; gap:8px; justify-content:center; margin-bottom:10px;">
+    <span style="background:#ffedd5; border:1px solid #fde047; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">🔔</span>
+    <span style="background:#dcfce7; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">📲</span>
+    <span style="background:#e8f5e9; border:1px solid #bbf7d0; width:34px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center;">💲</span>
+</div>
+<p style="margin-bottom:6px;">🔔 <b>Sininho</b> — gera uma imagem bonita de cobrança pra mandar no WhatsApp (dá pra enviar a imagem ou só o texto).</p>
+<p style="margin-bottom:6px;">📲 <b>Zapzinho</b> — abre o WhatsApp do cliente com a cobrança JÁ ESCRITA. Se faltar o telefone dele, o app pede na hora e guarda pra sempre.</p>
+<p style="margin-bottom:6px;">💲 <b>Cifrão</b> — o cliente pagou! Toque pra dar baixa. O app já oferece o <b>recibo prontinho</b> em seguida.</p>
+<div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem; color:#166534;"><b>Cobrar não é chato — é profissional.</b> A mensagem que o app monta é educada e amigável. Cliente que recebe lembrete organizado confia mais em você.</p>
+</div>
+<p style="margin:0;">💡 Dê baixa SEMPRE que receber: é o pagamento que libera sua comissão!</p>` },
+
+{ id: 'docs', emoji: '📄', titulo: 'Docs & Lotes (recibos e cobranças em grupo)', html: `
+<p style="margin-bottom:8px;">No topo da aba Vendas tem duas telinhas: <b>PDV Rápido</b> (onde você vende) e <b>📄 Docs & Lotes</b> — a central de documentos pra clientes com VÁRIAS compras:</p>
+<p style="margin-bottom:6px;">🧾 <b>LOTE RECIBOS</b>: escolha um cliente que pagou e gere UM recibo bonito com todas as compras dele juntas. Ótimo pra quem compra 3, 4 itens no mês.</p>
+<p style="margin-bottom:6px;">📋 <b>LOTE COBRANÇA E BAIXA</b>: escolha um cliente devedor e veja TUDO que ele deve somadinho. Dá pra mandar a cobrança completa no WhatsApp — e quando ele pagar tudo, dar baixa de uma vez só (o app já oferece o recibo na sequência).</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem;"><b>💡 Truque das caixinhas de busca:</b> onde diz "🔎 Toque pra buscar...", é só tocar e digitar 2 ou 3 letras do nome — a lista filtra sozinha. Nada de rolar lista gigante!</p>
+</div>
+<p style="margin:0;">Use o lote sempre que o cliente tiver mais de uma compra — fica mais profissional e você resolve tudo num toque.</p>` },
+
+{ id: 'encomendas', emoji: '🎁', titulo: 'Encomendas: nunca perca uma venda', html: `
+<p style="margin-bottom:8px;">Cliente quer um produto que está <b>ZERADO em todo lugar</b>? Não deixe a venda morrer — anote uma <b>encomenda</b>!</p>
+<p style="margin-bottom:6px;"><b>1º</b> Vá em <b>⋯ Mais → 🎁 Encomendas</b>.</p>
+<p style="margin-bottom:6px;"><b>2º</b> Escolha o produto (a lista só mostra o que zerou), o nome do cliente e a quantidade.</p>
+<p style="margin-bottom:8px;"><b>3º</b> Salve. Pronto — a fábrica fica sabendo que tem gente esperando.</p>
+<div style="background:#fef3c7; border:2px solid #fbbf24; border-radius:12px; padding:12px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.78rem; color:#92400e;">✨ <b>A MÁGICA:</b> quando o estoque chegar, o app <b>lança a venda SOZINHO no seu nome</b>, com a SUA comissão. Você recebe a notícia e só precisa combinar a entrega e cobrar. Não precisa lembrar de nada!</p>
+</div>
+<p style="margin-bottom:6px;">Você só vê as SUAS encomendas — as das colegas são delas.</p>
+<p style="margin:0;">📌 Diferença importante: produto tem em OUTRO local? Isso é <b>venda normal</b> (lição 🚚). Encomenda é só pra produto zerado em TODO lugar.</p>` },
+
+{ id: 'catalogo', emoji: '🔗', titulo: 'Seu Catálogo Online (arma secreta!)', html: `
+<p style="margin-bottom:8px;">Você tem uma <b>loja virtual pessoal</b> pra divulgar: uma página linda com fotos, preços e descrições, sempre atualizada — e todo pedido cai no SEU WhatsApp.</p>
+<p style="margin-bottom:6px;"><b>1º</b> Aba <b>Estoque</b> → botão <b>📖 Catálogo</b>.</p>
+<p style="margin-bottom:6px;"><b>2º</b> Escolha o que mostrar (tudo, só femininos, só perfumes...).</p>
+<p style="margin-bottom:8px;"><b>3º</b> Toque em:</p>
+<div style="background:#25D366; color:#fff; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">🔗 CRIAR LINK ONLINE P/ CLIENTE</div>
+<p style="margin-bottom:6px;">Aí é só <b>📲 Enviar no WhatsApp</b>, postar no status, ou gerar o <b>📱 Cartão com QR Code</b> pra imprimir e colar nas sacolinhas.</p>
+<p style="margin-bottom:6px;">O cliente abre, escolhe, monta a <b>🛍️ sacolinha</b> e o pedido chega PRONTO no seu WhatsApp, com códigos e total. 😍</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem;"><b>📈 No seu Painel</b> você vê quantas pessoas abriram seu catálogo. Divulgou mais = mais visitas = mais pedidos. Em <b>🗂️ Ver meus links</b> você recupera links antigos.</p>
+</div>
+<p style="margin:0;">💡 Poste o link no status TODA semana — é vitrine grátis trabalhando por você 24h.</p>` },
+
+{ id: 'clientes', emoji: '👥', titulo: 'Seus Clientes (sua carteira)', html: `
+<p style="margin-bottom:8px;">Em <b>⋯ Mais → 👥 Clientes</b> mora a sua carteira. Todo cliente que compra com você <b>entra sozinho</b> na lista — mas ela fica poderosa quando você completa 2 coisinhas:</p>
+<p style="margin-bottom:6px;">📱 <b>WhatsApp</b>: é o que liga os botões mágicos de cobrança em 1 toque (📲) — sem ele, você digita número na mão toda vez.</p>
+<p style="margin-bottom:8px;">🎂 <b>Aniversário</b>: o sistema avisa no dia. "Feliz aniversário! 🎉 Que tal um perfume novo pra comemorar?" — a desculpa perfeita pra vender.</p>
+<div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem; color:#166534;"><b>Segredo de quem vende muito:</b> cliente antigo compra de novo MUITO mais fácil que cliente novo. Cuidar da carteira (cobrar com carinho, lembrar aniversário, avisar novidade) vale mais que sair caçando gente nova.</p>
+</div>
+<p style="margin:0;">🔒 Sua carteira é SUA: cada vendedor só vê os próprios clientes.</p>` },
+
+{ id: 'fabrica', emoji: '⏳', titulo: 'Maceração e Sugestões', html: `
+<p style="margin-bottom:8px;"><b>⏳ Maceração</b> é a aba que mostra a fábrica trabalhando: cada lote em produção e a data em que fica pronto.</p>
+<p style="margin-bottom:8px;">Pra que serve pra VOCÊ? <b>Vender o futuro:</b> "esse chega dia 15, quer que eu reserve o seu?" — cliente adora saber que vem coisa nova, e você garante a venda antes de todo mundo.</p>
+<p style="margin-bottom:8px;"><b>💡 Sugerir</b> (em ⋯ Mais) é o seu canal direto com a fábrica: cliente pediu um aroma que não existe? Percebeu que "todo mundo" anda pedindo a mesma coisa? Manda a sugestão! Quem está na rua vendendo sabe o que o povo quer — sua opinião ajuda a decidir o que produzir.</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:0;">
+    <p style="margin:0; font-size:0.75rem;"><b>Exemplo:</b> três clientes pediram "aquele que parece o 212 VIP Rosé". Não temos? Vai em Sugerir e escreve. Se a fábrica produzir, adivinha quem já tem 3 clientes esperando? 😏</p>
+</div>` },
+
+{ id: 'painel', emoji: '📊', titulo: 'Painel: seu dinheiro e suas conquistas', html: `
+<p style="margin-bottom:8px;">O <b>📊 Painel</b> é o seu contracheque ao vivo. O mais importante: <b>as comissões têm 3 estados</b>:</p>
+<p style="margin-bottom:8px;"><span style="color:#b45309; font-weight:800;">1. Futura</span> — você vendeu fiado, o cliente ainda não pagou. → <span style="color:#b91c1c; font-weight:800;">2. Liberada</span> — o cliente pagou! Falta a empresa te repassar. → <span style="color:#15803d; font-weight:800;">3. Recebida</span> — dinheiro na sua mão. ✅</p>
+<p style="margin-bottom:8px;">Por isso <b>cobrar clientes acelera SEU pagamento</b> — comissão só anda quando o cliente paga.</p>
+<p style="margin-bottom:6px;">🎯 <b>Meta do mês</b> com barra de progresso:</p>
+<div style="background:#e5e7eb; border-radius:20px; height:14px; overflow:hidden; margin-bottom:10px;"><div style="width:63%; height:100%; border-radius:20px; background:linear-gradient(90deg,#fbbf24,#f59e0b);"></div></div>
+<p style="margin-bottom:6px;">🔥 <b>Sequência</b>: dias seguidos vendendo — não deixe a corrente quebrar! 🏆 <b>Troféus</b>: conquistas viram festa na tela e ficam pra sempre na sua <b>Sala de Troféus</b> (toque nela pra ver os detalhes).</p>
+<p style="margin-bottom:6px;">🎖️ <b>Patente de carreira</b>: Bronze → Prata → Ouro → Diamante. Só sobe, nunca desce.</p>
+<p style="margin:0;">🎯 <b>Radar de Recompra</b>: quem comprou há 45+ dias está com o frasco acabando — chame no WhatsApp!</p>` },
+
+{ id: 'dicas', emoji: '✨', titulo: 'Últimos truques (você se formou! 🎓)', html: `
+<p style="margin-bottom:6px;">🌙 <b>Modo escuro</b>: o botãozinho da lua no topo. Só muda no seu aparelho.</p>
+<p style="margin-bottom:6px;">✍️ Em campos com sugestões, <b>tocar já seleciona o texto</b> — digite por cima, sem apagar.</p>
+<p style="margin-bottom:6px;">🔥 <b>Foguinho</b> na lista de vendas = comissão extra HOJE naquele produto. 💸 <b>PROMO</b> = desconto ativo pro cliente (o banner verde mostra o preço certo a cobrar).</p>
+<p style="margin-bottom:6px;">❓ Bateu dúvida em qualquer tela? Toque no <b>"❓ Como usar esta tela"</b> no topo dela — abre a lição certa na hora.</p>
+<p style="margin-bottom:10px;">📖 Quer reler tudo? <b>⚙️ Configurações → Abrir Guia Rápido</b>.</p>
+<div style="background:linear-gradient(160deg, #fdf5f7, #fef3c7); border:2px solid #fde68a; border-radius:12px; padding:14px; text-align:center;">
+    <p style="margin:0 0 6px; font-size:1.4rem;">🎉</p>
+    <p style="margin:0; font-weight:800; color:#92400e;">Pronto! Você já sabe mais que 90% dos vendedores por aí.</p>
+    <p style="margin:6px 0 0; font-size:0.75rem; color:#a16207;">Agora é praticar: registre a primeira venda, mande seu catálogo pra 5 pessoas hoje e veja as visitas subirem no Painel. Boas vendas! 🚀</p>
+</div>` }
+];
+
+let paginaGuiaAtual = 0;
+
+function abrirGuiaVendedor(idPagina) {
+    paginaGuiaAtual = Math.max(0, PAGINAS_GUIA.findIndex(p => p.id === idPagina));
+    renderizarPaginaGuia();
+    document.getElementById('modal-tutorial').style.display = 'flex';
+}
+
+function renderizarPaginaGuia() {
+    const pag = PAGINAS_GUIA[paginaGuiaAtual];
+    if (!pag) return;
+    document.getElementById('guia-emoji').innerText = pag.emoji;
+    document.getElementById('titulo-tutorial-nome').innerText = pag.titulo;
+    document.getElementById('guia-subtitulo').innerText = paginaGuiaAtual === 0 ? `Que bom te ver por aqui, ${usuarioLogado}!` : `Lição ${paginaGuiaAtual + 1} de ${PAGINAS_GUIA.length}`;
+    const cont = document.getElementById('guia-conteudo');
+    cont.innerHTML = pag.html;
+    cont.scrollTop = 0;
+    document.getElementById('guia-contador').innerText = `${paginaGuiaAtual + 1} / ${PAGINAS_GUIA.length}`;
+    document.getElementById('guia-barra').style.width = (((paginaGuiaAtual + 1) / PAGINAS_GUIA.length) * 100).toFixed(0) + '%';
+    const btnV = document.getElementById('btn-guia-voltar');
+    btnV.style.visibility = paginaGuiaAtual === 0 ? 'hidden' : 'visible';
+    document.getElementById('btn-guia-avancar').innerHTML = paginaGuiaAtual === PAGINAS_GUIA.length - 1 ? 'Concluir 🚀' : 'Avançar ▶';
+}
+
+function navegarGuia(delta) {
+    if (paginaGuiaAtual === PAGINAS_GUIA.length - 1 && delta > 0) return concluirGuiaVendedor();
+    paginaGuiaAtual = Math.min(PAGINAS_GUIA.length - 1, Math.max(0, paginaGuiaAtual + delta));
+    renderizarPaginaGuia();
+}
+
+// 🎓 Chegou na última página e tocou em "Concluir": ganha o troféu de formatura
+// (o servidor garante que é 1x na vida — reler o guia não duplica nada)
+function concluirGuiaVendedor() {
+    fecharTutorialUsuario();
+    if (usuarioCargo === 'Admin') return;
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'concluir_guia', usuario: usuarioLogado }) })
+        .then(r => r.json())
+        .then(res => { if (res.sucesso && res.novo) sincronizarDadosUnico(); }) // a festa 🎊 aparece no próximo sync
+        .catch(() => { /* sem internet agora? tudo bem, o guia continua lido */ });
+}
+
+// ❓ Botão de ajuda contextual no topo de cada aba: abre o guia direto na lição daquela tela
+function injetarBotoesAjuda() {
+    if (window._ajudaInjetada) return;
+    const mapaAjuda = {
+        'tab-vendas': 'vender', 'tab-estoque': 'estoque', 'tab-maceracaovendedor': 'fabrica',
+        'tab-dashboard': 'painel', 'tab-encomendas': 'encomendas', 'tab-clientes': 'clientes',
+        'tab-sugestaoproducao': 'fabrica'
+    };
+    // Enquanto a pessoa não concluir o guia, os botões pulsam chamando atenção
+    const jaLeuGuia = !!localStorage.getItem('novera_tutorial_visto_v2_' + usuarioLogado);
+    let injetou = false;
+    Object.keys(mapaAjuda).forEach(tabId => {
+        const tab = document.getElementById(tabId);
+        if (!tab || tab.querySelector('.btn-ajuda-tela')) return;
+        const faixa = document.createElement('div');
+        faixa.style.cssText = 'text-align:right; margin-bottom:6px;';
+        faixa.innerHTML = `<button class="btn-ajuda-tela${jaLeuGuia ? '' : ' ajuda-pulso'}" onclick="abrirGuiaVendedor('${mapaAjuda[tabId]}')">❓ Como usar esta tela</button>`;
+        tab.insertBefore(faixa, tab.firstChild);
+        injetou = true;
+    });
+    if (injetou) window._ajudaInjetada = true;
+}
+
 function verificarTutorialUsuario() {
-    // 1. Personaliza o título com o nome da pessoa!
-    const tituloEl = document.getElementById('titulo-tutorial-nome');
-    if (tituloEl) tituloEl.innerText = `Olá, ${usuarioLogado}!`;
+    injetarBotoesAjuda();
 
-    // 2. Se for o Admin, não precisa ficar pulando o tutorial na tela dele
-    if (usuarioCargo === 'Admin') return; 
+    // Admin não precisa do tutorial pulando na tela dele
+    if (usuarioCargo === 'Admin') return;
 
-    // 3. Verifica na memória do celular se essa pessoa já leu o manual
-    const jaViu = localStorage.getItem('novera_tutorial_visto_' + usuarioLogado);
-    
+    // Chave "v2": o guia novo paginado aparece pelo menos UMA vez pra todo mundo,
+    // até pra quem já tinha visto o manual antigo
+    const jaViu = localStorage.getItem('novera_tutorial_visto_v2_' + usuarioLogado);
     if (!jaViu) {
-        // Se ela nunca viu, dá 1 segundo de respiro depois do login e joga o manual na tela
-        setTimeout(() => {
-            document.getElementById('modal-tutorial').style.display = 'flex';
-        }, 1000); 
+        setTimeout(() => { abrirGuiaVendedor(); }, 1000);
     }
 }
 
 function fecharTutorialUsuario() {
     // Grava na memória que a pessoa já leu para não encher o saco dela de novo
-    localStorage.setItem('novera_tutorial_visto_' + usuarioLogado, 'sim');
-    // E fecha a tela
+    localStorage.setItem('novera_tutorial_visto_v2_' + usuarioLogado, 'sim');
+    // E fecha a tela + para o pulsar dos botões ❓ (já não é mais novidade)
     document.getElementById('modal-tutorial').style.display = 'none';
+    document.querySelectorAll('.btn-ajuda-tela').forEach(b => b.classList.remove('ajuda-pulso'));
 }
 
 // ==========================================

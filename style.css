@@ -295,6 +295,15 @@ input[readonly] { background: #E8DDE1; color: #7a4a5e; border-color: transparent
    funcionalidades vivem na faixa 10001–10006 e os avisos dinâmicos em 99999) */
 #modal-confirmar { z-index: 100000 !important; }
 #custom-modal { z-index: 100002 !important; }
+
+/* ❓ Botão de ajuda contextual: chamativo por padrão; pulsa até a pessoa concluir o guia */
+.btn-ajuda-tela { background: linear-gradient(135deg, #b87c96, #966178); color: #fff; border: none; border-radius: 24px; padding: 9px 18px; font-size: 0.75rem; font-weight: 800; cursor: pointer; font-family: 'Montserrat', sans-serif; box-shadow: 0 4px 12px rgba(150, 97, 120, 0.35); letter-spacing: 0.3px; }
+.btn-ajuda-tela:active { transform: scale(0.96); }
+@keyframes pulsoAjuda {
+    0%, 100% { box-shadow: 0 4px 12px rgba(150, 97, 120, 0.35), 0 0 0 0 rgba(184, 124, 150, 0.5); transform: scale(1); }
+    50% { box-shadow: 0 4px 12px rgba(150, 97, 120, 0.35), 0 0 0 10px rgba(184, 124, 150, 0); transform: scale(1.05); }
+}
+.ajuda-pulso { animation: pulsoAjuda 1.6s ease infinite; }
 .modal-box-alert { background: #fff; width: 90%; max-width: 380px; border-radius: 24px; padding: 30px 20px 20px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3); animation: popIn 0.3s ease-out; position: relative; max-height: 90vh; overflow-y: auto;}
 .modal-icon-alert { font-size: 3.5rem; margin-bottom: 10px; display: inline-block;}
 .modal-title-alert { font-size: 1.3rem; font-weight: 900; color: var(--brand-dark); margin: 0 0 10px; text-transform: uppercase;}
