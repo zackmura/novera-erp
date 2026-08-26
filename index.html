@@ -555,20 +555,20 @@
                         </select>
                     </div>
 
-                    <div style="display:flex; flex-direction:column;">
-                        <label style="font-size: 0.6rem; color: #888; font-weight:700;">MÊS</label>
-                        <select id="d-filtro-mes" class="filtro-box" style="padding: 5px 10px; font-size: 0.8rem; margin:0;" onchange="renderizarDashboard()">
-                            <option value="">Todos</option>
-                            <option value="01">Jan</option><option value="02">Fev</option><option value="03">Mar</option>
-                            <option value="04">Abr</option><option value="05">Mai</option><option value="06">Jun</option>
-                            <option value="07">Jul</option><option value="08">Ago</option><option value="09">Set</option>
-                            <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
-                        </select>
+                    <!-- 📅 Navegador de mês: ◀ Agosto 2026 ▶ (os selects seguem existindo escondidos — são a fonte da verdade) -->
+                    <div style="display:flex; align-items:center; gap:4px; background:#fff; border:1px solid var(--border-color); border-radius:24px; padding:4px;">
+                        <button onclick="navegarMesDash(-1)" style="background:#fdf5f7; color:var(--primary-dark); border:none; width:34px; height:34px; border-radius:50%; font-weight:900; font-size:0.9rem; cursor:pointer;">◀</button>
+                        <span id="d-label-mes" onclick="voltarMesAtualDash()" title="Toque para voltar ao mês atual" style="min-width:110px; text-align:center; font-weight:900; font-size:0.82rem; color:var(--brand-dark); cursor:pointer;">—</span>
+                        <button onclick="navegarMesDash(1)" style="background:#fdf5f7; color:var(--primary-dark); border:none; width:34px; height:34px; border-radius:50%; font-weight:900; font-size:0.9rem; cursor:pointer;">▶</button>
                     </div>
-                    <div style="display:flex; flex-direction:column;">
-                        <label style="font-size: 0.6rem; color: #888; font-weight:700;">ANO</label>
-                        <select id="d-filtro-ano" class="filtro-box" style="padding: 5px 10px; font-size: 0.8rem; margin:0;" onchange="renderizarDashboard()"></select>
-                    </div>
+                    <select id="d-filtro-mes" style="display:none;" onchange="renderizarDashboard()">
+                        <option value="">Todos</option>
+                        <option value="01">Jan</option><option value="02">Fev</option><option value="03">Mar</option>
+                        <option value="04">Abr</option><option value="05">Mai</option><option value="06">Jun</option>
+                        <option value="07">Jul</option><option value="08">Ago</option><option value="09">Set</option>
+                        <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+                    </select>
+                    <select id="d-filtro-ano" style="display:none;" onchange="renderizarDashboard()"></select>
                 </div>
             </div>
 

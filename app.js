@@ -4678,6 +4678,54 @@ function estatisticasVisitasCatalogo(nomeVendedor) {
     return { total, sete, hoje, ped, ped7 };
 }
 
+// 🗂️ Seção sanfona do Painel: título clicável, conteúdo dobrável e o aparelho LEMBRA
+// o que ficou aberto. Menos rolagem, mais organização — cada assunto na sua gaveta.
+function secaoDash(idSec, titulo, conteudoHtml, abertaPadrao) {
+    const chaveSec = 'novera_dash_sec_' + idSec;
+    const salvo = localStorage.getItem(chaveSec);
+    const aberta = salvo === null ? !!abertaPadrao : salvo === '1';
+    return `
+    <details class="secao-dash" ${aberta ? 'open' : ''} ontoggle="toggleSecaoDash(this, '${chaveSec}')">
+        <summary>${titulo}<span class="sd-seta">▾</span></summary>
+        <div class="sd-corpo"><div class="dash-grid">${conteudoHtml}</div></div>
+    </details>`;
+}
+
+function toggleSecaoDash(el, chave) {
+    const anterior = localStorage.getItem(chave);
+    const agora = el.open ? '1' : '0';
+    if (anterior === agora) return; // evento disparado pelo desenho inicial — ignora
+    localStorage.setItem(chave, agora);
+    // Gráfico desenhado dentro de gaveta fechada nasce sem tamanho — redesenha ao abrir
+    if (el.open && el.querySelector('canvas')) setTimeout(() => renderizarDashboard(), 60);
+}
+
+// 📅 Navegador de mês: ◀ volta um mês, ▶ avança; tocar no nome volta pro mês atual
+function navegarMesDash(delta) {
+    const dMesNav = document.getElementById('d-filtro-mes');
+    const dAnoNav = document.getElementById('d-filtro-ano');
+    let m = parseInt(dMesNav.value) || (new Date().getMonth() + 1);
+    let a = parseInt(dAnoNav.value) || new Date().getFullYear();
+    m += delta;
+    if (m < 1) { m = 12; a--; }
+    if (m > 12) { m = 1; a++; }
+    dMesNav.value = String(m).padStart(2, '0');
+    // Garante que o ano existe na lista (anos antigos/futuros que o select ainda não tem)
+    if (![...dAnoNav.options].some(o => o.value == String(a))) {
+        const opNovo = document.createElement('option'); opNovo.value = String(a); opNovo.innerText = String(a);
+        dAnoNav.appendChild(opNovo);
+    }
+    dAnoNav.value = String(a);
+    renderizarDashboard();
+}
+
+function voltarMesAtualDash() {
+    const hNav = new Date();
+    document.getElementById('d-filtro-mes').value = String(hNav.getMonth() + 1).padStart(2, '0');
+    document.getElementById('d-filtro-ano').value = String(hNav.getFullYear());
+    renderizarDashboard();
+}
+
 function renderizarDashboard() {
     const isAdmin = (usuarioCargo === 'Admin');
     const container = document.getElementById('dash-dinamico-container');
@@ -4694,6 +4742,16 @@ function renderizarDashboard() {
     const fM = dMes.value;
     const fA = dAno.value;
     let pfx = fA && fM ? `${fA}-${fM}` : fA;
+
+    // 📅 Atualiza o rótulo do navegador de mês (◀ Agosto 2026 ▶)
+    const labelMesEl = document.getElementById('d-label-mes');
+    if (labelMesEl) {
+        const nomesMeses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const hLbl = new Date();
+        const ehAtualLbl = (parseInt(fM) === hLbl.getMonth() + 1 && parseInt(fA) === hLbl.getFullYear());
+        labelMesEl.innerText = fM ? `${nomesMeses[parseInt(fM) - 1]} ${fA}${ehAtualLbl ? '' : ' ↩'}` : `Ano ${fA}`;
+        labelMesEl.title = ehAtualLbl ? 'Mês atual' : 'Toque para voltar ao mês atual';
+    }
 
     // 2. CARREGA O FILTRO DE VENDEDOR (Slicer BI)
     const boxFiltroSocio = document.getElementById('box-filtro-socio-dash');
@@ -4783,7 +4841,7 @@ function renderizarDashboard() {
             if(v.status === 'Pago' && v.repasse_feito) comAprovada += com; else comPendente += com;
             
             if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q;
-            if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
+            if (v.cliente && v.status !== 'Presente') mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
 
             if (v.status !== 'Presente') {
                 let dia = v.dataVendaIso ? v.dataVendaIso.split('-')[2] : '00';
@@ -4960,9 +5018,9 @@ function renderizarDashboard() {
                         </div>
                         <span style="font-size:0.62rem; font-weight:800; color:#92400e; white-space:nowrap;">⏳ ${diasFaltam === 0 ? 'ÚLTIMO DIA!' : `Faltam ${diasFaltam} dia${diasFaltam > 1 ? 's' : ''}`}</span>
                     </div>`;
-                if (bateu) fraseCorrida = aceleradorLigado ? `🏆 Meta batida! Agora cada venda PAGA vale +${acel.pct}% de comissão — lucro puro!` : `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — você é incrível!`;
-                else if (pctMeta >= pctTempo) fraseCorrida = `🚀 Você está NA FRENTE do tempo — mantém o ritmo que a meta cai!`;
-                else fraseCorrida = `🔥 O tempo tá correndo na sua frente — faltam ${fmt(faltam)}, bora virar o jogo!`;
+                if (bateu) fraseCorrida = aceleradorLigado ? `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — agora cada venda PAGA vale +${acel.pct}%!` : `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)} — você é incrível!`;
+                else if (pctMeta >= pctTempo) fraseCorrida = `${fmt(tVend)} de ${fmt(minhaMeta)} — você está NA FRENTE do tempo! 🚀`;
+                else fraseCorrida = `${fmt(tVend)} de ${fmt(minhaMeta)} — faltam ${fmt(faltam)} e o tempo corre, bora! 🔥`;
             } else {
                 fraseCorrida = bateu ? `🏆 META BATIDA! ${fmt(tVend)} de ${fmt(minhaMeta)}!` : `${fmt(tVend)} de ${fmt(minhaMeta)} nesse período.`;
             }
@@ -5038,24 +5096,37 @@ function renderizarDashboard() {
         PATENTES.forEach((p, i) => { if (carreiraTotal >= p[2]) patenteIdx = i; });
         const patenteAtual = PATENTES[patenteIdx];
         const proximaPatente = PATENTES[patenteIdx + 1] || null;
+        // 🎖️ Trilha de patentes: os 5 degraus visíveis com valores — a regra se explica sozinha
+        const trilhaPatentes = PATENTES.map((p, iP) => {
+            const alcancada = iP <= patenteIdx;
+            const atual = iP === patenteIdx;
+            return `<div style="flex:1; text-align:center; min-width:0;">
+                <div style="width:42px; height:42px; margin:0 auto; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.3rem; background:${alcancada ? 'radial-gradient(circle at 50% 35%, rgba(251,191,36,0.45), rgba(251,191,36,0.08))' : 'rgba(255,255,255,0.06)'}; border:2px solid ${atual ? '#fbbf24' : (alcancada ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.14)')}; ${atual ? 'box-shadow:0 0 16px rgba(251,191,36,0.5);' : ''} ${!alcancada ? 'filter:grayscale(85%) opacity(0.5);' : ''}">${p[0]}</div>
+                <p style="margin:5px 0 0; font-size:0.55rem; font-weight:900; color:${atual ? '#fbbf24' : (alcancada ? '#fde68a' : '#7d7391')};">${p[1]}${alcancada && !atual ? ' ✓' : ''}</p>
+                <p style="margin:1px 0 0; font-size:0.5rem; color:${alcancada ? '#b8a3c9' : '#5f5573'};">${p[2] > 0 ? 'R$ ' + (p[2] / 1000).toString().replace('.', ',') + ' mil' : 'Início'}</p>
+            </div>`;
+        }).join('<div style="flex:0 0 4px; height:2px; background:rgba(251,191,36,0.3); margin-top:21px; border-radius:2px;"></div>');
+
         let htmlPatente = `
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: linear-gradient(135deg, #1e293b, #334155); border: none;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="dash-card" style="grid-column: span 2; padding: 16px; background: linear-gradient(160deg, #2a2138, #3b3050); border: 1px solid rgba(251,191,36,0.35);">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                     <div>
-                        <h3 style="color:#94a3b8; font-size:0.65rem; font-weight:800; margin:0; letter-spacing:1px;">MINHA PATENTE DE CARREIRA</h3>
-                        <p style="color:#fff; font-size:1.3rem; font-weight:900; margin:4px 0 0 0;">${patenteAtual[0]} ${patenteAtual[1]}</p>
+                        <h3 style="color:#b8a3c9; font-size:0.62rem; font-weight:800; margin:0; letter-spacing:1.5px;">🎖️ MINHA PATENTE DE CARREIRA</h3>
+                        <p style="color:#fff; font-size:1.25rem; font-weight:700; margin:3px 0 0; font-family:'Playfair Display', serif;">${patenteAtual[0]} ${patenteAtual[1]}</p>
                     </div>
                     <div style="text-align:right;">
-                        <span style="color:#94a3b8; font-size:0.6rem; display:block;">Total da carreira</span>
-                        <span style="color:#fbbf24; font-size:1rem; font-weight:900;">${fmt(carreiraTotal)}</span>
+                        <span style="color:#b8a3c9; font-size:0.55rem; display:block;">Total vendido na carreira</span>
+                        <span style="color:#fbbf24; font-size:1.05rem; font-weight:900;">${fmt(carreiraTotal)}</span>
                     </div>
                 </div>
+                <p style="color:#9d8bae; font-size:0.62rem; margin:8px 0 12px; line-height:1.5;">Soma TUDO que você já vendeu desde o primeiro dia — nunca zera, nunca desce. Cada degrau alcançado é seu pra sempre:</p>
+                <div style="display:flex; align-items:flex-start;">${trilhaPatentes}</div>
                 ${proximaPatente ? `
-                <div style="background:rgba(255,255,255,0.12); border-radius:20px; height:10px; overflow:hidden; margin-top:10px;">
+                <div style="background:rgba(255,255,255,0.12); border-radius:20px; height:10px; overflow:hidden; margin-top:14px;">
                     <div style="width:${Math.min(100, (carreiraTotal / proximaPatente[2]) * 100).toFixed(1)}%; height:100%; background:linear-gradient(90deg,#fbbf24,#f59e0b); border-radius:20px;"></div>
                 </div>
                 <p style="color:#cbd5e1; font-size:0.62rem; margin:6px 0 0 0; text-align:center;">Faltam <b style="color:#fbbf24;">${fmt(Math.max(0, proximaPatente[2] - carreiraTotal))}</b> pra patente ${proximaPatente[0]} ${proximaPatente[1]}!</p>` : `
-                <p style="color:#cbd5e1; font-size:0.62rem; margin:8px 0 0 0; text-align:center;">💎 Patente máxima alcançada — você é lenda! 👏</p>`}
+                <p style="color:#cbd5e1; font-size:0.62rem; margin:10px 0 0 0; text-align:center;">💎 Patente máxima alcançada — você é lenda! 👏</p>`}
             </div>`;
 
         // 🔥 SEQUÊNCIA DE DIAS VENDENDO (streak): tolera o "ainda não vendi hoje" contando até ontem
@@ -5080,23 +5151,26 @@ function renderizarDashboard() {
         const minhasConquistas = conquistasGlobal
             .filter(c => normalizarNomeBusca(c.usuario) === normalizarNomeBusca(usuarioLogado))
             .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+        // 🏆 Conquistas UNIFICADAS: as 6 mais recentes como medalhas + botão pra Sala completa
+        // (acabou a duplicação "metas do mês" vs "sala de troféus" — um lugar só)
+        // Prévia = uma ESPIADA na estante real: mesma madeira, mesmo veludo da Sala completa
         let htmlSala = '';
         if (minhasConquistas.length) {
-            const chips = minhasConquistas.map(c => {
+            const naEstante = minhasConquistas.slice(0, 6);
+            const emojisEstante = naEstante.map(c => {
                 let mesTxt = '';
                 if (c.mes) { const [aM, mM] = c.mes.split('-'); mesTxt = `${mesesAbrev[parseInt(mM) - 1] || ''}/${String(aM).slice(2)}`; }
-                return `<div title="${c.titulo}${mesTxt ? ' — ' + mesTxt : ''}" style="display:flex; flex-direction:column; align-items:center; background:#fffbeb; padding:8px 10px; border-radius:10px; border:1px solid #fde68a; min-width:70px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-                    <span style="font-size:1.5rem;">${c.emoji || '🏆'}</span>
-                    <span style="font-size:0.55rem; font-weight:900; color:#92400e; margin-top:3px; text-align:center; line-height:1.2;">${c.titulo}</span>
-                    ${mesTxt ? `<span style="font-size:0.5rem; color:#b45309; margin-top:2px;">${mesTxt}</span>` : ''}
-                </div>`;
+                return `<span title="${c.titulo}${mesTxt ? ' — ' + mesTxt : ''}" style="font-size:2rem; line-height:1; filter:drop-shadow(0 6px 6px rgba(0,0,0,0.5));">${c.emoji || '🏆'}</span>`;
             }).join('');
             htmlSala = `
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #fff; border-bottom: 3px solid #b45309; cursor: pointer;" onclick="abrirModalSalaTrofeus()" title="Toque para ver os detalhes de cada conquista">
-                <h3 style="color:#92400e; font-size:0.75rem; border-bottom:1px dashed #fde68a; padding-bottom:5px; margin-bottom:12px; text-align:center;">🏛️ MINHA SALA DE TROFÉUS (${minhasConquistas.length})</h3>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">${chips}</div>
-                <p style="font-size:0.6rem; color:#b45309; margin:10px 0 0 0; text-align:center; font-style:italic;">👆 Toque para ver os detalhes de cada conquista</p>
+            <div class="dash-card" style="grid-column: span 2; padding: 16px; background: linear-gradient(160deg, #2a2138, #3b3050); border: 1px solid rgba(251,191,36,0.35); cursor:pointer;" onclick="abrirModalSalaTrofeus()" title="Toque para entrar na Sala de Troféus">
+                <h3 style="color:#b8a3c9; font-size:0.62rem; font-weight:800; margin:0 0 14px; letter-spacing:1.5px; text-align:center;">🏛️ MINHA ESTANTE DE TROFÉUS</h3>
+                <div style="display:flex; justify-content:space-around; align-items:flex-end; padding:0 10px;">${emojisEstante}</div>
+                <div style="height:10px; border-radius:2px 2px 5px 5px; background:linear-gradient(180deg, #a97f35, #6b4e1e 55%, #46320f); box-shadow: 0 8px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(253,230,138,0.75); margin-top:-3px;"></div>
+                <button style="width:100%; margin-top:14px; background:rgba(251,191,36,0.12); color:#fde68a; border:1px solid rgba(251,191,36,0.45); border-radius:10px; padding:10px; font-weight:800; font-size:0.72rem; cursor:pointer; font-family:'Montserrat',sans-serif; letter-spacing:0.5px;">🏛️ Entrar na Sala de Troféus (${minhasConquistas.length})</button>
             </div>`;
+        } else {
+            htmlSala = `<p style="grid-column: span 2; text-align:center; color:#999; font-size:0.75rem; padding:10px 0;">Sua estante de troféus vai aparecer aqui — a primeira venda já começa a contar! 🏆</p>`;
         }
 
         // 🔗 MEU CATÁLOGO ONLINE: quantas pessoas abriram o link que EU divulguei
@@ -5115,9 +5189,10 @@ function renderizarDashboard() {
                 <p style="font-size:0.62rem; color:#0d9488; margin:8px 0 0 0; text-align:center;">${vcMeu.total === 0 ? 'Gere seu link em Estoque → Catálogo e divulgue — cada visita é um cliente olhando a vitrine! 🚀' : 'Cada visita é um cliente na sua vitrine. Continue divulgando! 💪'}</p>
             </div>`;
 
+        // 🏗️ MONTAGEM EM ANDARES: herói (o que importa em 3 segundos) + gavetas por assunto
         container.innerHTML = `
             <div class="dash-grid">
-                <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
+                <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 14px; background: linear-gradient(135deg, #0369a1, #0284c7);">
                     <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">MINHAS VENDAS NO PERÍODO</h3>
                     <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVend)}</p>
                     <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">${tItens} produtos vendidos</p>
@@ -5125,43 +5200,37 @@ function renderizarDashboard() {
                         ${crescimentoIcon} ${crescimentoTxt} (Anterior: ${fmt(pVendMeus)})
                     </div>
                 </div>
-                ${htmlMeta}
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
-                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO REPASSADA (PAGA)</h3>
+                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO RECEBIDA</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#2e7d32; margin:0;">${fmt(comAprovada)}</p>
                     <p style="font-size:0.6rem; color:#888; margin-top:3px;">Já acertado c/ a empresa</p>
                 </div>
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
-                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO PENDENTE</h3>
+                    <h3 style="color:#666; font-size:0.7rem; margin:0 0 5px 0;">COMISSÃO A RECEBER</h3>
                     <p style="font-size:1.4rem; font-weight:900; color:#b45309; margin:0;">${fmt(comPendente)}</p>
                     <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
-                
-                ${htmlProjecao}
-                ${htmlStreak}
-                ${htmlBadges}
-                ${htmlSala}
-                ${htmlPatente}
-                ${htmlRanking}
-                ${htmlVisitasCat}
-                ${htmlCrm}
-                
-                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 MEU DESEMPENHO DIÁRIO 👆</h3>
-                    <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos para detalhes)</p>
-                    <div style="position: relative; height: 200px; width: 100%;">
-                        <canvas id="chartFatDiarioVendedor"></canvas>
-                    </div>
-                </div>
 
-                <div class="dash-card" style="padding:15px;">
-                    <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP 5 PRODUTOS</h3>
-                    ${listaProd}
-                </div>
-                <div class="dash-card" style="padding:15px;">
-                    <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 MEUS TOP 5 CLIENTES</h3>
-                    ${listaCli}
-                </div>
+                ${secaoDash('v-missoes', '🎯 Missões do Mês', htmlMeta + htmlStreak + htmlProjecao, true)}
+                ${secaoDash('v-conquistas', `🏆 Conquistas & Ranking${minhasConquistas.length ? ` <span style="font-weight:700; color:#b45309; font-size:0.72rem;">· ${minhasConquistas.length} troféus</span>` : ''}`, htmlSala + htmlPatente + htmlRanking, false)}
+                ${secaoDash('v-catalogo', `🔗 Meu Catálogo Online${vcMeu.hoje > 0 ? ` <span style="font-weight:700; color:#0d9488; font-size:0.72rem;">· 👀 ${vcMeu.hoje} hoje</span>` : ''}`, htmlVisitasCat, false)}
+                ${secaoDash('v-analises', '📈 Minhas Análises', `
+                    ${htmlCrm}
+                    <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                        <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 MEU DESEMPENHO DIÁRIO 👆</h3>
+                        <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Clique nos pontos para detalhes)</p>
+                        <div style="position: relative; height: 200px; width: 100%;">
+                            <canvas id="chartFatDiarioVendedor"></canvas>
+                        </div>
+                    </div>
+                    <div class="dash-card" style="padding:15px;">
+                        <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ MEUS TOP 5 PRODUTOS</h3>
+                        ${listaProd}
+                    </div>
+                    <div class="dash-card" style="padding:15px;">
+                        <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 MEUS TOP 5 CLIENTES</h3>
+                        ${listaCli}
+                    </div>`, false)}
             </div>`;
 
         if (typeof Chart !== 'undefined') {
@@ -5235,8 +5304,9 @@ function renderizarDashboard() {
             devedoresFiltrados[clienteLimpo] += val;
         }
 
-        if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q; 
-        if (v.cliente) mCli[v.cliente] = (mCli[v.cliente] || 0) + val; 
+        if (v.produto) mProd[v.produto] = (mProd[v.produto] || 0) + q;
+        // 🎁 Presente não é compra: cliente presenteado não entra no ranking de quem compra (nem no "menos compram")
+        if (v.cliente && v.status !== 'Presente') mCli[v.cliente] = (mCli[v.cliente] || 0) + val;
 
         if (v.status !== 'Presente') {
             pedidosIdSet.add(v.dataVendaIso + v.cliente);
@@ -5580,178 +5650,151 @@ function renderizarDashboard() {
         }
     }
 
+    // 🏗️ MESA DE DIRETORIA EM ANDARES: herói financeiro + gavetas por assunto
     container.innerHTML = `
         <div class="dash-grid">
-            <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px;">
+            <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 14px;">
                 <h3 style="color: #e8dde1; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">👑 PATRIMÔNIO NOVERA</h3>
                 <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(patrimonio)}</p>
                 <p style="font-size: 0.7rem; color: #e8dde1; margin: 5px 0 0 0; opacity: 0.8;">Caixa + Estoque Físico + A Receber</p>
             </div>
-            
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucro}; background: #fafafa;">
-                <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
-                <p style="font-size:1.8rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
-                <p style="font-size:0.65rem; color:#888; margin-top:3px;">Entradas Pagas - Gastos Totais da Empresa</p>
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid ${corLucro};">
+                <h3 style="color:#666; font-size:0.68rem; margin:0 0 5px 0;">DINHEIRO LIMPO (CAIXA REAL)</h3>
+                <p style="font-size:1.5rem; font-weight:900; color:${corLucro}; margin:0;" id="d-lucro-real">${fmt(lReal)}</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Entradas pagas − gastos</p>
+            </div>
+            <div class="dash-card" style="padding: 15px; border-left: 5px solid ${corLucroTotal};">
+                <h3 style="color:#666; font-size:0.68rem; margin:0 0 5px 0;">LUCRO LÍQUIDO DO PERÍODO</h3>
+                <p style="font-size:1.5rem; font-weight:900; color:${corLucroTotal}; margin:0;">${fmt(tLucroTotal)}</p>
+                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Venda − custo − comissão (incl. fiado)</p>
             </div>
 
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; border-left: 5px solid ${corLucroTotal}; background: #fafafa;">
-                <h3 style="color:#666; font-size:0.75rem; margin:0 0 5px 0;">LUCRO LÍQUIDO (MARGEM DO PERÍODO)</h3>
-                <p style="font-size:1.8rem; font-weight:900; color:${corLucroTotal}; margin:0;">${fmt(tLucroTotal)}</p>
-                <p style="font-size:0.65rem; color:#888; margin-top:3px;">Venda − Custo − Comissão, já incluindo Fiado ainda não pago</p>
-            </div>
-
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #7c3aed; background: #fafafa;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">MARGEM MÉDIA DO PERÍODO</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#7c3aed; margin:0;">${margemMedia.toFixed(1)}%</p>
-                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Lucro sobre o custo dos produtos</p>
-            </div>
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #c2410c; background: #fafafa;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">🔥 BÔNUS DE COMISSÃO PAGO</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#c2410c; margin:0;">${fmt(tBonusPago)}</p>
-                <p style="font-size:0.6rem; color:#888; margin-top:3px;">Custo do incentivo de Estoque Parado no período</p>
-            </div>
-
-            ${htmlAceleradoresAdmin}
-            ${htmlVisitasCatAdmin}
-
-            <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
-                <div>
-                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">📦 ESTOQUE ATUAL FÍSICO</h3>
-                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
+            ${secaoDash('a-financeiro', '💼 Financeiro do Período', `
+                <div class="dash-card highlight" style="grid-column: span 2; padding: 18px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
+                    <h3 style="color: #e0f2fe; font-size: 0.75rem; font-weight: 700; margin: 0 0 8px 0;">TOTAL VENDIDO NO PERÍODO</h3>
+                    <p class="valor" style="font-size: 2rem; color: #fff; margin: 0;">${fmt(tVendasTotais)}</p>
+                    <p style="font-size: 0.7rem; color: #bae6fd; margin: 4px 0 0 0;">(Soma de Entradas + A Receber)</p>
+                    <div style="margin-top: 8px; background: rgba(255,255,255,0.1); display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; color: #fff; font-weight: bold;">
+                        ${crescimentoAdminIcon} ${crescimentoAdminTxt} (Anterior: ${fmt(pVen)})
+                    </div>
                 </div>
-                <div style="text-align:right;">
-                    <h3 style="color:#166534; font-size:0.75rem; margin:0 0 5px 0;">VALOR VAREJO DO ESTOQUE</h3>
-                    <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
+                ${htmlLucroProjetadoAdmin}
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#2e7d32; margin:0;" id="d-receitas">${fmt(tRec)}</p>
                 </div>
-            </div>
-
-            <div class="dash-card highlight" style="grid-column: span 2; padding: 20px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
-                <h3 style="color: #e0f2fe; font-size: 0.8rem; font-weight: 700; margin: 0 0 10px 0;">TOTAL VENDIDO NO PERÍODO</h3>
-                <p class="valor" style="font-size: 2.2rem; color: #fff; margin: 0;">${fmt(tVendasTotais)}</p>
-                <p style="font-size: 0.75rem; color: #bae6fd; margin: 5px 0 0 0;">(Soma de Entradas + A Receber)</p>
-                <div style="margin-top: 10px; background: rgba(255,255,255,0.1); display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; color: #fff; font-weight: bold;">
-                    ${crescimentoAdminIcon} ${crescimentoAdminTxt} (Anterior: ${fmt(pVen)})
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #c62828;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">SAÍDAS (GASTOS)</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#c62828; margin:0;" id="d-gastos">${fmt(tGas)}</p>
                 </div>
-            </div>
-
-            ${htmlLucroProjetadoAdmin}
-
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #2e7d32;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">ENTRADAS (PAGAS)</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#2e7d32; margin:0;" id="d-receitas">${fmt(tRec)}</p>
-            </div>
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #c62828;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">SAÍDAS (GASTOS)</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#c62828; margin:0;" id="d-gastos">${fmt(tGas)}</p>
-            </div>
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
-                <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">A RECEBER (FIADO)</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
-            </div>
-            <div class="dash-card" style="padding: 15px; border-left: 5px solid #0284c7; background: #f0f9ff;">
-                <h3 style="color:#0369a1; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO</h3>
-                <p style="font-size:1.2rem; font-weight:900; color:#0284c7; margin:0;">${fmt(ticketMedio)}</p>
-                <p style="font-size:0.6rem; color:#0284c7; margin-top:3px; opacity:0.8;">Baseado em ${pedidosIdSet.size} pedidos</p>
-            </div>
-
-            ${htmlRanking}
-
-            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">⚖️ COMPARATIVO (${fM}/${fA} vs ${prevM_str}/${prevA_int})</h3>
-                <div style="position: relative; height: 230px; width: 100%;">
-                    <canvas id="chartCompMes"></canvas>
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #f59e0b;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">A RECEBER (FIADO)</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
                 </div>
-            </div>
-            
-            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📅 HISTÓRICO ANUAL (${fA})</h3>
-                <div style="position: relative; height: 250px; width: 100%;">
-                    <canvas id="chartHistAnual"></canvas>
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #0284c7;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#0284c7; margin:0;">${fmt(ticketMedio)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Baseado em ${pedidosIdSet.size} pedidos</p>
                 </div>
-            </div>
-
-            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO 👆</h3>
-                <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Vendas realizadas no dia, pago ou fiado)</p>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartFatDiario"></canvas>
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #7c3aed;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">MARGEM MÉDIA</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#7c3aed; margin:0;">${margemMedia.toFixed(1)}%</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Lucro sobre o custo</p>
                 </div>
-            </div>
-
-            <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📉 CURVA DE RECEBIMENTOS DIÁRIOS 👆</h3>
-                <p style="font-size:0.6rem; color:#15803d; font-weight:bold; margin-top:-5px; margin-bottom:10px;">(Dinheiro que efetivamente entrou no Caixa a cada dia)</p>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartRecDiario"></canvas>
+                <div class="dash-card" style="padding: 15px; border-left: 5px solid #c2410c;">
+                    <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">🔥 BÔNUS DE COMISSÃO PAGO</h3>
+                    <p style="font-size:1.2rem; font-weight:900; color:#c2410c; margin:0;">${fmt(tBonusPago)}</p>
+                    <p style="font-size:0.6rem; color:#888; margin-top:3px;">Incentivo Estoque Parado</p>
                 </div>
-            </div>
+                <div class="dash-card" style="grid-column: span 2; padding: 15px; display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0;">
+                    <div>
+                        <h3 style="color:#166534; font-size:0.72rem; margin:0 0 5px 0;">📦 ESTOQUE FÍSICO</h3>
+                        <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-itens">${estItens} un</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <h3 style="color:#166534; font-size:0.72rem; margin:0 0 5px 0;">VALOR VAREJO</h3>
+                        <p style="font-size:1.2rem; font-weight:900; color:#166534; margin:0;" id="d-estoque-valor">${fmt(estValor)}</p>
+                    </div>
+                </div>`, true)}
 
-            <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🏅 FORÇA DE VENDAS 👆</h3>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartForcaVendas"></canvas>
+            ${secaoDash('a-equipe', '👥 Equipe & Comissões', htmlRanking + htmlAceleradoresAdmin, true)}
+
+            ${secaoDash('a-catalogo', '🌐 Catálogo Online', htmlVisitasCatAdmin || '<p style="grid-column: span 2; text-align:center; color:#999; font-size:0.75rem; padding:10px 0;">Nenhuma visita registrada ainda.</p>', false)}
+
+            ${secaoDash('a-alertas', '🚨 Alertas & Oportunidades', `
+                <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fef2f2; border:1px solid #fecaca;">
+                    <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 TOP 5 DEVEDORES DO PERÍODO 👆</h3>
+                    <p style="font-size:0.6rem; color:#b91c1c; margin-top:-5px; margin-bottom:10px;">(Clique no nome para ir cobrar)</p>
+                    <div style="margin-bottom: 15px;">${listaDevedores}</div>
                 </div>
-            </div>
-            <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🍩 MIX DE PRODUTOS 👆</h3>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartMixProd"></canvas>
+                <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fffbeb; border:1px solid #fde68a;">
+                    <h3 style="color:#b45309; font-size:0.8rem; border-bottom:1px solid #fde68a; padding-bottom:5px; margin-bottom:10px;">⏳ PREVISÃO DE RUPTURA (RITMO 30 DIAS)</h3>
+                    <div id="d-ranking-ruptura">${listaRuptura}</div>
+                    <p style="font-size:0.6rem; color:#b45309; margin:8px 0 0 0; font-style:italic;">🚨 = menos de 20 dias. Lembre da maceração: o momento de produzir é AGORA, não quando zerar!</p>
                 </div>
-            </div>
-
-            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fef2f2; border:1px solid #fecaca;">
-                <h3 style="color:#b91c1c; font-size:0.8rem; border-bottom:1px solid #fca5a5; padding-bottom:5px; margin-bottom:10px;">🚨 TOP 5 DEVEDORES DO PERÍODO 👆</h3>
-                <p style="font-size:0.6rem; color:#b91c1c; margin-top:-5px; margin-bottom:10px;">(Clique no nome para ir cobrar)</p>
-                <div style="margin-bottom: 15px;">${listaDevedores}</div>
-            </div>
-
-            <div class="dash-card" style="padding:15px;">
-                <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ TOP 5 PRODUTOS</h3>
-                <div id="d-ranking-produtos">${listaProd}</div>
-            </div>
-            <div class="dash-card" style="padding:15px;">
-                <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 5 CLIENTES</h3>
-                <div id="d-ranking-clientes">${listaCli}</div>
-            </div>
-
-            <div class="dash-card" style="padding:15px;">
-                <h3 style="color:#b91c1c; font-size:0.75rem; border-bottom:1px solid #fecaca; padding-bottom:5px; margin-bottom:10px;">🐢 5 QUE MENOS SAEM (C/ ESTOQUE)</h3>
-                <div id="d-ranking-encalhados">${listaEncalhados}</div>
-                <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Vendas no período × quanto sobra no estoque.</p>
-            </div>
-            <div class="dash-card" style="padding:15px;">
-                <h3 style="color:#6b7280; font-size:0.75rem; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:10px;">👻 5 CLIENTES QUE MENOS COMPRAM</h3>
-                <div id="d-ranking-clientes-fracos">${listaCliFracos}</div>
-                <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Entre quem comprou algo no período.</p>
-            </div>
-
-            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#fffbeb; border:1px solid #fde68a;">
-                <h3 style="color:#b45309; font-size:0.8rem; border-bottom:1px solid #fde68a; padding-bottom:5px; margin-bottom:10px;">⏳ PREVISÃO DE RUPTURA (RITMO DOS ÚLTIMOS 30 DIAS)</h3>
-                <div id="d-ranking-ruptura">${listaRuptura}</div>
-                <p style="font-size:0.6rem; color:#b45309; margin:8px 0 0 0; font-style:italic;">🚨 = menos de 20 dias. Lembre do tempo de maceração: o momento de produzir é AGORA, não quando zerar!</p>
-            </div>
-
-            <div class="dash-card" style="grid-column: span 2; padding:15px; background:#faf5ff; border:1px solid #ddd6fe;">
-                <h3 style="color:#7c3aed; font-size:0.8rem; border-bottom:1px solid #ddd6fe; padding-bottom:5px; margin-bottom:10px;">🕵️ CLIENTES SUMIDOS (45+ DIAS SEM COMPRAR)${totalSumidos > 8 ? ` — ${totalSumidos} NO TOTAL` : ''}</h3>
-                <div id="d-ranking-sumidos">${listaSumidos}</div>
-                <p style="font-size:0.6rem; color:#a78bfa; margin:8px 0 0 0; font-style:italic;">Quem mais gastava aparece primeiro — são os melhores para chamar de volta. Vale para o histórico todo, independente do mês filtrado.</p>
-            </div>
-
-            ${htmlTermometro}
-
-            <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS 👆</h3>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartReceitasGastos"></canvas>
+                <div class="dash-card" style="grid-column: span 2; padding:15px; background:#faf5ff; border:1px solid #ddd6fe;">
+                    <h3 style="color:#7c3aed; font-size:0.8rem; border-bottom:1px solid #ddd6fe; padding-bottom:5px; margin-bottom:10px;">🕵️ CLIENTES SUMIDOS (45+ DIAS)${totalSumidos > 8 ? ` — ${totalSumidos} NO TOTAL` : ''}</h3>
+                    <div id="d-ranking-sumidos">${listaSumidos}</div>
+                    <p style="font-size:0.6rem; color:#a78bfa; margin:8px 0 0 0; font-style:italic;">Quem mais gastava aparece primeiro. Vale pro histórico todo, independente do mês.</p>
                 </div>
-            </div>
-            <div class="dash-card" style="padding: 15px;">
-                <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS 👆</h3>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="chartStatusVendas"></canvas>
+                ${htmlTermometro}`, false)}
+
+            ${secaoDash('a-tops', '⭐ Rankings de Produtos & Clientes', `
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:var(--primary-dark); font-size:0.75rem; border-bottom:1px solid #E8DDE1; padding-bottom:5px; margin-bottom:10px;">⭐ TOP 5 PRODUTOS</h3>
+                    <div id="d-ranking-produtos">${listaProd}</div>
                 </div>
-            </div>
-            
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:#b45309; font-size:0.75rem; border-bottom:1px solid #fde047; padding-bottom:5px; margin-bottom:10px;">👑 TOP 5 CLIENTES</h3>
+                    <div id="d-ranking-clientes">${listaCli}</div>
+                </div>
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:#b91c1c; font-size:0.75rem; border-bottom:1px solid #fecaca; padding-bottom:5px; margin-bottom:10px;">🐢 5 QUE MENOS SAEM (C/ ESTOQUE)</h3>
+                    <div id="d-ranking-encalhados">${listaEncalhados}</div>
+                    <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Vendas no período × quanto sobra no estoque.</p>
+                </div>
+                <div class="dash-card" style="padding:15px;">
+                    <h3 style="color:#6b7280; font-size:0.75rem; border-bottom:1px solid #e5e7eb; padding-bottom:5px; margin-bottom:10px;">👻 5 CLIENTES QUE MENOS COMPRAM</h3>
+                    <div id="d-ranking-clientes-fracos">${listaCliFracos}</div>
+                    <p style="font-size:0.6rem; color:#999; margin:8px 0 0 0; font-style:italic;">Entre quem comprou algo no período.</p>
+                </div>`, false)}
+
+            ${secaoDash('a-graficos', '📊 Gráficos', `
+                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">⚖️ COMPARATIVO (${fM}/${fA} vs ${prevM_str}/${prevA_int})</h3>
+                    <div style="position: relative; height: 230px; width: 100%;"><canvas id="chartCompMes"></canvas></div>
+                </div>
+                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📅 HISTÓRICO ANUAL (${fA})</h3>
+                    <div style="position: relative; height: 250px; width: 100%;"><canvas id="chartHistAnual"></canvas></div>
+                </div>
+                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CURVA DE FATURAMENTO DIÁRIO 👆</h3>
+                    <p style="font-size:0.6rem; color:#888; margin-top:-5px; margin-bottom:10px;">(Vendas realizadas no dia, pago ou fiado)</p>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartFatDiario"></canvas></div>
+                </div>
+                <div class="dash-card" style="grid-column: span 2; padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📉 CURVA DE RECEBIMENTOS DIÁRIOS 👆</h3>
+                    <p style="font-size:0.6rem; color:#15803d; font-weight:bold; margin-top:-5px; margin-bottom:10px;">(Dinheiro que efetivamente entrou no Caixa a cada dia)</p>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartRecDiario"></canvas></div>
+                </div>
+                <div class="dash-card" style="padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🏅 FORÇA DE VENDAS 👆</h3>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartForcaVendas"></canvas></div>
+                </div>
+                <div class="dash-card" style="padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">🍩 MIX DE PRODUTOS 👆</h3>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartMixProd"></canvas></div>
+                </div>
+                <div class="dash-card" style="padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📈 CAIXA VS GASTOS 👆</h3>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartReceitasGastos"></canvas></div>
+                </div>
+                <div class="dash-card" style="padding: 15px;">
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">📊 STATUS VENDAS 👆</h3>
+                    <div style="position: relative; height: 200px; width: 100%;"><canvas id="chartStatusVendas"></canvas></div>
+                </div>`, false)}
+
             <div id="d-patrimonio" style="display:none;">${fmt(patrimonio)}</div>
             <div id="d-lucro-projetado" style="display:none;">${fmt(tLucroTotal)}</div>
         </div>
@@ -6162,6 +6205,9 @@ function descricaoConquista(badgeId) {
     const mapa = {
         guia_completo: 'Leu o Guia do Vendedor da primeira à última página. Formação completa — agora é vender com conhecimento! 🎓',
         semana_meta: 'Bateu a meta da semana (a meta do mês dividida em pedacinhos semanais). Constância que enche o bolso!',
+        primeira_venda: 'A primeira venda da sua vida na Novera. Toda grande jornada começa com um passo — esse foi o seu! 🐣',
+        cacador5: 'Cinco clientes compraram com você pela PRIMEIRA vez dentro do mesmo mês. Abrir portas novas é o talento mais valioso que existe!',
+        vitrine50: 'Seu catálogo online foi aberto 50 vezes ou mais num único mês. Divulgação em dia = vitrine cheia = venda chegando!',
         itens10: 'Vendeu 10 ou mais itens dentro de um mesmo mês.',
         itens20: 'Vendeu 20 ou mais itens dentro de um mesmo mês. Ritmo acelerado!',
         itens50: 'Vendeu 50 ou mais itens num único mês. Máquina de vendas!',
@@ -6192,49 +6238,90 @@ function abrirModalSalaTrofeus() {
         .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
     if (!minhas.length) return;
 
-    const linhas = minhas.map(c => {
-        let quandoTxt = '';
-        if (c.data) {
-            const [dParte, hParte] = String(c.data).split(' ');
-            const pedacos = (dParte || '').split('-');
-            if (pedacos.length === 3) quandoTxt = `${pedacos[2]}/${pedacos[1]}/${pedacos[0]}${hParte ? ` às ${hParte.substring(0, 5)}` : ''}`;
+    // 📚 A ESTANTE: troféus em pé sobre prateleiras de madeira dourada, 3 por fileira.
+    // Toca num troféu → ele salta e a plaquinha do museu (embaixo) conta a história dele.
+    const alaCarreira = minhas.filter(c => !c.mes);
+    const alaMeses = minhas.filter(c => c.mes);
+    window._salaTrofeusLista = alaCarreira.concat(alaMeses);
+
+    const fileirasEstante = (lista, offset) => {
+        let htmlF = '';
+        for (let i = 0; i < lista.length; i += 3) {
+            const grupo = lista.slice(i, i + 3);
+            const celulas = grupo.map((c, j) => `
+                <div style="flex:1; text-align:center; cursor:pointer; min-width:0;" onclick="selecionarTrofeuSala(${offset + i + j})">
+                    <span id="trofeu-sala-${offset + i + j}" style="display:inline-block; font-size:2.5rem; line-height:1; filter:drop-shadow(0 7px 7px rgba(0,0,0,0.55)); transition:transform 0.18s ease;">${c.emoji || '🏆'}</span>
+                </div>`).join('');
+            const legendas = grupo.map(c => {
+                let mesTxtL = '';
+                if (c.mes) { const [aM, mM] = c.mes.split('-'); mesTxtL = `${mesesAbrevM[parseInt(mM) - 1] || ''}/${String(aM).slice(2)}`; }
+                return `<div style="flex:1; text-align:center; min-width:0; padding:0 3px;">
+                    <p style="margin:0; font-size:0.52rem; font-weight:900; color:#e9d8a6; line-height:1.25;">${c.titulo}</p>
+                    ${mesTxtL ? `<p style="margin:1px 0 0; font-size:0.48rem; color:#9d8bae; font-weight:700;">${mesTxtL}</p>` : ''}
+                </div>`;
+            }).join('');
+            const vazias = 3 - grupo.length;
+            const enchimento = vazias > 0 ? `<div style="flex:${vazias};"></div>` : '';
+            htmlF += `
+            <div style="margin: 4px 4px 18px;">
+                <div style="display:flex; align-items:flex-end; padding: 0 4px;">${celulas}${enchimento}</div>
+                <div style="height:11px; border-radius:2px 2px 5px 5px; background:linear-gradient(180deg, #a97f35, #6b4e1e 55%, #46320f); box-shadow: 0 9px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(253,230,138,0.75); margin-top:-3px;"></div>
+                <div style="display:flex; padding: 6px 4px 0;">${legendas}${enchimento}</div>
+            </div>`;
         }
-        let mesChip = '';
-        if (c.mes) {
-            const [aM, mM] = c.mes.split('-');
-            mesChip = `<span style="background:#fde68a; color:#92400e; padding:2px 8px; border-radius:10px; font-size:0.58rem; font-weight:900;">${mesesAbrevM[parseInt(mM) - 1] || ''}/${String(aM).slice(2)}</span>`;
-        } else {
-            mesChip = `<span style="background:#e9d5ff; color:#7e22ce; padding:2px 8px; border-radius:10px; font-size:0.58rem; font-weight:900;">CARREIRA</span>`;
-        }
-        return `
-        <div style="display:flex; gap:12px; align-items:flex-start; background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:12px 14px; margin-bottom:8px;">
-            <span style="font-size:2.1rem; flex-shrink:0; line-height:1;">${c.emoji || '🏆'}</span>
-            <div style="flex:1; min-width:0; text-align:left;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <strong style="color:#92400e; font-size:0.85rem;">${c.titulo}</strong>
-                    ${mesChip}
-                </div>
-                <p style="margin:4px 0 0 0; font-size:0.72rem; color:#4A4A4A; line-height:1.4;">${descricaoConquista(c.badgeId)}</p>
-                ${quandoTxt ? `<p style="margin:4px 0 0 0; font-size:0.62rem; color:#b45309; font-weight:700;">🗓️ Conquistado em ${quandoTxt}</p>` : ''}
-            </div>
+        return htmlF;
+    };
+
+    const tituloAla = (txt) => `
+        <div style="display:flex; align-items:center; gap:10px; margin:14px 6px 12px;">
+            <div style="flex:1; height:1px; background:linear-gradient(90deg, transparent, rgba(251,191,36,0.5));"></div>
+            <span style="color:#fbbf24; font-size:0.6rem; font-weight:900; letter-spacing:3px; white-space:nowrap;">${txt}</span>
+            <div style="flex:1; height:1px; background:linear-gradient(90deg, rgba(251,191,36,0.5), transparent);"></div>
         </div>`;
-    }).join('');
+
+    let corpo = '';
+    if (alaCarreira.length) corpo += tituloAla('✦ ESTANTE DA CARREIRA ✦') + fileirasEstante(alaCarreira, 0);
+    if (alaMeses.length) corpo += tituloAla('✦ A JORNADA, MÊS A MÊS ✦') + fileirasEstante(alaMeses, alaCarreira.length);
 
     const overlay = document.createElement('div');
     overlay.id = 'modal-sala-trofeus';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99998; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(12,8,18,0.88); z-index:99998; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(5px); animation:fadeIn 0.25s ease;';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = `
-        <div style="background:linear-gradient(160deg, #ffffff, #fdf5f7); border-radius:24px; max-width:400px; width:100%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #fde68a; overflow:hidden;">
-            <div style="padding:20px 20px 12px 20px; text-align:center; position:relative;">
-                <button onclick="document.getElementById('modal-sala-trofeus').remove()" style="position:absolute; top:12px; right:14px; background:none; border:none; font-size:1.6rem; color:#b45309; cursor:pointer; line-height:1;">&times;</button>
-                <span style="font-size:2.4rem;">🏛️</span>
-                <h3 style="margin:4px 0 2px 0; color:#b45309; font-size:1.1rem; font-weight:900; text-transform:uppercase; letter-spacing:1px;">Minha Sala de Troféus</h3>
-                <p style="margin:0; color:#966178; font-size:0.72rem; font-weight:700;">${minhas.length} conquista${minhas.length > 1 ? 's' : ''} de ${usuarioLogado} — cada uma sua pra sempre 💛</p>
+        <div style="background:linear-gradient(165deg, #2a2138 0%, #3b3050 55%, #2f2542 100%); border-radius:24px; max-width:410px; width:100%; max-height:86vh; display:flex; flex-direction:column; box-shadow:0 30px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(251,191,36,0.25); font-family:'Montserrat', sans-serif; border:1px solid rgba(251,191,36,0.45); overflow:hidden;">
+            <div style="padding:20px 20px 12px; text-align:center; position:relative; background:radial-gradient(ellipse at 50% -30%, rgba(251,191,36,0.18), transparent 65%); flex-shrink:0;">
+                <button onclick="document.getElementById('modal-sala-trofeus').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.08); border:1px solid rgba(251,191,36,0.3); width:32px; height:32px; border-radius:50%; font-size:1rem; color:#fde68a; cursor:pointer; line-height:1;">×</button>
+                <span style="font-size:2.2rem; filter:drop-shadow(0 4px 10px rgba(251,191,36,0.35));">🏛️</span>
+                <h3 style="margin:4px 0 2px; color:#fde68a; font-size:1.2rem; font-weight:700; font-family:'Playfair Display', serif; letter-spacing:2px;">Sala de Troféus</h3>
+                <p style="margin:0; color:#b8a3c9; font-size:0.66rem; font-weight:700; letter-spacing:1px;">${usuarioLogado} · ${minhas.length} conquista${minhas.length > 1 ? 's' : ''} — suas pra sempre ✨</p>
             </div>
-            <div style="flex:1; overflow-y:auto; padding: 6px 16px 16px 16px;">${linhas}</div>
+            <div style="flex:1; overflow-y:auto; padding: 0 12px 6px;">${corpo}</div>
+            <div id="placa-trofeu" style="flex-shrink:0; margin:8px 14px 14px; background:linear-gradient(160deg, #43365c, #372c4d); border:1px solid rgba(251,191,36,0.4); border-radius:12px; padding:10px 14px; min-height:56px; text-align:center; color:#9d8bae; font-size:0.68rem; display:flex; flex-direction:column; justify-content:center;">
+                👆 Toque num troféu da estante pra ler a plaquinha dele ✨
+            </div>
         </div>`;
     document.body.appendChild(overlay);
+}
+
+// 🪧 A plaquinha do museu: título em serifa dourada, a história e a data da conquista
+function selecionarTrofeuSala(idx) {
+    const c = (window._salaTrofeusLista || [])[idx];
+    const placa = document.getElementById('placa-trofeu');
+    if (!c || !placa) return;
+    document.querySelectorAll('[id^="trofeu-sala-"]').forEach(el => { el.style.transform = ''; });
+    const alvo = document.getElementById('trofeu-sala-' + idx);
+    if (alvo) alvo.style.transform = 'scale(1.28) translateY(-5px)';
+
+    let quandoTxt = '';
+    if (c.data) {
+        const [dParte, hParte] = String(c.data).split(' ');
+        const pedacos = (dParte || '').split('-');
+        if (pedacos.length === 3) quandoTxt = `${pedacos[2]}/${pedacos[1]}/${pedacos[0]}${hParte ? ` às ${hParte.substring(0, 5)}` : ''}`;
+    }
+    placa.innerHTML = `
+        <p style="margin:0; color:#fde68a; font-size:0.82rem; font-weight:700; font-family:'Playfair Display', serif;">${c.emoji || '🏆'} ${c.titulo}</p>
+        <p style="margin:4px 0 0; color:#cbb8d8; font-size:0.66rem; line-height:1.45;">${descricaoConquista(c.badgeId)}</p>
+        ${quandoTxt ? `<p style="margin:4px 0 0; color:#9d8bae; font-size:0.56rem; font-weight:700; letter-spacing:0.5px;">🗓️ Conquistado em ${quandoTxt}</p>` : ''}`;
 }
 
 function fazerLogout(motivo) {
@@ -6570,14 +6657,19 @@ const PAGINAS_GUIA = [
 </div>` },
 
 { id: 'painel', emoji: '📊', titulo: 'Painel: seu dinheiro e suas conquistas', html: `
-<p style="margin-bottom:8px;">O <b>📊 Painel</b> é o seu contracheque ao vivo. O mais importante: <b>as comissões têm 3 estados</b>:</p>
-<p style="margin-bottom:8px;"><span style="color:#b45309; font-weight:800;">1. Futura</span> — você vendeu fiado, o cliente ainda não pagou. → <span style="color:#b91c1c; font-weight:800;">2. Liberada</span> — o cliente pagou! Falta a empresa te repassar. → <span style="color:#15803d; font-weight:800;">3. Recebida</span> — dinheiro na sua mão. ✅</p>
-<p style="margin-bottom:8px;">Por isso <b>cobrar clientes acelera SEU pagamento</b> — comissão só anda quando o cliente paga.</p>
-<p style="margin-bottom:6px;">🎯 <b>Meta do mês</b> com barra de progresso:</p>
-<div style="background:#e5e7eb; border-radius:20px; height:14px; overflow:hidden; margin-bottom:10px;"><div style="width:63%; height:100%; border-radius:20px; background:linear-gradient(90deg,#fbbf24,#f59e0b);"></div></div>
-<p style="margin-bottom:6px;">🔥 <b>Sequência</b>: dias seguidos vendendo — não deixe a corrente quebrar! 🏆 <b>Troféus</b>: conquistas viram festa na tela e ficam pra sempre na sua <b>Sala de Troféus</b> (toque nela pra ver os detalhes).</p>
-<p style="margin-bottom:6px;">🎖️ <b>Patente de carreira</b>: Bronze → Prata → Ouro → Diamante. Só sobe, nunca desce.</p>
-<p style="margin:0;">🎯 <b>Radar de Recompra</b>: quem comprou há 45+ dias está com o frasco acabando — chame no WhatsApp!</p>` },
+<p style="margin-bottom:8px;">O <b>📊 Painel</b> é o seu contracheque ao vivo. Logo no topo, as 3 respostas que importam: <b>quanto vendi</b>, <b>comissão recebida</b> e <b>comissão a receber</b>.</p>
+<p style="margin-bottom:8px;">📅 <b>Trocando de mês:</b> use as setinhas <b>◀ Agosto 2026 ▶</b> no topo pra passear pelos meses. Se perdeu no passado, <b>toque no nome do mês</b> e volta pro atual.</p>
+<p style="margin-bottom:8px;">🗂️ <b>O painel é organizado em GAVETAS</b> — toque no título e ela abre/fecha (o app lembra como você deixou):</p>
+<div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.75rem; margin-bottom:10px;">
+    <p style="margin:0 0 4px;"><b>🎯 Missões do Mês</b> — sua meta com a corrida contra o tempo, a meta da semana e o acelerador (lição que vem a seguir!).</p>
+    <p style="margin:0 0 4px;"><b>🏆 Conquistas & Ranking</b> — sua estante de troféus, sua patente e o pódio da equipe.</p>
+    <p style="margin:0 0 4px;"><b>🔗 Meu Catálogo Online</b> — visitas e pedidos da sua vitrine.</p>
+    <p style="margin:0;"><b>📈 Minhas Análises</b> — gráfico diário, seus top produtos/clientes e o radar de recompra.</p>
+</div>
+<p style="margin-bottom:8px;"><b>As comissões têm 3 estados:</b> <span style="color:#b45309; font-weight:800;">Futura</span> (vendeu fiado, cliente não pagou) → <span style="color:#b91c1c; font-weight:800;">Liberada</span> (cliente pagou, falta repassar) → <span style="color:#15803d; font-weight:800;">Recebida</span> ✅. Por isso <b>cobrar acelera SEU pagamento</b>.</p>
+<p style="margin-bottom:8px;">🏛️ <b>Estante de Troféus:</b> são <b>21 troféus diferentes</b> — por vender, por constância (🔥 sequência de dias), por trazer clientes novos e até por divulgar seu catálogo! Cada conquista vira festa na tela e fica na estante pra sempre. Toque num troféu na Sala pra ler a plaquinha dele.</p>
+<p style="margin-bottom:6px;">🎖️ <b>Patente de carreira</b>: a trilha 🌱→🥉→🥈→🥇→💎 soma tudo que você já vendeu na vida. Só sobe, nunca desce.</p>
+<p style="margin:0;">🎯 <b>Radar de Recompra</b> (na gaveta Análises): quem comprou há 45+ dias está com o frasco acabando — chame no WhatsApp!</p>` },
 
 { id: 'metas', emoji: '💰', titulo: 'Metas que PAGAM (o acelerador)', html: `
 <div style="background:#f0fdf4; border:2px solid #22c55e; border-radius:12px; padding:12px; margin-bottom:10px;">

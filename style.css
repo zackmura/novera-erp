@@ -314,6 +314,18 @@ html:has([id^="modal-"][style*="display:flex"]) { overflow: hidden; }
 }
 .ajuda-pulso { animation: pulsoAjuda 1.6s ease infinite; }
 
+/* 🗂️ Seções sanfona do Painel: cada assunto na sua gaveta, com estado lembrado por aparelho */
+.secao-dash { grid-column: span 2; background: #fff; border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; }
+.secao-dash summary { list-style: none; cursor: pointer; padding: 14px 16px; font-weight: 900; font-size: 0.85rem; color: var(--brand-dark); display: flex; justify-content: space-between; align-items: center; user-select: none; }
+.secao-dash summary::-webkit-details-marker { display: none; }
+.secao-dash summary:active { background: #fdf5f7; }
+.secao-dash .sd-seta { color: var(--primary-dark); font-size: 0.8rem; transition: transform 0.2s ease; }
+.secao-dash[open] .sd-seta { transform: rotate(180deg); }
+.secao-dash[open] summary { border-bottom: 1px dashed var(--border-color); }
+.secao-dash .sd-corpo { padding: 12px; }
+.secao-dash .sd-corpo .dash-grid { margin: 0; }
+html.tema-escuro .secao-dash { background: var(--card-bg, #3b3050); }
+
 /* 🙈 Campos de senha "disfarçados": são type=text com bolinhas desenhadas pelo CSS.
    O gerenciador de senhas do celular (Samsung Pass / Google) só fareja type=password —
    assim o aviso "salvar senha?" para de pipocar no topo da tela. */
