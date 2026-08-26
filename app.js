@@ -25,6 +25,17 @@ function alternarModoEscuro() {
 
 document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
+// ✍️ REGRA GLOBAL: tocar num campo preenchido já SELECIONA o texto todo — digitar substitui,
+// sem precisar apagar. Vale pra todo input de texto/número/telefone do sistema.
+// (Quer só editar um pedacinho? Toca de novo no ponto desejado que a seleção desfaz.)
+document.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'INPUT' || el.readOnly || !el.value) return;
+    const tipoInput = (el.type || 'text').toLowerCase();
+    if (!['text', 'search', 'number', 'tel'].includes(tipoInput)) return;
+    setTimeout(() => { try { el.select(); } catch (e2) { /* alguns tipos não suportam, tudo bem */ } }, 0);
+});
+
 // ==========================================
 // 🎨 IDENTIDADE VISUAL (Degrau 1 do white-label)
 // Nome, logo e paleta configuráveis pela Diretoria em Parâmetros Globais.
@@ -1006,7 +1017,200 @@ function abrirModalEditarRotulo(linha) { const r = rotulosGlobal.find(x => x.lin
 function salvarEdicaoRotulo() { mostrarLoading("Atualizando..."); const ess = padronizarTexto(document.getElementById('edit-r-essencia').value); const gen = document.getElementById('edit-r-genero') ? document.getElementById('edit-r-genero').value : ""; const msgLog = `✏️ Editou a essência: ${ess}. Gênero atual: ${gen || 'Indefinido'}`; const py = { usuario: usuarioLogado, acao: "atualizar_rotulo", linha: document.getElementById('edit-r-linha').value, essencia: ess, codigo_forn: padronizarTexto(document.getElementById('edit-r-codigo-forn').value), marca: padronizarTexto(document.getElementById('edit-r-marca').value), genero: gen, log_detalhe: msgLog }; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(py) }).then(r => r.json()).then(json => { if (json.sucesso) { document.getElementById('modal-editar-rotulo').style.display = 'none'; mostrarAlerta("Atualizado!", "Edição salva.", "success"); sincronizarDadosUnico(); } }).catch(e => mostrarAlerta("Erro", "Falha de conexão.", "error")).finally(() => ocultarLoading()); }
 
 let custoTotalGlobal = 0;
-function calcularNovera() { const cFrag = parseFloat(document.getElementById('n-custo-frag').value) || 0; const qFrag = parseFloat(document.getElementById('n-qtd-frag').value) || 0; const cBase1L = parseFloat(document.getElementById('n-custo-base').value) || 0; const qBase = parseFloat(document.getElementById('n-qtd-base').value) || 0; const mlVenda = parseFloat(document.getElementById('n-ml-venda').value) || 1; const cInsumos = parseFloat(document.getElementById('n-insumos').value) || 0; const valorMlBase = cBase1L / 1000; const qtdMlProducao = qBase + qFrag; const qtdFrascos = qtdMlProducao / mlVenda; const custoLiquidoUni = qtdFrascos > 0 ? (cFrag + (valorMlBase * qBase)) / qtdFrascos : 0; const custoTotalUni = custoLiquidoUni + cInsumos; custoTotalGlobal = custoTotalUni; document.getElementById('r-frascos').innerText = Math.floor(qtdFrascos) + " un"; document.getElementById('r-custo-total').innerText = fmt(custoTotalUni); document.getElementById('p-rendimento').value = Math.floor(qtdFrascos); autoSugerirPrecoFabrica(); }
+// 🧮 Custo REAL: essência proporcional (preço do vidro ÷ tamanho × ml usados) e, se a
+// Natália informar quantos frascos SAÍRAM de verdade, o custo divide pelo número real.
+function calcularNovera() {
+    const precoVidro = parseFloat(document.getElementById('n-custo-frag').value) || 0;
+    const vidroMl = parseFloat(document.getElementById('n-vidro-frag') ? document.getElementById('n-vidro-frag').value : 50) || 50;
+    const qFrag = parseFloat(document.getElementById('n-qtd-frag').value) || 0;
+    const cBase1L = parseFloat(document.getElementById('n-custo-base').value) || 0;
+    const qBase = parseFloat(document.getElementById('n-qtd-base').value) || 0;
+    const mlVenda = parseFloat(document.getElementById('n-ml-venda').value) || 1;
+    const cInsumos = parseFloat(document.getElementById('n-insumos').value) || 0;
+    const rendReal = parseFloat(document.getElementById('n-rend-real') ? document.getElementById('n-rend-real').value : 0) || 0;
+
+    const cFrag = vidroMl > 0 ? (precoVidro / vidroMl) * qFrag : 0; // 💡 só paga pelos ml que entram na receita
+    const valorMlBase = cBase1L / 1000;
+    const qtdMlProducao = qBase + qFrag;
+    const qtdFrascosTeorico = qtdMlProducao / mlVenda;
+    const divisor = rendReal > 0 ? rendReal : qtdFrascosTeorico; // a verdade da bancada vence a teoria
+    const custoLiquidoUni = divisor > 0 ? (cFrag + (valorMlBase * qBase)) / divisor : 0;
+    const custoTotalUni = custoLiquidoUni + cInsumos;
+    custoTotalGlobal = custoTotalUni;
+
+    const elFragUsado = document.getElementById('r-custo-frag-usado');
+    if (elFragUsado) elFragUsado.innerText = `${fmt(cFrag)} (${qFrag}ml do vidro de ${vidroMl}ml)`;
+    document.getElementById('r-frascos').innerText = rendReal > 0 ? `${rendReal} un (real ✔)` : `${Math.floor(qtdFrascosTeorico)} un (teórico)`;
+    document.getElementById('r-custo-total').innerText = fmt(custoTotalUni);
+    document.getElementById('p-rendimento').value = rendReal > 0 ? rendReal : Math.floor(qtdFrascosTeorico);
+    autoSugerirPrecoFabrica();
+}
+
+// 🧾 Ao escolher a essência: busca a ÚLTIMA compra dela na aba Gastos e preenche o preço
+function buscarCustoEssenciaGastos() {
+    const hint = document.getElementById('n-hint-frag');
+    const valSel = document.getElementById('n-produto').value;
+    if (!valSel) { if (hint) hint.innerText = ''; return; }
+    const nomeEss = normalizarNomeBusca(valSel.split('|')[1] || valSel);
+    const compra = gastosGlobal
+        .filter(g => g.item && normalizarNomeBusca(g.item).includes(nomeEss) && parseDinheiro(g.valor) > 0)
+        .sort((a, b) => String(b.dataIso || '').localeCompare(String(a.dataIso || '')))[0];
+    if (compra) {
+        document.getElementById('n-custo-frag').value = parseDinheiro(compra.valor).toFixed(2);
+        if (hint) { hint.innerText = `🧾 Última compra: ${fmt(parseDinheiro(compra.valor))} em ${compra.dataDisplay || ''}`; hint.style.color = '#15803d'; }
+    } else {
+        if (hint) { hint.innerText = `⚠️ Não achei essa essência nos Gastos — confira o preço manualmente.`; hint.style.color = '#b45309'; }
+    }
+    calcularNovera();
+}
+
+// 🧾 Ao escolher o tipo: busca a última compra da base certa nos Gastos + ajusta o vidro padrão.
+// Aceita os apelidos da casa: "Base Perfume", "Base Para Perfume", "Base P/ Hidratante" (= creme)...
+function buscarCustoBaseGastos() {
+    const hint = document.getElementById('n-hint-base');
+    const tipoNorm = normalizarNomeBusca(document.getElementById('n-tipo-final').value);
+    if (!tipoNorm) { if (hint) hint.innerText = ''; return; }
+
+    // Vidro de essência padrão da casa: Home Spray usa vidro de 100ml; o resto, 50ml
+    const vidroEl = document.getElementById('n-vidro-frag');
+    if (vidroEl) vidroEl.value = tipoNorm.includes('home') ? 100 : 50;
+
+    // Sinônimos: como a digitação nos Gastos é livre, cada tipo tem seus apelidos conhecidos
+    let palavrasChave = [tipoNorm];
+    if (tipoNorm.includes('creme') || tipoNorm.includes('hidratante')) palavrasChave = ['creme', 'hidratante'];
+    else if (tipoNorm.includes('home')) palavrasChave = ['home'];
+    else if (tipoNorm.includes('perfume')) palavrasChave = ['perfume'];
+    else if (tipoNorm.includes('sabonete')) palavrasChave = ['sabonete'];
+
+    const compraBase = gastosGlobal
+        .filter(g => {
+            if (!g.item || parseDinheiro(g.valor) <= 0) return false;
+            const it = normalizarNomeBusca(g.item);
+            return it.includes('base') && palavrasChave.some(p => it.includes(p));
+        })
+        .sort((a, b) => String(b.dataIso || '').localeCompare(String(a.dataIso || '')))[0];
+    if (compraBase) {
+        document.getElementById('n-custo-base').value = parseDinheiro(compraBase.valor).toFixed(2);
+        if (hint) { hint.innerText = `🧾 ${compraBase.item}: ${fmt(parseDinheiro(compraBase.valor))} em ${compraBase.dataDisplay || ''}`; hint.style.color = '#15803d'; }
+    } else {
+        if (hint) { hint.innerText = `⚠️ Não achei a base de "${palavrasChave.join('/')}" nos Gastos — confira o preço manualmente.`; hint.style.color = '#b45309'; }
+    }
+    calcularNovera();
+}
+
+// ==========================================
+// 📖 LIVRO DE RECEITAS DA FÁBRICA
+// As fórmulas da casa salvas: aplicar preenche tudo em 1 toque.
+// Guardado nos Parâmetros (configuracoes.receitas_fabrica) — nada de tabela nova.
+// ==========================================
+const RECEITAS_PADRAO_FABRICA = [
+    { nome: 'Perfume 40ml', tipo: 'Perfume', qtdFrag: 50, qtdBase: 120, mlVenda: 40, insumos: 10.00, vidro: 50 },
+    { nome: 'Creme 110ml', tipo: 'Creme', qtdFrag: 15, qtdBase: 500, mlVenda: 110, insumos: 3.08, vidro: 50 },
+    { nome: 'Home Spray 250ml', tipo: 'Home Spray', qtdFrag: 100, qtdBase: 1000, mlVenda: 250, insumos: 6.46, vidro: 100 }
+];
+
+function lerReceitasFabrica() {
+    try {
+        const salvas = JSON.parse(configuracoesGlobais.receitas_fabrica || 'null');
+        if (Array.isArray(salvas) && salvas.length) return salvas;
+    } catch (e) { /* config vazia ou inválida — usa as da casa */ }
+    return RECEITAS_PADRAO_FABRICA;
+}
+
+function abrirLivroReceitas() {
+    const antigo = document.getElementById('modal-livro-receitas');
+    if (antigo) antigo.remove();
+    const receitas = lerReceitasFabrica();
+    window._receitasFabrica = receitas;
+
+    const linhas = receitas.map((r, i) => `
+        <div style="background:#fff; border:1px solid #e9d5ff; border-radius:12px; padding:12px 14px; margin-bottom:8px; text-align:left;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <strong style="color:#7c3aed; font-size:0.85rem;">🧪 ${r.nome}</strong>
+                <span style="display:flex; gap:6px;">
+                    <button onclick="aplicarReceitaFabrica(${i})" style="background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.68rem; font-weight:800; cursor:pointer;">✔️ Aplicar</button>
+                    <button onclick="excluirReceitaFabrica(${i})" title="Excluir receita" style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:8px; padding:7px 10px; font-size:0.68rem; cursor:pointer;">🗑️</button>
+                </span>
+            </div>
+            <p style="margin:6px 0 0; font-size:0.68rem; color:#666;">${r.qtdFrag}ml essência (vidro ${r.vidro}ml) + ${r.qtdBase}ml base → frasco ${r.mlVenda}ml · embalagem ${fmt(r.insumos)}</p>
+        </div>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-livro-receitas';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:400px; width:100%; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="padding:20px 20px 10px; text-align:center; position:relative;">
+                <button onclick="document.getElementById('modal-livro-receitas').remove()" style="position:absolute; top:14px; right:14px; background:#f3e8ff; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#7c3aed; cursor:pointer;">×</button>
+                <div style="font-size:2rem;">📖</div>
+                <h3 style="margin:4px 0 2px; color:#7c3aed; font-size:1.05rem; font-weight:900;">Livro de Receitas da Fábrica</h3>
+                <p style="margin:0; color:#999; font-size:0.68rem;">Aplicar preenche a tela toda — os preços vêm dos Gastos sozinhos.</p>
+            </div>
+            <div style="padding:12px 16px 18px; overflow-y:auto;">${linhas}</div>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+function aplicarReceitaFabrica(idx) {
+    const r = (window._receitasFabrica || [])[idx];
+    if (!r) return;
+    document.getElementById('n-tipo-final').value = r.tipo;
+    document.getElementById('n-qtd-frag').value = r.qtdFrag;
+    document.getElementById('n-qtd-base').value = r.qtdBase;
+    document.getElementById('n-ml-venda').value = r.mlVenda;
+    document.getElementById('n-insumos').value = r.insumos;
+    const vidroEl = document.getElementById('n-vidro-frag');
+    if (vidroEl) vidroEl.value = r.vidro || 50;
+    const rendRealEl = document.getElementById('n-rend-real');
+    if (rendRealEl) rendRealEl.value = '';
+    document.getElementById('modal-livro-receitas').remove();
+    buscarCustoBaseGastos(); // busca a base nos Gastos (e recalcula) — mas preserva o vidro da receita
+    if (vidroEl) vidroEl.value = r.vidro || 50;
+    calcularNovera();
+    mostrarAlerta("Receita Aplicada!", `${r.nome} na tela. Agora é só escolher a essência (se ainda não escolheu) e conferir os preços. 🧪`, "success");
+}
+
+function salvarReceitaAtual() {
+    const tipo = padronizarTexto(document.getElementById('n-tipo-final').value);
+    const mlVenda = parseFloat(document.getElementById('n-ml-venda').value) || 0;
+    if (!tipo || mlVenda <= 0) return mostrarAlerta("Atenção", "Preencha pelo menos o Tipo e o Volume do Frasco antes de salvar a receita.", "warning");
+    const nomeReceita = `${tipo} ${mlVenda}ml`;
+    const nova = {
+        nome: nomeReceita, tipo: tipo,
+        qtdFrag: parseFloat(document.getElementById('n-qtd-frag').value) || 0,
+        qtdBase: parseFloat(document.getElementById('n-qtd-base').value) || 0,
+        mlVenda: mlVenda,
+        insumos: parseFloat(document.getElementById('n-insumos').value) || 0,
+        vidro: parseFloat(document.getElementById('n-vidro-frag') ? document.getElementById('n-vidro-frag').value : 50) || 50
+    };
+    const lista = lerReceitasFabrica().filter(r => r.nome !== nomeReceita);
+    lista.push(nova);
+    salvarReceitasFabrica(lista, `Receita "${nomeReceita}" salva no Livro! 📖`);
+}
+
+function excluirReceitaFabrica(idx) {
+    const receitas = lerReceitasFabrica();
+    const r = receitas[idx];
+    if (!r) return;
+    abrirConfirmacao("Excluir Receita?", `A receita "${r.nome}" será removida do Livro.`, "🗑️", "#A05252", "#803f3f", "🗑️ Excluir", () => {
+        salvarReceitasFabrica(receitas.filter((x, i) => i !== idx), "Receita removida.");
+        const modalLivro = document.getElementById('modal-livro-receitas');
+        if (modalLivro) modalLivro.remove();
+    });
+}
+
+function salvarReceitasFabrica(lista, msgOk) {
+    mostrarLoading("Salvando receitas...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'salvar_configuracoes', usuario: usuarioLogado, configs: { receitas_fabrica: JSON.stringify(lista) } }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { configuracoesGlobais.receitas_fabrica = JSON.stringify(lista); mostrarAlerta("Pronto!", msgOk, "success"); }
+            else mostrarAlerta("Erro", res.erro || "Falha ao salvar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
+}
 function autoSugerirPrecoFabrica() { if (!document.getElementById('p-preco-venda').value) { document.getElementById('p-preco-venda').value = fmt(custoTotalGlobal * 3); } }
 async function salvarProducaoEstoque() { const essBaseVal = document.getElementById('n-produto').value; const tipoFinal = padronizarTexto(document.getElementById('n-tipo-final').value); const volume = document.getElementById('n-ml-venda').value; const qtdRendimento = document.getElementById('p-rendimento').value; const precoVendaStr = document.getElementById('p-preco-venda').value; const pLocal = document.getElementById('p-local') ? padronizarTexto(document.getElementById('p-local').value) : "Sede"; if (!essBaseVal || !tipoFinal || !qtdRendimento || !precoVendaStr) return mostrarAlerta("Atenção", "Preencha a Essência Base, Tipo, Rendimento e Preço.", "warning"); const partes = essBaseVal.split('|'); const codNovera = partes[0]; const essBase = partes[1]; const nomeProdutoFinal = `${tipoFinal} ${essBase} ${volume}ml`; const precoVenda = parseDinheiro(precoVendaStr); mostrarLoading("Enviando..."); const msgLog = `🏭 Fabricou ${qtdRendimento}x [${nomeProdutoFinal}]. Enviado para: ${pLocal}.`; fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_producao_estoque", nome_produto: nomeProdutoFinal, tipo: tipoFinal, qtd: qtdRendimento, custo: fmtPlanilha(custoTotalGlobal), preco: fmtPlanilha(precoVenda), codigo: codNovera, local: pLocal, log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Produzido!", `Lote enviado para ${pLocal}.`, "success"); document.getElementById('p-rendimento').value = "1"; document.getElementById('p-preco-venda').value = ""; sincronizarDadosUnico(); }); }
 
