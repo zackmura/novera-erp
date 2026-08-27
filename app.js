@@ -419,7 +419,15 @@ function atualizarDatalistsDinamicos() {
 
     let locaisGastosSet = new Set(); gastosGlobal.forEach(g => { if (g.local) locaisGastosSet.add(String(g.local).trim()) }); let locaisHtml = [...locaisGastosSet].sort((a, b) => a.localeCompare(b)).map(l => `<option value="${l}">`).join(''); document.getElementById('lista-locais').innerHTML = locaisHtml;
 
-    let locaisEstoqueSet = new Set(); estoqueGlobal.forEach(e => { if (e.local) locaisEstoqueSet.add(String(e.local).trim()) }); let locEstHtml = [...locaisEstoqueSet].sort((a, b) => a.localeCompare(b)).map(l => `<option value="${l}">`).join('');
+    // 📍 Locais = UNIÃO dos oficiais (Parâmetros Globais) com os que existem de fato no estoque.
+    // Antes, esta função sobrescrevia a lista da config — os Parâmetros ficavam decorativos.
+    let locaisEstoqueSet = new Set(); estoqueGlobal.forEach(e => { if (e.local) locaisEstoqueSet.add(String(e.local).trim()) });
+    (configuracoesGlobais.locais_estoque || '').split(',').map(s => s.trim()).filter(Boolean).forEach(l => {
+        // Evita duplicar por acento/maiúscula: só adiciona o oficial se não existir equivalente nos dados
+        const jaExiste = [...locaisEstoqueSet].some(x => normalizarNomeBusca(x) === normalizarNomeBusca(l));
+        if (!jaExiste) locaisEstoqueSet.add(l);
+    });
+    let locEstHtml = [...locaisEstoqueSet].sort((a, b) => a.localeCompare(b)).map(l => `<option value="${l}">`).join('');
     const dLocal = document.getElementById('lista-locais-estoque'); if (dLocal) dLocal.innerHTML = locEstHtml;
 
     const filtroLocal = document.getElementById('f-e-local');
