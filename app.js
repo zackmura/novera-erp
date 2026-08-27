@@ -1123,31 +1123,46 @@ function abrirLivroReceitas() {
     const receitas = lerReceitasFabrica();
     window._receitasFabrica = receitas;
 
-    const linhas = receitas.map((r, i) => `
-        <div style="background:#fff; border:1px solid #e9d5ff; border-radius:12px; padding:12px 14px; margin-bottom:8px; text-align:left;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-                <strong style="color:#7c3aed; font-size:0.85rem;">🧪 ${r.nome}</strong>
-                <span style="display:flex; gap:6px;">
-                    <button onclick="aplicarReceitaFabrica(${i})" style="background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.68rem; font-weight:800; cursor:pointer;">✔️ Aplicar</button>
-                    <button onclick="excluirReceitaFabrica(${i})" title="Excluir receita" style="background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:8px; padding:7px 10px; font-size:0.68rem; cursor:pointer;">🗑️</button>
-                </span>
+    // 📄 Cada receita é uma PÁGINA de caderno: papel pautado, margem vermelha,
+    // fita adesiva segurando, título à mão e a lista de ingredientes como receita de vó
+    const paginas = receitas.map((r, i) => {
+        const rende = r.mlVenda > 0 ? Math.floor((r.qtdFrag + r.qtdBase) / r.mlVenda) : 0;
+        const inclinacao = (i % 2 === 0) ? '-0.4deg' : '0.4deg';
+        return `
+        <div style="position:relative; background:#fdf9ee; border-radius:4px; padding:18px 16px 14px 38px; margin: 16px 6px 20px; box-shadow:0 6px 16px rgba(90,60,20,0.25), 0 1px 0 #fff inset; transform:rotate(${inclinacao});">
+            <div style="position:absolute; left:26px; top:0; bottom:0; width:1.5px; background:rgba(220,90,90,0.45);"></div>
+            <div style="position:absolute; top:-9px; left:50%; transform:translateX(-50%) rotate(${i % 2 === 0 ? '2deg' : '-2deg'}); width:90px; height:22px; background:rgba(214,180,130,0.5); border-left:1px dashed rgba(255,255,255,0.6); border-right:1px dashed rgba(255,255,255,0.6);"></div>
+            <h4 style="margin:0 0 2px; font-family:'Playfair Display', serif; font-style:italic; font-size:1.15rem; color:#6b4423; font-weight:700;">${r.nome}</h4>
+            <p style="margin:0 0 10px; font-size:0.58rem; color:#a68a5b; letter-spacing:2px; text-transform:uppercase;">✦ receita da casa ✦</p>
+            <div style="background-image:repeating-linear-gradient(transparent, transparent 25px, #e0d2b4 25px, #e0d2b4 26px); background-position: 0 0;">
+                <p style="margin:0; font-size:0.66rem; font-weight:800; color:#8a6a3a; letter-spacing:1px; line-height:26px;">INGREDIENTES:</p>
+                <p style="margin:0; font-size:0.74rem; color:#5c4a30; line-height:26px;">🌸 &nbsp;${r.qtdFrag}ml de essência <span style="color:#a68a5b;">(do vidro de ${r.vidro}ml)</span></p>
+                <p style="margin:0; font-size:0.74rem; color:#5c4a30; line-height:26px;">💧 &nbsp;${r.qtdBase}ml de base de ${r.tipo.toLowerCase()}</p>
+                <p style="margin:0; font-size:0.74rem; color:#5c4a30; line-height:26px;">🫙 &nbsp;frascos de ${r.mlVenda}ml</p>
+                <p style="margin:0; font-size:0.74rem; color:#5c4a30; line-height:26px;">🎀 &nbsp;embalagem: ${fmt(r.insumos)} por unidade</p>
             </div>
-            <p style="margin:6px 0 0; font-size:0.68rem; color:#666;">${r.qtdFrag}ml essência (vidro ${r.vidro}ml) + ${r.qtdBase}ml base → frasco ${r.mlVenda}ml · embalagem ${fmt(r.insumos)}</p>
-        </div>`).join('');
+            <p style="margin:8px 0 12px; font-size:0.72rem; color:#8a6a3a; font-family:'Playfair Display', serif; font-style:italic;">Rende ~${rende} frasco${rende !== 1 ? 's' : ''} de ${r.mlVenda}ml, com carinho. 🤍</p>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="aplicarReceitaFabrica(${i})" style="flex:1; background:#966178; color:#fff; border:none; border-radius:20px; padding:9px 14px; font-size:0.7rem; font-weight:800; cursor:pointer; font-family:'Montserrat', sans-serif; box-shadow:0 3px 0 #7a4a5e;">🧪 Preparar esta receita</button>
+                <button onclick="excluirReceitaFabrica(${i})" title="Arrancar esta página" style="background:none; color:#b08585; border:1px dashed #cbb094; border-radius:8px; padding:8px 10px; font-size:0.7rem; cursor:pointer;">🗑️</button>
+            </div>
+        </div>`;
+    }).join('');
 
     const overlay = document.createElement('div');
     overlay.id = 'modal-livro-receitas';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = `
-        <div style="background:#fff; border-radius:20px; max-width:400px; width:100%; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
-            <div style="padding:20px 20px 10px; text-align:center; position:relative;">
-                <button onclick="document.getElementById('modal-livro-receitas').remove()" style="position:absolute; top:14px; right:14px; background:#f3e8ff; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#7c3aed; cursor:pointer;">×</button>
-                <div style="font-size:2rem;">📖</div>
-                <h3 style="margin:4px 0 2px; color:#7c3aed; font-size:1.05rem; font-weight:900;">Livro de Receitas da Fábrica</h3>
-                <p style="margin:0; color:#999; font-size:0.68rem;">Aplicar preenche a tela toda — os preços vêm dos Gastos sozinhos.</p>
+        <div style="background:linear-gradient(160deg, #8a5a3b, #6e4529 60%, #7c4f31); border-radius:18px; max-width:400px; width:100%; max-height:86vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.55), inset 0 0 0 3px rgba(253,240,213,0.18), inset 0 0 0 5px rgba(90,55,25,0.6); font-family:'Montserrat', sans-serif; border:1px solid #5a3a1e;">
+            <div style="padding:20px 20px 12px; text-align:center; position:relative;">
+                <button onclick="document.getElementById('modal-livro-receitas').remove()" style="position:absolute; top:12px; right:14px; background:rgba(253,240,213,0.15); border:1px solid rgba(253,240,213,0.35); width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fdf0d5; cursor:pointer;">×</button>
+                <div style="font-size:2rem; filter:drop-shadow(0 3px 5px rgba(0,0,0,0.4));">📖</div>
+                <h3 style="margin:4px 0 0; color:#fdf0d5; font-size:1.2rem; font-weight:700; font-family:'Playfair Display', serif; font-style:italic; letter-spacing:1px;">Livro de Receitas da Casa</h3>
+                <div style="width:140px; height:1px; background:linear-gradient(90deg, transparent, rgba(253,240,213,0.6), transparent); margin:8px auto 6px;"></div>
+                <p style="margin:0; color:#e8cfa8; font-size:0.62rem; letter-spacing:1.5px;">${String(configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome).toUpperCase()} · FÓRMULAS DA ADMINISTRAÇÃO</p>
             </div>
-            <div style="padding:12px 16px 18px; overflow-y:auto;">${linhas}</div>
+            <div style="flex:1; overflow-y:auto; padding: 4px 12px 16px;">${paginas}</div>
         </div>`;
     document.body.appendChild(overlay);
 }
