@@ -4945,6 +4945,197 @@ function voltarMesAtualDash() {
     renderizarDashboard();
 }
 
+// ==========================================
+// 🤖 ANALISTA NOVERA — CAMADA PROFUNDA (IA)
+// Empacota os números AGREGADOS do negócio (sem nome de cliente) e pede ao Gemini
+// um parecer de consultor sênior: nota, forças, riscos, ações, produtos, equipe e mercado.
+// ==========================================
+function coletarDadosAnaliseIA() {
+    const hoje = new Date();
+    const mesIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const meses = [];
+    for (let i = 5; i >= 0; i--) meses.push(mesIso(new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)));
+    const mesAtual = meses[5];
+
+    const historico = meses.map(m => {
+        let vendido = 0, recebido = 0, gastos = 0, itens = 0;
+        vendasGlobal.forEach(v => {
+            if (v.status === 'Presente') return;
+            if (v.dataVendaIso && v.dataVendaIso.startsWith(m)) { vendido += parseDinheiro(v.valor_venda); itens += parseInt(v.qtd) || 1; }
+            if (v.status === 'Pago' && v.dataPgtoDisplay) { const p = v.dataPgtoDisplay.split('/'); if (p.length === 3 && `${p[2]}-${p[1]}` === m) recebido += parseDinheiro(v.valor_venda); }
+        });
+        gastosGlobal.forEach(g => { if (g.dataIso && g.dataIso.startsWith(m)) gastos += parseDinheiro(g.total); });
+        return { mes: m, vendido: Math.round(vendido), recebido_no_caixa: Math.round(recebido), gastos: Math.round(gastos), itens_vendidos: itens };
+    });
+
+    const equipe = usuariosGlobal.filter(u => u.cargo === 'Vendedor').map(u => {
+        let vMes = 0, fiadoAberto = 0;
+        vendasGlobal.forEach(v => {
+            if (normalizarNomeBusca(v.socio) !== normalizarNomeBusca(u.usuario) || v.status === 'Presente') return;
+            if (v.dataVendaIso && v.dataVendaIso.startsWith(mesAtual)) vMes += parseDinheiro(v.valor_venda);
+            if (v.status === 'Pendente' || v.status === 'Parcelado') fiadoAberto += parseDinheiro(v.valor_venda);
+        });
+        const vc = estatisticasVisitasCatalogo(u.usuario);
+        return { nome: u.usuario, vendas_mes_atual: Math.round(vMes), meta_mensal: parseFloat(u.meta_mensal) || 0, comissao_pct: parseFloat(u.comissao) || 0, fiado_dos_clientes_dele: Math.round(fiadoAberto), catalogo_visitas_7d: vc.sete, catalogo_pedidos_7d: vc.ped7 };
+    });
+
+    const porProd = {};
+    vendasGlobal.forEach(v => { if (v.status !== 'Presente' && v.dataVendaIso && v.dataVendaIso.startsWith(mesAtual) && v.produto) porProd[v.produto] = (porProd[v.produto] || 0) + (parseInt(v.qtd) || 1); });
+    const tops = Object.keys(porProd).map(k => ({ produto: k, un: porProd[k] })).sort((a, b) => b.un - a.un);
+
+    const vendidos30x = {}; const corte30x = new Date(); corte30x.setDate(corte30x.getDate() - 30);
+    const iso30x = corte30x.toISOString().split('T')[0];
+    vendasGlobal.forEach(v => { if (v.status !== 'Presente' && v.dataVendaIso >= iso30x && v.produto) { const k = padronizarTexto(v.produto); vendidos30x[k] = (vendidos30x[k] || 0) + (parseInt(v.qtd) || 1); } });
+    const risco = [], encalhe = [];
+    Object.keys(estoqueAgrupado).forEach(k => {
+        const e = estoqueAgrupado[k]; if ((e.totalQtd || 0) <= 0) return;
+        const vel = (vendidos30x[k] || 0) / 30;
+        if (vel > 0) { const dias = Math.floor(e.totalQtd / vel); if (dias <= 25) risco.push({ produto: e.nome, dias_ate_zerar: dias }); }
+        else encalhe.push(e.nome);
+    });
+
+    let fiadoTotal = 0;
+    vendasGlobal.forEach(v => { if (v.status === 'Pendente' || v.status === 'Parcelado') fiadoTotal += parseDinheiro(v.valor_venda); });
+
+    return {
+        contexto_do_negocio: 'Perfumaria artesanal brasileira de contratipos (inspirações). Perfume 40ml vendido a ~R$50 com custo ~R$19; produção própria com maceração de ~20 dias (não dá pra repor da noite pro dia). Vendedores são AUTÔNOMOS em busca de renda extra (NÃO são funcionários — motivação sem cobrança de chefe), ganham comissão (~10%) + acelerador de 2% sobre vendas pagas acima da meta. Público de classe popular/média; vendas por WhatsApp, fiado é comum e cada vendedor tem catálogo online próprio com gamificação (troféus, metas, ranking).',
+        historico_ultimos_6_meses: historico,
+        equipe_vendedores_autonomos: equipe,
+        top5_produtos_mes: tops.slice(0, 5),
+        produtos_menos_vendidos_mes: tops.slice(-5).reverse(),
+        produtos_com_risco_de_zerar: risco.slice(0, 6),
+        produtos_encalhados_30d_sem_venda: encalhe.slice(0, 6),
+        fiado_total_em_aberto: Math.round(fiadoTotal),
+        encomendas_aguardando_producao: encomendasGlobal.filter(e => e.status === 'Pendente').length
+    };
+}
+
+// ⏳ Tela de espera do consultor: bloqueia a tela (análise leva ~10s) e mostra o progresso —
+// sem aquela sensação de "será que está rodando?"
+function mostrarCarregandoIA() {
+    const antigo = document.getElementById('overlay-carregando-ia');
+    if (antigo) antigo.remove();
+    const etapas = ['📊 Lendo 6 meses de vendas...', '💰 Conferindo caixa e fiado...', '👥 Avaliando a equipe...', '📦 Estudando o portfólio...', '🌎 Olhando o mercado...', '✍️ Escrevendo o parecer...'];
+    const ov = document.createElement('div');
+    ov.id = 'overlay-carregando-ia';
+    ov.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.88); z-index:100001; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(5px);';
+    ov.innerHTML = `
+        <div style="background:linear-gradient(135deg, #5b21b6, #7c3aed); border-radius:22px; max-width:320px; width:100%; padding:30px 24px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:3rem; animation:pulsoAjuda 1.6s ease infinite; display:inline-block; border-radius:50%;">🤖</div>
+            <h3 style="margin:10px 0 4px; color:#fff; font-size:1rem; font-weight:900;">O consultor está trabalhando</h3>
+            <p id="ia-etapa-atual" style="margin:0 0 14px; color:#ddd6fe; font-size:0.78rem; min-height:1.4em;">${etapas[0]}</p>
+            <div style="background:rgba(255,255,255,0.15); border-radius:20px; height:8px; overflow:hidden;"><div id="ia-barra-prog" style="width:8%; height:100%; background:#fff; border-radius:20px; transition:width 1.6s ease;"></div></div>
+            <p style="margin:12px 0 0; color:#c4b5fd; font-size:0.6rem;">Leva uns 10 segundinhos — segura aí. ☕</p>
+        </div>`;
+    document.body.appendChild(ov);
+    let iEtapa = 0;
+    ov._timer = setInterval(() => {
+        iEtapa = Math.min(iEtapa + 1, etapas.length - 1);
+        const et = document.getElementById('ia-etapa-atual');
+        const br = document.getElementById('ia-barra-prog');
+        if (et) et.innerText = etapas[iEtapa];
+        if (br) br.style.width = Math.min(92, 8 + iEtapa * 17) + '%';
+    }, 1800);
+}
+function fecharCarregandoIA() {
+    const ov = document.getElementById('overlay-carregando-ia');
+    if (ov) { clearInterval(ov._timer); ov.remove(); }
+}
+
+async function abrirAnaliseProfundaIA(forcarNovo) {
+    const chave = localStorage.getItem('novera_ai_key');
+    if (!chave) return mostrarAlerta("Falta a chave da IA", "Para usar o consultor, configure a Chave Gemini em ⚙️ Configurações → Chaves de Integração (só neste aparelho).", "warning");
+
+    // 📌 O parecer do DIA fica guardado: reabrir mostra o MESMO (consistente e instantâneo).
+    // Só gera outro se você pedir de propósito no botão "Gerar novo".
+    const hojeIaKey = new Date().toISOString().split('T')[0];
+    if (!forcarNovo) {
+        try {
+            const cacheIa = JSON.parse(localStorage.getItem('novera_parecer_ia') || 'null');
+            if (cacheIa && cacheIa.dia === hojeIaKey && cacheIa.parecer) return mostrarModalAnaliseIA(cacheIa.parecer, cacheIa.quando);
+        } catch (eC) { /* cache inválido, gera novo */ }
+    }
+
+    mostrarCarregandoIA();
+    try {
+        const dados = coletarDadosAnaliseIA();
+        const prompt = `Você é um consultor sênior de pequenos negócios de varejo e perfumaria no Brasil. Seja SINCERO e direto — elogie só o que merece, aponte problemas sem rodeios, mas sempre com a próxima ação prática. Analise os dados reais abaixo e responda SOMENTE com JSON válido nesta estrutura exata:
+{"nota_geral": <número 0 a 10 do momento do negócio>, "resumo": "<2-3 frases do momento, linguagem simples de dono de negócio>", "pontos_fortes": ["<3 itens, citando números dos dados>"], "riscos": ["<3 itens, citando números>"], "acoes_da_semana": ["<3 ações concretas e específicas para fazer NESTA semana>"], "analise_produtos": "<parágrafo sincero sobre o portfólio: o que vende, o que encalha, o que produzir> ", "ideias_de_produtos": ["<2-3 ideias de produtos novos que combinam com esse público e mercado>"], "analise_equipe": "<parágrafo sobre os vendedores autônomos: quem vai bem, quem precisa de apoio, e COMO motivar sem agir como patrão (eles não são funcionários)>", "visao_mercado": "<parágrafo sobre tendências do mercado brasileiro de perfumaria artesanal/contratipos aplicadas a ESTE negócio>"}
+Regras: português simples, sem jargão de consultoria; cite nomes de produtos e vendedores dos dados; números em R$. DADOS REAIS: ${JSON.stringify(dados)}`;
+
+        const modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        let parecer = null, erroFinal = '';
+        for (const modelo of modelos) {
+            try {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${chave}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } })
+                });
+                if (!resp.ok) { erroFinal = 'HTTP ' + resp.status; continue; }
+                const bruto = await resp.json();
+                const texto = bruto.candidates && bruto.candidates[0] && bruto.candidates[0].content && bruto.candidates[0].content.parts[0].text;
+                if (texto) parecer = JSON.parse(texto);
+                if (parecer) break;
+            } catch (e1) { erroFinal = e1.message; }
+        }
+        fecharCarregandoIA();
+        if (!parecer) return mostrarAlerta("Consultor indisponível", `A IA não respondeu agora (${erroFinal || 'sem resposta'}). Tente de novo em instantes.`, "error");
+
+        // 💾 Guarda o parecer do dia: consistência garantida até você pedir um novo
+        const agoraIa = new Date();
+        const quandoIa = `${String(agoraIa.getHours()).padStart(2, '0')}:${String(agoraIa.getMinutes()).padStart(2, '0')}`;
+        try { localStorage.setItem('novera_parecer_ia', JSON.stringify({ dia: new Date().toISOString().split('T')[0], quando: quandoIa, parecer: parecer })); } catch (eS) { }
+        mostrarModalAnaliseIA(parecer, quandoIa);
+    } catch (e) { fecharCarregandoIA(); mostrarAlerta("Erro", "Falha ao preparar a análise.", "error"); }
+}
+
+function mostrarModalAnaliseIA(a, quandoTxt) {
+    const antigo = document.getElementById('modal-analise-ia');
+    if (antigo) antigo.remove();
+    const nota = Math.max(0, Math.min(10, parseFloat(a.nota_geral) || 0));
+    const corNota = nota >= 7 ? '#15803d' : (nota >= 5 ? '#b45309' : '#b91c1c');
+    const listaHtml = (arr, marcador) => (Array.isArray(arr) ? arr : []).map(x => `<p style="margin:0 0 8px; font-size:0.76rem; color:#444; line-height:1.55;">${marcador} ${x}</p>`).join('');
+    const blocoHtml = (titulo, corpo, cor) => corpo ? `<div style="margin-bottom:16px;"><h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:900; color:${cor}; letter-spacing:1.5px;">${titulo}</h4>${corpo}</div>` : '';
+    const paragrafo = (txt) => txt ? `<p style="margin:0; font-size:0.76rem; color:#444; line-height:1.6;">${txt}</p>` : '';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-analise-ia';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.85); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:22px; max-width:430px; width:100%; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.55); font-family:'Montserrat', sans-serif;">
+            <div style="background:linear-gradient(135deg, #5b21b6, #7c3aed); padding:18px 20px 16px; text-align:center; position:relative; flex-shrink:0;">
+                <button onclick="document.getElementById('modal-analise-ia').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.18); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+                <div style="display:flex; align-items:center; justify-content:center; gap:14px;">
+                    <span style="font-size:2.2rem;">🤖</span>
+                    <div style="text-align:left;">
+                        <h3 style="margin:0; color:#fff; font-size:1.05rem; font-weight:900;">Parecer do Consultor</h3>
+                        <p style="margin:2px 0 0; color:#ddd6fe; font-size:0.62rem; letter-spacing:1px;">ANÁLISE PROFUNDA · GERADA POR IA</p>
+                    </div>
+                    <div style="background:#fff; border-radius:50%; width:52px; height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+                        <span style="font-size:1.05rem; font-weight:900; color:${corNota}; line-height:1;">${nota.toFixed(1)}</span>
+                        <span style="font-size:0.45rem; color:#999; font-weight:800;">NOTA</span>
+                    </div>
+                </div>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding:16px 20px;">
+                ${a.resumo ? `<p style="margin:0 0 16px; font-size:0.82rem; color:#333; line-height:1.6; font-style:italic; border-left:3px solid #7c3aed; padding-left:12px;">"${a.resumo}"</p>` : ''}
+                ${blocoHtml('💪 PONTOS FORTES', listaHtml(a.pontos_fortes, '✔️'), '#15803d')}
+                ${blocoHtml('⚠️ RISCOS', listaHtml(a.riscos, '⚠️'), '#b91c1c')}
+                ${blocoHtml('✅ AÇÕES DESTA SEMANA', listaHtml(a.acoes_da_semana, '👉'), '#0369a1')}
+                ${blocoHtml('🧴 PRODUTOS', paragrafo(a.analise_produtos) + (Array.isArray(a.ideias_de_produtos) && a.ideias_de_produtos.length ? `<p style="margin:8px 0 4px; font-size:0.68rem; font-weight:800; color:#7c3aed;">💡 Ideias de produtos novos:</p>${listaHtml(a.ideias_de_produtos, '✨')}` : ''), '#966178')}
+                ${blocoHtml('👥 EQUIPE (AUTÔNOMOS)', paragrafo(a.analise_equipe), '#b45309')}
+                ${blocoHtml('🌎 VISÃO DE MERCADO', paragrafo(a.visao_mercado), '#0f766e')}
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:8px 12px; margin-top:4px;">
+                    <span style="font-size:0.62rem; color:#7c3aed; font-weight:700;">📌 Parecer de hoje${quandoTxt ? ` às ${quandoTxt}` : ''} — fica guardado o dia todo.</span>
+                    <button onclick="document.getElementById('modal-analise-ia').remove(); abrirAnaliseProfundaIA(true);" style="background:#fff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:8px; padding:6px 12px; font-size:0.62rem; font-weight:800; cursor:pointer; white-space:nowrap;">🔄 Gerar novo</button>
+                </div>
+                <p style="font-size:0.58rem; color:#aaa; text-align:center; margin:8px 0 0;">Parecer gerado por IA com os números agregados do negócio — use como conselho, a decisão final é sua. 🤝</p>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
 function renderizarDashboard() {
     const isAdmin = (usuarioCargo === 'Admin');
     const container = document.getElementById('dash-dinamico-container');
@@ -5869,6 +6060,73 @@ function renderizarDashboard() {
         }
     }
 
+    // 🧠 ANALISTA NOVERA (Camada 1): lê os números do período e fala em português de gente,
+    // com semáforo e a próxima ação — instantâneo, local e sempre honesto
+    let htmlAnalista = '';
+    {
+        const frases = [];
+        const hojeAn = new Date();
+        const ehMesAtualAn = (parseInt(fM) === hojeAn.getMonth() + 1 && parseInt(fA) === hojeAn.getFullYear());
+
+        if (pVen > 0) {
+            const percAn = ((tVendasTotais - pVen) / pVen) * 100;
+            if (percAn >= 15) frases.push(['🟢', `<b>Vendas acelerando:</b> este período está <b>${percAn.toFixed(0)}% acima</b> do anterior (${fmt(pVen)} → ${fmt(tVendasTotais)}). Repita o que funcionou!`]);
+            else if (percAn <= -15) frases.push(['🔴', `<b>Vendas caindo:</b> ${Math.abs(percAn).toFixed(0)}% abaixo do período anterior. Ação: ative um 💸 desconto nos parados e peça pra equipe repostar os catálogos no status.`]);
+            else frases.push(['🟡', `<b>Vendas estáveis</b> vs período anterior (${percAn > 0 ? '+' : ''}${percAn.toFixed(0)}%). Estável é bom — crescer é melhor.`]);
+        }
+
+        if (lReal < 0) {
+            const maiorDev = topDevedores[0];
+            frases.push(['🔴', `<b>Caixa do período no vermelho (${fmt(lReal)}):</b> saiu mais dinheiro do que entrou PAGO. Há ${fmt(tPend)} parados em fiado${maiorDev ? ` (maior devedor: ${fmt(maiorDev.divida)})` : ''} — cobrar destrava. A equipe tem o 📲 de 1 toque.`]);
+        } else if (tPend > 300 && tVendasTotais > 0 && (tPend / tVendasTotais) > 0.35) {
+            frases.push(['🟡', `<b>Fiado alto:</b> ${fmt(tPend)} a receber (${((tPend / tVendasTotais) * 100).toFixed(0)}% do vendido). Lembre: comissão e acelerador só andam com venda PAGA — a própria equipe ganha cobrando.`]);
+        } else {
+            frases.push(['🟢', `<b>Caixa saudável:</b> ${fmt(lReal)} de dinheiro limpo no período, com ${fmt(tPend)} ainda por entrar do fiado.`]);
+        }
+
+        const urgentesAn = arrRuptura.filter(p => p.dias !== null && p.dias <= 20).slice(0, 2);
+        if (urgentesAn.length) frases.push(['🔴', `<b>Corrida contra a maceração:</b> ${urgentesAn.map(p => `${p.nome} (~${p.dias}d)`).join(' e ')} ${urgentesAn.length > 1 ? 'zeram' : 'zera'} antes de um lote novo ficar pronto. Produzir HOJE.`]);
+
+        const vendedoresRank = Object.keys(rankingMap).map(s => ({ nome: s, ...rankingMap[s] })).filter(r => !nomesAdmins.includes(r.nome.toLowerCase())).sort((a, b) => b.total - a.total);
+        if (vendedoresRank.length && tVendasTotais > 0) {
+            const lider = vendedoresRank[0];
+            const share = (lider.total / tVendasTotais) * 100;
+            let frEquipe = `<b>Equipe:</b> ${lider.nome} lidera com ${fmt(lider.total)} (${share.toFixed(0)}% de tudo).`;
+            if (ehMesAtualAn) {
+                const diasNoMesAn = new Date(hojeAn.getFullYear(), hojeAn.getMonth() + 1, 0).getDate();
+                const pctTempoAn = hojeAn.getDate() / diasNoMesAn;
+                const atrasadosAn = usuariosGlobal.filter(u => u.cargo === 'Vendedor' && parseFloat(u.meta_mensal) > 0).map(u => {
+                    const r = vendedoresRank.find(x => normalizarNomeBusca(x.nome) === normalizarNomeBusca(u.usuario));
+                    return { nome: u.usuario, pct: (r ? r.total : 0) / parseFloat(u.meta_mensal) };
+                }).filter(x => x.pct < pctTempoAn * 0.6);
+                if (atrasadosAn.length) frEquipe += ` Bem abaixo do ritmo da meta: <b>${atrasadosAn.map(a => a.nome).join(', ')}</b> — uma mensagem de incentivo (ou um 🔥 bônus num produto que ${atrasadosAn.length > 1 ? 'eles tenham' : 'tenha'} em mãos) pode virar o jogo.`;
+            }
+            if (share > 60) frEquipe += ` <b>Cuidado com a dependência de uma pessoa só.</b>`;
+            frases.push([share > 60 || (ehMesAtualAn && frEquipe.includes('abaixo do ritmo')) ? '🟡' : '🟢', frEquipe]);
+        }
+
+        const vcAn = estatisticasVisitasCatalogo(null);
+        if (vcAn.sete >= 10) {
+            if (vcAn.ped7 === 0) frases.push(['🟡', `<b>Catálogo atrai mas não converte:</b> ${vcAn.sete} visitas em 7 dias e nenhum pedido. Revise preço/foto dos Destaques ou ative uma 💸 oferta pra dar urgência.`]);
+            else frases.push(['🟢', `<b>Catálogo convertendo:</b> ${vcAn.sete} visitas → 🛒 ${vcAn.ped7} pedidos (${((vcAn.ped7 / vcAn.sete) * 100).toFixed(0)}%) nos últimos 7 dias. Divulgação valendo ouro.`]);
+        }
+
+        const encPendAn = encomendasGlobal.filter(e => e.status === 'Pendente').length;
+        if (encPendAn >= 3) frases.push(['🟡', `<b>${encPendAn} encomendas esperando produção</b> — é venda GARANTIDA parada na fila. Priorize esses itens na próxima leva da fábrica.`]);
+
+        if (margemMedia > 0 && margemMedia < 80) frases.push(['🟡', `<b>Margem média em ${margemMedia.toFixed(0)}%</b>, abaixo do padrão da casa (~150%+). Confira os custos recentes de base/essência e o Termômetro de Preço.`]);
+
+        htmlAnalista = secaoDash('a-analista', '🧠 Analista Novera', `
+            <div class="dash-card" style="grid-column: span 2; padding: 4px 15px 14px; background:#fff;">
+                ${frases.map(f => `<div style="display:flex; gap:10px; align-items:flex-start; border-bottom:1px dashed #eee; padding:10px 0;">
+                    <span style="font-size:1rem; flex-shrink:0; line-height:1.4;">${f[0]}</span>
+                    <p style="margin:0; font-size:0.78rem; color:#444; line-height:1.55;">${f[1]}</p>
+                </div>`).join('')}
+                <button class="btn-salvar" style="margin-top:14px; background:linear-gradient(135deg, #5b21b6, #7c3aed); box-shadow:0 4px 12px rgba(124,58,237,0.35); font-size:0.8rem;" onclick="abrirAnaliseProfundaIA()">🤖 Análise Profunda com IA (parecer completo)</button>
+                <p style="font-size:0.6rem; color:#999; margin:6px 0 0; text-align:center;">O veredito acima é automático e local. O parecer profundo usa sua IA com os números agregados (nada de nomes de clientes).</p>
+            </div>`, true);
+    }
+
     // 🏗️ MESA DE DIRETORIA EM ANDARES: herói financeiro + gavetas por assunto
     container.innerHTML = `
         <div class="dash-grid">
@@ -5887,6 +6145,8 @@ function renderizarDashboard() {
                 <p style="font-size:1.5rem; font-weight:900; color:${corLucroTotal}; margin:0;">${fmt(tLucroTotal)}</p>
                 <p style="font-size:0.6rem; color:#888; margin-top:3px;">Venda − custo − comissão (incl. fiado)</p>
             </div>
+
+            ${htmlAnalista}
 
             ${secaoDash('a-financeiro', '💼 Financeiro do Período', `
                 <div class="dash-card highlight" style="grid-column: span 2; padding: 18px; text-align: center; border-radius: 12px; background: linear-gradient(135deg, #0369a1, #0284c7);">
