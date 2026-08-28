@@ -78,6 +78,13 @@
     .preco-de { font-size: 0.75rem; color: #b0a0a8; text-decoration: line-through; margin-right: 4px; }
     .chip-oferta { display: inline-block; vertical-align: middle; background: #e8f5e9; border: 1px solid #bbf7d0; color: #166534; border-radius: 20px; padding: 3px 10px; font-family: 'Montserrat', sans-serif; font-size: 0.55rem; font-weight: 800; letter-spacing: 1px; margin-left: 4px; white-space: nowrap; }
 
+    /* 📇 Faixa do Clube: um pedacinho da cartela real convidando — borda pontilhada, carimbo e tudo */
+    .clube-faixa { max-width: 832px; margin: 14px 14px 0; background: linear-gradient(150deg, #fdf5f7, #f6e7ee 60%, #fdf2f6); border: 1.5px solid #dcb4c5; border-radius: 18px; box-shadow: 0 6px 18px rgba(150, 97, 120, 0.18); padding: 4px; cursor: pointer; }
+    @media (min-width: 880px) { .clube-faixa { margin-left: auto; margin-right: auto; } }
+    .clube-faixa .cf-borda { border: 1px dashed rgba(150, 97, 120, 0.45); border-radius: 14px; }
+    .clube-faixa .cf-in { display: flex; align-items: center; gap: 13px; padding: 12px 14px; }
+    .clube-faixa .cf-carimbo { flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 50% 32%, #fdf0f5, #eec3d6 70%, #e0a8c2); border: 2.5px solid #b87c96; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 3px 8px rgba(150, 97, 120, 0.35); transform: rotate(-7deg); }
+
     /* ✨ Faixa de Destaques: a VITRINE da vitrine — banda dourada que salta da página */
     .destaques { max-width: 832px; margin: 20px 14px 4px; padding: 16px 0 4px; background: linear-gradient(150deg, #fffaf0, #fdf0f5 55%, #fff6ea); border: 1px solid #f2ddba; border-radius: 20px; box-shadow: 0 6px 22px rgba(180, 130, 60, 0.12), inset 0 1px 0 #fffdf7; position: relative; overflow: hidden; }
     @media (min-width: 880px) { .destaques { margin-left: auto; margin-right: auto; } }
@@ -176,6 +183,20 @@
 </div>
 <div class="chips-familia" id="chips-genero" style="margin-top: 14px;"></div>
 <div class="chips-familia" id="chips-familia"></div>
+<div class="clube-faixa" id="clube-faixa" onclick="abrirMeusSelos()" title="Ver meus selos">
+    <div class="cf-borda">
+        <div class="cf-in">
+            <div class="cf-carimbo">🌸</div>
+            <div style="flex:1; min-width:0; text-align:left;">
+                <p id="cf-titulo" style="margin:0; font-family:'Playfair Display', serif; font-size:0.95rem; font-weight:700; color:#966178; letter-spacing:1px;">Clube de Fidelidade</p>
+                <p id="cf-sub" style="margin:3px 0 0; font-size:0.68rem; color:#a88a98; line-height:1.4;">Suas compras viram selos, seus selos viram <b style="color:#966178;">PRESENTES</b> 🎁</p>
+                <p id="cf-selos-deco" style="margin:5px 0 0; font-size:0.85rem; letter-spacing:3px;">🌸🌸🌸<span style="opacity:0.3;">🌸🌸🌸🌸🌸</span> <span style="font-size:0.56rem; color:#b8869c; font-weight:800; letter-spacing:0.5px;">= 1 PRESENTE</span></p>
+            </div>
+            <button style="flex-shrink:0; background:linear-gradient(135deg, #b87c96, #966178); color:#fff; border:none; border-radius:22px; padding:12px 16px; font-size:0.72rem; font-weight:800; cursor:pointer; font-family:'Montserrat',sans-serif; box-shadow:0 4px 10px rgba(150,97,120,0.4);">🌸 Meus<br>Selos</button>
+        </div>
+    </div>
+</div>
+
 <div class="destaques" id="destaques" style="display:none;">
     <h3>✨ Destaques</h3>
     <p class="sub-dest" id="destaques-sub">os favoritos de todo mundo · arraste pro lado →</p>
@@ -207,6 +228,7 @@
         <div class="itens" id="sacola-itens"></div>
         <div class="pe">
             <div class="total-sacola"><span>Total</span><span class="v" id="sacola-total">R$ 0,00</span></div>
+            <div id="sacola-selos" style="margin:-6px 0 8px;"></div>
             <button class="btn-enviar-pedido" id="btn-enviar-pedido" onclick="enviarPedidoWhatsApp()">📲 Enviar Pedido no WhatsApp</button>
             <button class="btn-limpar" onclick="limparSacola()">🗑️ Esvaziar sacolinha</button>
         </div>
@@ -378,6 +400,16 @@
         const total = s.reduce((acc, x) => acc + (x.preco * x.qtd), 0);
         document.getElementById('sacola-total').innerText = total > 0 ? total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'A combinar';
         document.getElementById('btn-enviar-pedido').style.opacity = s.length ? '1' : '0.5';
+
+        // 🌸 Gatilho do Clube: mostra quantos selos ESSA compra vai valer (pagando, claro)
+        const areaSelosSac = document.getElementById('sacola-selos');
+        if (areaSelosSac) {
+            const vSelo = (dados && dados.clube && dados.clube.valorSelo) || 50;
+            const selosCompra = Math.floor(total / vSelo);
+            areaSelosSac.innerHTML = (total > 0)
+                ? `<p style="margin:6px 0 0; font-size:0.66rem; color:#966178; font-weight:800; text-align:center;">🌸 Essa compra ${selosCompra > 0 ? `vale <b>${selosCompra} selo${selosCompra > 1 ? 's' : ''}</b>` : `já acumula pro seu selo`} no Clube de Fidelidade! 🎁</p>`
+                : '';
+        }
     }
 
     function enviarPedidoWhatsApp() {
@@ -413,6 +445,107 @@
     function fecharFotoGrande() {
         document.getElementById('foto-grande').style.display = 'none';
         document.getElementById('fg-img').src = '';
+    }
+
+    // ==========================================
+    // 📇 MEUS SELOS: o cliente digita o próprio WhatsApp e vê a cartela dele — linda, carimbada
+    // ==========================================
+    function abrirMeusSelos() {
+        const antigo = document.getElementById('modal-meus-selos');
+        if (antigo) antigo.remove();
+        const telSalvo = (() => { try { return localStorage.getItem('novera_meu_tel') || ''; } catch (e) { return ''; } })();
+        const ov = document.createElement('div');
+        ov.id = 'modal-meus-selos';
+        ov.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.85); z-index:160; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);';
+        ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+        ov.innerHTML = `
+            <div style="background:#fff; border-radius:22px; max-width:370px; width:100%; max-height:88vh; overflow-y:auto; padding:22px 18px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;">
+                <button onclick="document.getElementById('modal-meus-selos').remove()" style="float:right; background:#f3e8ed; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#966178; cursor:pointer;">×</button>
+                <div style="font-size:2.2rem; clear:both;">🌸</div>
+                <h3 style="margin:6px 0 2px; color:#966178; font-size:1.1rem; font-weight:900;">Meus Selos</h3>
+                <p style="margin:0 0 14px; color:#999; font-size:0.7rem;">Digite o WhatsApp que você usa nas compras e veja sua cartela.</p>
+                <input type="tel" id="meu-tel-clube" value="${telSalvo}" placeholder="(35) 99999-9999" style="width:100%; padding:13px; border:1.5px solid #e3c6d2; border-radius:12px; box-sizing:border-box; margin-bottom:10px; font-size:0.95rem; text-align:center; font-family:'Montserrat',sans-serif;">
+                <button onclick="buscarMinhaCartela()" style="width:100%; background:#966178; color:#fff; border:none; border-radius:12px; padding:13px; font-size:0.85rem; font-weight:800; cursor:pointer; font-family:'Montserrat',sans-serif; box-shadow:0 3px 0 #7a4a5e;">🔎 Ver minha cartela</button>
+                <div id="minha-cartela-area" style="margin-top:14px;"></div>
+                <p style="margin:14px 0 0; font-size:0.6rem; color:#b8a0ab;">Ainda não participa? Peça pra entrar na sua próxima compra — é grátis e você já ganha selo de boas-vindas! 💛</p>
+            </div>`;
+        document.body.appendChild(ov);
+        if (telSalvo) buscarMinhaCartela();
+    }
+
+    async function buscarMinhaCartela() {
+        const tel = document.getElementById('meu-tel-clube').value.trim();
+        const area = document.getElementById('minha-cartela-area');
+        if (!tel || tel.replace(/\D/g, '').length < 8) { area.innerHTML = '<p style="color:#b45309; font-size:0.72rem;">Digite o número completo, com DDD. 😊</p>'; return; }
+        area.innerHTML = '<p style="color:#a88a98; font-size:0.75rem;"><span class="giro" style="display:inline-block;">✦</span> Procurando sua cartela...</p>';
+        try {
+            const r = await fetch(API_BASE + '/clube-cartela?tel=' + encodeURIComponent(tel));
+            const j = await r.json();
+            if (!j.sucesso) { area.innerHTML = `<p style="color:#b45309; font-size:0.74rem; line-height:1.5;">${esc(j.erro || 'Não encontrei.')}</p>`; return; }
+            try { localStorage.setItem('novera_meu_tel', tel); } catch (e) { }
+            area.innerHTML = renderMinhaCartela(j);
+            personalizarFaixaClube(j);
+        } catch (e) {
+            area.innerHTML = '<p style="color:#b45309; font-size:0.72rem;">Não consegui consultar agora — confira a internet e tente de novo.</p>';
+        }
+    }
+
+    function renderMinhaCartela(j) {
+        const marcaNome = (dados && dados.marca && dados.marca.nome) ? dados.marca.nome : 'Novera Scent';
+        const selosHtml = Array.from({ length: j.total }, (x, iS) => iS < j.selos
+            ? `<div style="width:56px; height:56px; border-radius:50%; background:radial-gradient(circle at 50% 32%, #fdf0f5, #eec3d6 70%, #e0a8c2); border:2.5px solid #b87c96; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(150,97,120,0.35); transform:rotate(${(iS % 3 - 1) * 7}deg);"><span style="font-size:1.2rem; line-height:1;">🌸</span><span style="font-size:0.45rem; font-weight:900; color:#7a4a5e; margin-top:1px;">${esc(j.datas[iS] || '')}</span></div>`
+            : `<div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.7); border:2px dashed #d9c2cc; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#c9b3bd; font-weight:800;">${iS + 1}º</div>`
+        ).join('');
+        let msg;
+        if (j.cheia) msg = `🎁 CARTELA CHEIA! Fale com sua vendedora e escolha até R$ ${j.regra.teto.toFixed(0)} em presentes!`;
+        else if (j.faltam <= 2) msg = `🔥 Tá quase, ${esc(j.nome)}! Falta${j.faltam > 1 ? 'm' : ''} só ${j.faltam} selo${j.faltam > 1 ? 's' : ''} pro seu presente!`;
+        else msg = `💛 ${esc(j.nome)}, cada compra te aproxima do seu presente — já são ${j.selos} selo${j.selos !== 1 ? 's' : ''}!`;
+        return `
+        <div style="background:linear-gradient(165deg, #fdfbfb 0%, #f9eff4 55%, #f4e4ec 100%); border:2px solid #b87c96; border-radius:18px; padding:4px;">
+            <div style="border:1px dashed rgba(150,97,120,0.4); border-radius:14px; padding:14px 10px 12px;">
+                <p style="margin:0; font-family:'Playfair Display', serif; font-size:1.05rem; color:#966178; font-weight:700; letter-spacing:2px; text-transform:uppercase;">${esc(marcaNome)}</p>
+                <div style="display:flex; align-items:center; gap:8px; margin:3px 0;"><div style="flex:1; height:1px; background:linear-gradient(90deg, transparent, #d9b8c6);"></div><span style="font-size:0.52rem; color:#b8869c; letter-spacing:3px; font-weight:800;">CLUBE DE FIDELIDADE</span><div style="flex:1; height:1px; background:linear-gradient(90deg, #d9b8c6, transparent);"></div></div>
+                <p style="margin:0 0 12px; font-family:'Playfair Display', serif; font-style:italic; font-size:0.8rem; color:#a86f88;">${esc(j.nome)}</p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px;">${selosHtml}</div>
+                <p style="margin:0; font-size:0.78rem; font-weight:900; color:${j.cheia ? '#15803d' : '#966178'};">${msg}</p>
+                <p style="margin:7px 0 0; font-size:0.54rem; color:#b8a0ab;">✦ A cada R$ ${j.regra.valorSelo.toFixed(0)} em compras, 1 selo · cartela cheia = até R$ ${j.regra.teto.toFixed(0)} em presentes ✦</p>
+            </div>
+        </div>`;
+    }
+
+    // 💛 Cliente conhecido volta ao catálogo → a faixa vira pessoal: "Verônica: faltam 3!"
+    function personalizarFaixaClube(j) {
+        const t = document.getElementById('cf-titulo');
+        const s = document.getElementById('cf-sub');
+        const deco = document.getElementById('cf-selos-deco');
+        if (!t || !s || !j) return;
+        t.innerText = `Oi, ${j.nome}! 🌸`;
+        s.innerHTML = j.cheia ? '🎁 Sua cartela está <b style="color:#15803d;">CHEIA</b> — você tem um presente esperando!' : `Falta${j.faltam > 1 ? 'm' : ''} <b style="color:#966178;">${j.faltam} selo${j.faltam > 1 ? 's' : ''}</b> pro seu presente!`;
+        if (deco) deco.innerHTML = `${'🌸'.repeat(j.selos)}<span style="opacity:0.3;">${'🌸'.repeat(j.faltam)}</span> <span style="font-size:0.56rem; color:#b8869c; font-weight:800; letter-spacing:0.5px;">${j.selos} DE ${j.total}</span>`;
+    }
+
+    // 📱 Máscara automática do telefone: 11949195636 → (11) 94919-5636
+    document.addEventListener('input', (e) => {
+        const el = e.target;
+        if (!el || el.tagName !== 'INPUT' || (el.type || '').toLowerCase() !== 'tel') return;
+        let d = String(el.value).replace(/\D/g, '');
+        if (d.startsWith('55') && d.length > 11) d = d.slice(2);
+        d = d.slice(0, 11);
+        let f = d;
+        if (d.length > 2 && d.length <= 6) f = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+        else if (d.length > 6 && d.length <= 10) f = `(${d.slice(0, 2)}) ${d.slice(2, d.length - 4)}-${d.slice(-4)}`;
+        else if (d.length === 11) f = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+        if (el.value !== f) el.value = f;
+    });
+
+    async function saudarClienteClube() {
+        try {
+            const telS = localStorage.getItem('novera_meu_tel');
+            if (!telS) return;
+            const r = await fetch(API_BASE + '/clube-cartela?tel=' + encodeURIComponent(telS));
+            const j = await r.json();
+            if (j.sucesso) personalizarFaixaClube(j);
+        } catch (e) { /* sem saudação hoje, sem drama */ }
     }
 
     // 🔗 Compartilha o link direto de UM produto (abre já rolado e destacado nele)
@@ -692,6 +825,7 @@
 
             desenharDestaques();
             renderizar();
+            saudarClienteClube(); // cliente do Clube que já se identificou antes é recebido pelo nome 💛
             setTimeout(focarProdutoDoLink, 400);
 
             // 📈 Avisa a loja que a vitrine foi aberta (1x por sessão, nunca trava a página)

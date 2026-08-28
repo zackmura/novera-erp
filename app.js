@@ -25,6 +25,24 @@ function alternarModoEscuro() {
 
 document.addEventListener('DOMContentLoaded', aplicarTemaSalvo);
 
+// 📱 MÁSCARA DE TELEFONE UNIVERSAL: digitou 11949195636 → vira (11) 94919-5636 sozinho.
+// Vale pra TODO campo de telefone do sistema, atual e futuro.
+function mascaraTelefoneBR(v) {
+    let d = String(v).replace(/\D/g, '');
+    if (d.startsWith('55') && d.length > 11) d = d.slice(2); // tira o +55 se colaram
+    d = d.slice(0, 11);
+    if (d.length <= 2) return d;
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, d.length - 4)}-${d.slice(-4)}`;
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'INPUT' || (el.type || '').toLowerCase() !== 'tel') return;
+    const formatado = mascaraTelefoneBR(el.value);
+    if (el.value !== formatado) el.value = formatado;
+});
+
 // ✍️ REGRA GLOBAL: tocar num campo preenchido já SELECIONA o texto todo — digitar substitui,
 // sem precisar apagar. Vale pra todo input de texto/número/telefone do sistema.
 // (Quer só editar um pedacinho? Toca de novo no ponto desejado que a seleção desfaz.)
