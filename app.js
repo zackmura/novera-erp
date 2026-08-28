@@ -4375,6 +4375,9 @@ function filtrarVendas() {
 
             const btnApagar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="prepararExclusaoRegistro('Vendas', ${v.linha}, 'Venda de ${v.cliente}')" title="Excluir">🗑️</button>` : '';
             const btnEditar = isAdmin ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="abrirModalEditarVenda(${v.linha})" title="Editar">✏️</button>` : '';
+            // 📅 Vendedor pode ajustar SÓ a data combinada de pagamento, e SÓ nas vendas pendentes dele
+            const minhaVenda = normalizarNomeBusca(v.socio) === normalizarNomeBusca(usuarioLogado);
+            const btnDataPrev = (!isAdmin && minhaVenda && (v.status === 'Pendente' || v.status === 'Parcelado')) ? `<button class="btn-acao" style="width:36px; height:36px; background:#fffbeb; color:#92400e; border-color:#fde68a;" onclick="abrirEditarPrevPgto(${v.linha})" title="Ajustar a data combinada de pagamento">📅</button>` : '';
             const btnBaixa = (!isP && !isPresente) ? `<button class="btn-acao" style="width:36px; height:36px; background:#e8f5e9; color:#2e7d32; border-color:#bbf7d0;" onclick="darBaixaVenda(${v.linha})" title="Marcar Pago">💲</button>` : '';
             
             let dataKeyIso = (fTipoData === 'pgto' && isP) ? v.dataPgtoDisplay : v.dataVendaIso;
@@ -4424,6 +4427,7 @@ function filtrarVendas() {
                         ${btnAcerto}
                         ${btnAcaoExtra}
                         ${btnBaixa}
+                        ${btnDataPrev}
                         ${btnEditar}
                         ${btnApagar}
                     </div>
@@ -5015,6 +5019,49 @@ function salvarEdicaoVenda() {
         }); 
 }
 
+// 📅 Mini-ajuste do vendedor: mexe SÓ na data combinada de pagamento (nada mais)
+function abrirEditarPrevPgto(linhaVenda) {
+    const v = vendasGlobal.find(x => x.linha === linhaVenda);
+    if (!v) return;
+    const antigo = document.getElementById('modal-prev-pgto');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-prev-pgto';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:330px; width:100%; padding:22px 20px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:2.2rem;">📅</div>
+            <h3 style="margin:6px 0 2px; color:#92400e; font-size:1rem; font-weight:900;">Ajustar Data Combinada</h3>
+            <p style="margin:0 0 12px; color:#888; font-size:0.7rem;">${v.cliente} · ${v.qtd}x ${v.produto} (${safeFmt(v.valor_venda)})</p>
+            <input type="date" id="prev-pgto-nova" value="${v.dataPrevPgto || ''}" style="width:100%; padding:12px; border:1px solid #fcd34d; border-radius:10px; box-sizing:border-box; margin-bottom:8px;">
+            <div style="display:flex; gap:6px; margin-bottom:12px;">
+                <button onclick="document.getElementById('prev-pgto-nova').value = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })()" style="flex:1; background:#fffbeb; color:#92400e; border:1px solid #fcd34d; border-radius:8px; padding:8px; font-size:0.68rem; font-weight:800; cursor:pointer;">+7 dias</button>
+                <button onclick="document.getElementById('prev-pgto-nova').value = (() => { const d = new Date(); d.setDate(d.getDate() + 15); return d.toISOString().split('T')[0]; })()" style="flex:1; background:#fffbeb; color:#92400e; border:1px solid #fcd34d; border-radius:8px; padding:8px; font-size:0.68rem; font-weight:800; cursor:pointer;">+15 dias</button>
+            </div>
+            <button class="btn-salvar" style="margin:0 0 8px;" onclick="salvarPrevPgto(${v.linha})">💾 Salvar Data</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-prev-pgto').remove();">Cancelar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+function salvarPrevPgto(linhaVenda) {
+    const dataNova = document.getElementById('prev-pgto-nova').value;
+    if (!dataNova) return mostrarAlerta("Atenção", "Escolha a data combinada com o cliente.", "warning");
+    mostrarLoading("Salvando data...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'atualizar_prev_pgto', usuario: usuarioLogado, linha: linhaVenda, data_prev_pgto: dataNova }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                const mP = document.getElementById('modal-prev-pgto'); if (mP) mP.remove();
+                mostrarAlerta("Combinado! 📅", "Data de pagamento atualizada.", "success");
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Ops", res.erro || "Falha ao salvar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
+}
+
 // 💰 Admin confirma que pagou o acelerador (mesmo ciclo do repasse de comissão)
 function acertarAcelerador(idAcel, nomeVend, valorTxt) {
     abrirConfirmacao("Acertar Acelerador?", `Confirma que você pagou ${valorTxt} de acelerador para ${nomeVend}? Isso marca como PAGO e some da lista de pendências.`, "💰", "#15803d", "#14532d", "✔️ Sim, paguei", () => {
@@ -5088,9 +5135,18 @@ function navegarMesDash(delta) {
 }
 
 function voltarMesAtualDash() {
+    window._dashVerTudo = false;
     const hNav = new Date();
     document.getElementById('d-filtro-mes').value = String(hNav.getMonth() + 1).padStart(2, '0');
     document.getElementById('d-filtro-ano').value = String(hNav.getFullYear());
+    renderizarDashboard();
+}
+
+// ∞ Visão da vida inteira da empresa: sem filtro de mês nem de ano
+function verTudoDash() {
+    window._dashVerTudo = true;
+    document.getElementById('d-filtro-mes').value = '';
+    document.getElementById('d-filtro-ano').value = '';
     renderizarDashboard();
 }
 
@@ -5185,7 +5241,7 @@ function coletarDadosAnaliseIA() {
 function mostrarCarregandoIA() {
     const antigo = document.getElementById('overlay-carregando-ia');
     if (antigo) antigo.remove();
-    const etapas = ['📊 Lendo 6 meses de vendas...', '💰 Conferindo caixa e fiado...', '👥 Avaliando a equipe...', '📦 Estudando o portfólio...', '🌎 Olhando o mercado...', '✍️ Escrevendo o parecer...'];
+    const etapas = ['📊 Lendo 6 meses de vendas...', '💰 Conferindo caixa, fiado e datas combinadas...', '👥 Avaliando a equipe...', '📦 Estudando o portfólio...', '📇 Olhando o Clube de Selos...', '🌎 Analisando o mercado...', '✍️ Escrevendo o parecer (a parte demorada)...', '✍️ Caprichando nas recomendações...', '✍️ Revisando os números...'];
     const ov = document.createElement('div');
     ov.id = 'overlay-carregando-ia';
     ov.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.88); z-index:100001; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(5px);';
@@ -5195,7 +5251,7 @@ function mostrarCarregandoIA() {
             <h3 style="margin:10px 0 4px; color:#fff; font-size:1rem; font-weight:900;">O consultor está trabalhando</h3>
             <p id="ia-etapa-atual" style="margin:0 0 14px; color:#ddd6fe; font-size:0.78rem; min-height:1.4em;">${etapas[0]}</p>
             <div style="background:rgba(255,255,255,0.15); border-radius:20px; height:8px; overflow:hidden;"><div id="ia-barra-prog" style="width:8%; height:100%; background:#fff; border-radius:20px; transition:width 1.6s ease;"></div></div>
-            <p style="margin:12px 0 0; color:#c4b5fd; font-size:0.6rem;">Leva uns 10 segundinhos — segura aí. ☕</p>
+            <p style="margin:12px 0 0; color:#c4b5fd; font-size:0.6rem;">☕ Análise profunda leva de 30s a 1 minuto — o consultor lê TUDO. Vale a espera.</p>
         </div>`;
     document.body.appendChild(ov);
     let iEtapa = 0;
@@ -5204,8 +5260,8 @@ function mostrarCarregandoIA() {
         const et = document.getElementById('ia-etapa-atual');
         const br = document.getElementById('ia-barra-prog');
         if (et) et.innerText = etapas[iEtapa];
-        if (br) br.style.width = Math.min(92, 8 + iEtapa * 17) + '%';
-    }, 1800);
+        if (br) br.style.width = Math.min(94, 8 + iEtapa * 11) + '%';
+    }, 6000);
 }
 function fecharCarregandoIA() {
     const ov = document.getElementById('overlay-carregando-ia');
@@ -5311,10 +5367,10 @@ function renderizarDashboard() {
     const container = document.getElementById('dash-dinamico-container');
     if (!container) return;
 
-    // 1. CARREGA OS FILTROS DE TEMPO
+    // 1. CARREGA OS FILTROS DE TEMPO (∞ = sem filtro nenhum: a vida inteira da empresa)
     const dMes = document.getElementById('d-filtro-mes');
     const dAno = document.getElementById('d-filtro-ano');
-    if (!dMes.value && !dAno.value) {
+    if (!dMes.value && !dAno.value && !window._dashVerTudo) {
         const h = new Date();
         dMes.value = String(h.getMonth() + 1).padStart(2, '0');
         dAno.value = String(h.getFullYear());
@@ -5323,14 +5379,14 @@ function renderizarDashboard() {
     const fA = dAno.value;
     let pfx = fA && fM ? `${fA}-${fM}` : fA;
 
-    // 📅 Atualiza o rótulo do navegador de mês (◀ Agosto 2026 ▶)
+    // 📅 Atualiza o rótulo do navegador de mês (◀ Agosto 2026 ▶ / ∞ Todo o Período)
     const labelMesEl = document.getElementById('d-label-mes');
     if (labelMesEl) {
         const nomesMeses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
         const hLbl = new Date();
         const ehAtualLbl = (parseInt(fM) === hLbl.getMonth() + 1 && parseInt(fA) === hLbl.getFullYear());
-        labelMesEl.innerText = fM ? `${nomesMeses[parseInt(fM) - 1]} ${fA}${ehAtualLbl ? '' : ' ↩'}` : `Ano ${fA}`;
-        labelMesEl.title = ehAtualLbl ? 'Mês atual' : 'Toque para voltar ao mês atual';
+        if (!fM && !fA) { labelMesEl.innerText = '∞ Todo o Período'; labelMesEl.title = 'Toque para voltar ao mês atual'; }
+        else { labelMesEl.innerText = fM ? `${nomesMeses[parseInt(fM) - 1]} ${fA}${ehAtualLbl ? '' : ' ↩'}` : `Ano ${fA}`; labelMesEl.title = ehAtualLbl ? 'Mês atual' : 'Toque para voltar ao mês atual'; }
     }
 
     // 2. CARREGA O FILTRO DE VENDEDOR (Slicer BI)
@@ -6328,6 +6384,40 @@ function renderizarDashboard() {
             </div>`, true);
     }
 
+    // 📅 PREVISÃO DE ENTRADAS: o que os clientes COMBINARAM de pagar no período folheado,
+    // dia a dia — folheie os meses nas setinhas e veja o dinheiro com hora marcada pra chegar
+    let htmlPrevEntradas = '';
+    {
+        const fiadosPeriodo = vSocioGlobal.filter(v => (v.status === 'Pendente' || v.status === 'Parcelado') && v.dataPrevPgto && (pfx ? v.dataPrevPgto.startsWith(pfx) : true));
+        const porDiaPrev = {};
+        let totalPrev = 0;
+        fiadosPeriodo.forEach(v => {
+            const valP = parseDinheiro(v.valor_venda);
+            totalPrev += valP;
+            if (!porDiaPrev[v.dataPrevPgto]) porDiaPrev[v.dataPrevPgto] = { valor: 0, qtd: 0 };
+            porDiaPrev[v.dataPrevPgto].valor += valP;
+            porDiaPrev[v.dataPrevPgto].qtd++;
+        });
+        const hojePrevE = new Date().toISOString().split('T')[0];
+        const linhasPrevE = Object.keys(porDiaPrev).sort().map(dia => {
+            const venceuPrev = dia < hojePrevE;
+            return `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #e5e7eb; padding:6px 0;">
+                <span style="font-size:0.75rem; font-weight:700; color:${venceuPrev ? '#b91c1c' : '#374151'};">${venceuPrev ? '🚨' : '📅'} ${dia.split('-').reverse().slice(0, 2).join('/')}${venceuPrev ? ' (venceu!)' : ''}</span>
+                <span style="font-size:0.75rem; font-weight:800; color:${venceuPrev ? '#b91c1c' : '#15803d'};">${fmt(porDiaPrev[dia].valor)} <span style="font-size:0.6rem; color:#999; font-weight:700;">(${porDiaPrev[dia].qtd})</span></span>
+            </div>`;
+        }).join('');
+        const semDataPeriodo = vSocioGlobal.filter(v => (v.status === 'Pendente' || v.status === 'Parcelado') && !v.dataPrevPgto).reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+        htmlPrevEntradas = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0;">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px dashed #bbf7d0; padding-bottom:6px; margin-bottom:8px;">
+                    <h3 style="color:#166534; font-size:0.8rem; font-weight:900; margin:0;">📅 PREVISÃO DE ENTRADAS ${pfx && fM ? 'DO MÊS' : (pfx ? 'DO ANO' : '— TUDO')}</h3>
+                    <span style="font-size:0.85rem; font-weight:900; color:#15803d;">${fmt(totalPrev)}</span>
+                </div>
+                <div style="max-height:220px; overflow-y:auto;">${linhasPrevE || '<p style="font-size:0.72rem; color:#86bc9a; text-align:center; margin:6px 0;">Nenhum pagamento combinado pra este período.</p>'}</div>
+                ${semDataPeriodo > 0 ? `<p style="font-size:0.62rem; color:#b45309; margin:8px 0 0; text-align:center;">⚠️ Fora daqui: ${fmt(semDataPeriodo)} em fiado SEM data combinada (edite no ✏️ das vendas pra entrar na previsão).</p>` : ''}
+            </div>`;
+    }
+
     // 🏗️ MESA DE DIRETORIA EM ANDARES: herói financeiro + gavetas por assunto
     container.innerHTML = `
         <div class="dash-grid">
@@ -6371,6 +6461,7 @@ function renderizarDashboard() {
                     <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">A RECEBER (FIADO)</h3>
                     <p style="font-size:1.2rem; font-weight:900; color:#b45309; margin:0;" id="d-receber">${fmt(tPend)}</p>
                 </div>
+                ${htmlPrevEntradas}
                 <div class="dash-card" style="padding: 15px; border-left: 5px solid #0284c7;">
                     <h3 style="color:#666; font-size:0.65rem; margin:0 0 5px 0;">TICKET MÉDIO</h3>
                     <p style="font-size:1.2rem; font-weight:900; color:#0284c7; margin:0;">${fmt(ticketMedio)}</p>
@@ -6441,7 +6532,7 @@ function renderizarDashboard() {
 
             ${secaoDash('a-graficos', '📊 Gráficos', `
                 <div class="dash-card" style="grid-column: span 2; padding: 15px;">
-                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">⚖️ COMPARATIVO (${fM}/${fA} vs ${prevM_str}/${prevA_int})</h3>
+                    <h3 style="color:#666; font-size:0.75rem; border-bottom:1px dashed #ccc; padding-bottom:5px; margin-bottom:10px;">⚖️ COMPARATIVO ${fM ? `(${fM}/${fA} vs ${prevM_str}/${prevA_int})` : '(escolha um mês nas setinhas ◀ ▶ pra comparar)'}</h3>
                     <div style="position: relative; height: 230px; width: 100%;"><canvas id="chartCompMes"></canvas></div>
                 </div>
                 <div class="dash-card" style="grid-column: span 2; padding: 15px;">
@@ -6537,8 +6628,8 @@ function renderizarDashboard() {
             data: { 
                 labels: ['Vendas (Totais)', 'Entrou (Caixa)', 'Gastos', 'Lucro Projetado'], 
                 datasets: [
-                    { label: `Anterior (${prevM_str}/${prevA_int})`, data: [pVen, pRec, pGas, pLuc], backgroundColor: '#94a3b8', borderRadius: 4 },
-                    { label: `Atual (${fM}/${fA})`, data: [cVen, cRec, cGas, cLuc], backgroundColor: '#b45309', borderRadius: 4 }
+                    { label: fM ? `Anterior (${prevM_str}/${prevA_int})` : 'Anterior', data: [pVen, pRec, pGas, pLuc], backgroundColor: '#94a3b8', borderRadius: 4 },
+                    { label: fM ? `Atual (${fM}/${fA})` : 'Todo o Período', data: [cVen, cRec, cGas, cLuc], backgroundColor: '#b45309', borderRadius: 4 }
                 ] 
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } } }
