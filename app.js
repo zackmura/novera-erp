@@ -8780,7 +8780,7 @@ function abrirCartelaCliente(linhaCli) {
                 <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:12px; padding:14px; margin-bottom:14px; text-align:left;">
                     <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">🌸 A cada <b>R$ ${cc.valorSelo.toFixed(0)} em compras pagas</b>, ${nomeClienteMsg(c)} ganha <b>1 selo</b>.</p>
                     <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">📇 Juntou <b>${cc.selosCartela} selos</b> → ganha <b>até R$ ${cc.tetoPremio.toFixed(0)} em produtos de PRESENTE</b> (1 perfume OU 2 cremes, por exemplo — ele escolhe!).</p>
-                    <p style="margin:0; font-size:0.78rem; color:#6d5c66;">🎉 E já entra ganhando <b>selo de boas-vindas</b> (2 se já for cliente da casa)!</p>
+                    <p style="margin:0; font-size:0.78rem; color:#6d5c66;">🎉 E já entra ganhando <b>1 selo de boas-vindas</b> — clientes fiéis da casa ganham <b>2</b>!</p>
                 </div>
                 <label style="display:block; text-align:left; font-size:0.7rem; font-weight:800; color:#966178; margin-bottom:4px;">📱 WhatsApp do cliente (o "ingresso" do Clube)</label>
                 <input type="tel" id="clube-telefone" value="${c.telefone || ''}" placeholder="(35) 99999-9999" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; box-sizing:border-box; margin-bottom:12px;">
@@ -8830,11 +8830,55 @@ function abrirCartelaCliente(linhaCli) {
                 <button onclick="document.getElementById('modal-cartela-clube').remove()" style="position:absolute; top:12px; right:14px; background:#f3e8ed; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#966178; cursor:pointer;">×</button>
                 <div style="font-size:2rem;">📇</div>
                 <h3 style="margin:4px 0 2px; color:#966178; font-size:1.05rem; font-weight:900;">${cart ? 'Cartela do Clube' : 'Convite pro Clube de Selos'}</h3>
-                <p style="margin:0 0 10px; color:#999; font-size:0.68rem;">${c.nome}</p>
+                <p style="margin:0 0 10px; color:#999; font-size:0.68rem;">${c.nome}${c.nomeExibicao ? ` · aparece como <b style="color:#966178;">${c.nomeExibicao}</b>` : ''} <button onclick="editarNomeExibicaoClube(${c.linha})" title="Mudar o nome que o cliente vê (cartela, mensagens e catálogo)" style="background:none; border:1px dashed #e3c6d2; border-radius:10px; color:#966178; font-size:0.6rem; font-weight:800; padding:2px 8px; cursor:pointer;">✏️ nome</button></p>
             </div>
             ${corpo}
         </div>`;
     document.body.appendChild(overlay);
+}
+
+// ✏️ Atalho pra ajustar o "nome bonito" do cliente sem sair da cartela — é ele que aparece
+// nas mensagens, na imagem da cartela e (em breve) nos selos dentro do catálogo online
+function editarNomeExibicaoClube(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const antigo = document.getElementById('modal-nome-exibicao');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-nome-exibicao';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:100000; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:330px; width:100%; padding:22px 20px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:2rem;">💌</div>
+            <h3 style="margin:6px 0 2px; color:#966178; font-size:1rem; font-weight:900;">Nome que o Cliente Vê</h3>
+            <p style="margin:0 0 12px; color:#888; font-size:0.68rem;">No sistema fica "${c.nome}" (seu apelido pra lembrar). Aqui vai o nome bonito: cartela, mensagens e catálogo.</p>
+            <input type="text" id="nome-exib-novo" value="${(c.nomeExibicao || '').replace(/"/g, '&quot;')}" placeholder="Ex: Verônica" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; box-sizing:border-box; margin-bottom:12px;">
+            <button class="btn-salvar" style="margin:0 0 8px;" onclick="salvarNomeExibicaoClube(${c.linha})">💾 Salvar</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-nome-exibicao').remove();">Cancelar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+function salvarNomeExibicaoClube(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const novoNome = document.getElementById('nome-exib-novo').value.trim();
+    mostrarLoading("Salvando nome...");
+    // Reaproveita o salvar_cliente mandando os dados atuais + o nome de exibição novo
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_cliente', linha: c.linha, nome: c.nome, nome_exibicao: novoNome, telefone: c.telefone || '', aniversario: c.aniversario || '', obs: c.obs || '', log_detalhe: `💌 Ajustou o nome de exibição de ${c.nome} para "${novoNome || '(vazio)'}"` }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                c.nomeExibicao = novoNome;
+                const mN = document.getElementById('modal-nome-exibicao'); if (mN) mN.remove();
+                const mC = document.getElementById('modal-cartela-clube'); if (mC) mC.remove();
+                abrirCartelaCliente(linhaCli); // reabre a cartela já com o nome novo
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Ops", res.erro || "Falha ao salvar.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
 }
 
 function aderirClube(linhaCli) {
