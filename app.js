@@ -1510,6 +1510,7 @@ function renderizarProducao() {
                     <div style="text-align: right; margin-right: 15px;">
                         <p style="font-size: 0.75rem; margin: 0; color: #888;">Meta de Envase</p>
                         <p style="margin: 0; color: var(--brand-dark); font-size: 1.2rem; font-weight: 900;">${p.qtd_prevista} un</p>
+                        ${(parseFloat(p.qtd_envasada) || 0) > 0 ? `<p style="margin:2px 0 0; font-size:0.68rem; color:#2e7d32; font-weight:800;">🍾 já saíram ${p.qtd_envasada} · restam ${Math.max(0, (parseFloat(p.qtd_prevista) || 0) - (parseFloat(p.qtd_envasada) || 0))}</p>` : ''}
                     </div>
                     <div style="display:flex; gap:6px; align-items:center;">
                         ${btnEditarProd}
@@ -1772,56 +1773,91 @@ function irFabricarSugestao(nomeEncoded) {
 function abrirModalFinalizarProducao(id) {
     const p = producaoGlobal.find(x => x.linha === id);
     if(!p) return;
+    // 🍾 Envase parcial: sugere o que ainda RESTA do lote (previsto − já envasado antes)
+    const jaEnvasado = parseFloat(p.qtd_envasada) || 0;
+    const restanteLote = Math.max(0, (parseFloat(p.qtd_prevista) || 0) - jaEnvasado);
+    window._loteEnvase = { restante: restanteLote, jaEnvasado: jaEnvasado, prevista: parseFloat(p.qtd_prevista) || 0 };
+
     document.getElementById('mfp-linha').value = p.linha;
     document.getElementById('mfp-produto').innerText = p.nome_produto;
-    document.getElementById('mfp-qtd-real').value = p.qtd_prevista;
-    
+    document.getElementById('mfp-qtd-real').value = restanteLote;
+    document.getElementById('mfp-info-lote').innerText = jaEnvasado > 0
+        ? `Este lote previa ${window._loteEnvase.prevista} un — ${jaEnvasado} já saíram antes, restam ${restanteLote} macerando.`
+        : `Este lote prevê ${window._loteEnvase.prevista} un. Envasou menos? Sem problema: o resto continua macerando.`;
+
     // FORMATANDO OS VALORES PARA APARECEREM NA TELA COM O "R$"
     document.getElementById('mfp-custo').value = safeFmt(p.custo_unitario);
     document.getElementById('mfp-preco').value = safeFmt(p.preco_sugerido);
-    
+
     document.getElementById('mfp-codigo').value = p.codigo;
     document.getElementById('mfp-tipo').value = p.tipo;
+    document.getElementById('mfp-encerrar').checked = false;
     document.getElementById('modal-finalizar-producao').style.display = 'flex';
+    atualizarAvisoEnvase();
+}
+
+// Avisa ao vivo o que vai acontecer: encerra o lote ou deixa o resto macerando
+function atualizarAvisoEnvase() {
+    const dadosLote = window._loteEnvase || { restante: 0 };
+    const qtdAgora = parseFloat(document.getElementById('mfp-qtd-real').value) || 0;
+    const aviso = document.getElementById('mfp-aviso-parcial');
+    const txt = document.getElementById('mfp-aviso-texto');
+    const btn = document.getElementById('btn-mfp-confirmar');
+    if (qtdAgora > 0 && qtdAgora < dadosLote.restante) {
+        aviso.style.display = 'block';
+        txt.innerText = `⚗️ Envase PARCIAL: ${qtdAgora} vão pra prateleira e ${(dadosLote.restante - qtdAgora)} continuam macerando no lote.`;
+        if (btn) btn.innerHTML = '🍾 Envasar Parte (o resto continua no lote)';
+    } else {
+        aviso.style.display = 'none';
+        if (btn) btn.innerHTML = '🏭 Adicionar à Prateleira (encerra o lote)';
+    }
 }
 
 function confirmarFinalizarProducao() {
     const linha = document.getElementById('mfp-linha').value;
     const nome_produto = document.getElementById('mfp-produto').innerText;
-    const qtdReal = document.getElementById('mfp-qtd-real').value;
+    const qtdReal = parseFloat(document.getElementById('mfp-qtd-real').value) || 0;
     const local = padronizarTexto(document.getElementById('mfp-local').value) || 'Sede';
-    
+    if (qtdReal <= 0) return mostrarAlerta("Atenção", "Informe quantas unidades você envasou agora.", "warning");
+
+    const dadosLote = window._loteEnvase || { restante: qtdReal };
+    const ehParcial = qtdReal < dadosLote.restante;
+    const encerrar = !ehParcial || document.getElementById('mfp-encerrar').checked;
+
     // CAPTURANDO OS VALORES DIGITADOS E REMOVENDO A MÁSCARA "R$"
     const custo = parseDinheiro(document.getElementById('mfp-custo').value);
     const preco = parseDinheiro(document.getElementById('mfp-preco').value);
-    
+
     const codigo = document.getElementById('mfp-codigo').value;
     const tipo = document.getElementById('mfp-tipo').value;
-    
-    document.getElementById('modal-finalizar-producao').style.display = 'none';
-    mostrarLoading("Envasando e Enviando..."); 
-    
-    const msgLog = `✅ Lote Finalizado: ${qtdReal}x [${nome_produto}]. Prateleira: ${local}. Venda: ${fmt(preco)}`; 
 
-    fetch(API_NOVERA, { 
-        method: "POST", headers: cabecalhoAuth(), 
-        body: JSON.stringify({ 
-            usuario: usuarioLogado, 
-            acao: "finalizar_producao", 
-            linha: linha, 
-            nome_produto: nome_produto, 
-            tipo: tipo, 
-            qtd: qtdReal, 
-            custo: fmtPlanilha(custo), 
-            preco: fmtPlanilha(preco), 
-            codigo: codigo, 
-            local: local, 
-            log_detalhe: msgLog 
-        }) 
-    }).then(() => { 
-        mostrarAlerta("Pronto!", `Envase concluído. Estoque atualizado!`, "success"); 
-        sincronizarDadosUnico(); 
-    });
+    document.getElementById('modal-finalizar-producao').style.display = 'none';
+    mostrarLoading("Envasando e Enviando...");
+
+    const msgLog = `🍾 Envase: ${qtdReal}x [${nome_produto}] → ${local}.${ehParcial && !encerrar ? ` Parcial: ${(dadosLote.restante - qtdReal)} seguem macerando.` : ' Lote encerrado.'}`;
+
+    fetch(API_NOVERA, {
+        method: "POST", headers: cabecalhoAuth(),
+        body: JSON.stringify({
+            usuario: usuarioLogado,
+            acao: "finalizar_producao",
+            linha: linha,
+            nome_produto: nome_produto,
+            tipo: tipo,
+            qtd: qtdReal,
+            encerrar: encerrar,
+            custo: fmtPlanilha(custo),
+            preco: fmtPlanilha(preco),
+            codigo: codigo,
+            local: local,
+            log_detalhe: msgLog
+        })
+    }).then(r => r.json()).then(res => {
+        if (res && res.sucesso === false) return mostrarAlerta("Ops", res.erro || "Falha no envase.", "error");
+        if (res && res.encerrado === false) mostrarAlerta("Envase Parcial! 🍾", `${qtdReal} un foram pra prateleira — ${res.restante} continuam macerando no lote (ele segue na fila).`, "success");
+        else mostrarAlerta("Pronto!", `Envase concluído e lote encerrado. Estoque atualizado!`, "success");
+        sincronizarDadosUnico();
+    }).catch(() => { mostrarAlerta("Erro", "Falha de conexão.", "error"); });
 }
 
 function calcularRadarProducao() {
@@ -3668,6 +3704,17 @@ function onStatusVendaChange(isEdit = false) {
         if(isEdit) autoPreencherEdicaoVenda();
         else autoPreencherValorVenda();
     }
+    // 📅 Previsão de pagamento: só faz sentido no fiado (Pendente/Parcelado)
+    const boxPrev = document.getElementById(isEdit ? 'box-prev-pgto-edit' : 'box-prev-pgto');
+    if (boxPrev) boxPrev.style.display = (status === 'Pendente' || status === 'Parcelado') ? 'block' : 'none';
+}
+
+// Atalhos +7/+15/+30 dias pro "combinado pra pagar quando?"
+function setPrevPgto(dias, isEdit = false) {
+    const d = new Date();
+    d.setDate(d.getDate() + dias);
+    const alvo = document.getElementById(isEdit ? 'edit-v-prev-pgto' : 'v-prev-pgto');
+    if (alvo) alvo.value = d.toISOString().split('T')[0];
 }
 
 // Descobre qual local deveria vir pré-selecionado: o local com o nome do vendedor (mesmo com apelido/acento diferente), senão "Sede"
@@ -3818,6 +3865,13 @@ function salvarVendaCarrinho() {
 
     if (!data || !cliente) return mostrarAlerta("Atenção", "Preencha a Data e o Cliente no topo.", "warning");
 
+    // 📅 Fiado sem data combinada não passa: é ela que alimenta as cobranças e as análises
+    const prevPgtoEl = document.getElementById('v-prev-pgto');
+    const prevPgto = prevPgtoEl ? prevPgtoEl.value : '';
+    if ((status === 'Pendente' || status === 'Parcelado') && !prevPgto) {
+        return mostrarAlerta("Falta a data combinada 📅", "Venda fiada precisa da previsão de pagamento — pergunta pro cliente 'pra quando fica bom?' e marca ali (tem os atalhos +7d, +15d e +30d).", "warning");
+    }
+
     vendaCarrinhoEmAndamento = true;
     const btnFinalizar = document.getElementById('btn-finalizar-venda');
     const textoOriginalBtn = btnFinalizar ? btnFinalizar.innerHTML : '';
@@ -3834,6 +3888,7 @@ function salvarVendaCarrinho() {
         socio: socio,
         status: status,
         observacao: observacao,
+        data_prev_pgto: prevPgto,
         carrinho: carrinhoPDV,
         log_detalhe: msgLog
     };
@@ -4350,6 +4405,7 @@ function filtrarVendas() {
                         </h4>
                         ${txtLocal}
                         <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Vendedor: ${v.socio}</p>
+                        ${(v.dataPrevPgto && (v.status === 'Pendente' || v.status === 'Parcelado')) ? (() => { const hojePrev = new Date().toISOString().split('T')[0]; const venceu = v.dataPrevPgto < hojePrev; return `<p style="font-size:0.68rem; font-weight:800; margin:3px 0 0 0; color:${venceu ? '#b91c1c' : '#b45309'};">📅 Combinado p/ ${v.dataPrevPgto.split('-').reverse().slice(0, 2).join('/')}${venceu ? ' — VENCIDO, hora de cobrar! 📲' : ''}</p>`; })() : ''}
                     </div>
                     <div class="v-prod-block">
                         <div>
@@ -4894,7 +4950,11 @@ function abrirModalEditarVenda(linha) {
     document.getElementById('edit-v-socio').value = v.socio; 
     document.getElementById('edit-v-qtd').value = v.qtd; 
     document.getElementById('edit-v-valor').value = safeFmt(v.valor_venda); 
-    document.getElementById('edit-v-status').value = v.status; 
+    document.getElementById('edit-v-status').value = v.status;
+    const prevEditEl = document.getElementById('edit-v-prev-pgto');
+    if (prevEditEl) prevEditEl.value = v.dataPrevPgto || '';
+    const boxPrevEdit = document.getElementById('box-prev-pgto-edit');
+    if (boxPrevEdit) boxPrevEdit.style.display = (v.status === 'Pendente' || v.status === 'Parcelado') ? 'block' : 'none';
     document.getElementById('edit-v-observacao').value = v.observacao || ""; 
     document.getElementById('modal-editar-venda').style.display = 'flex'; 
 }
@@ -4934,10 +4994,11 @@ function salvarEdicaoVenda() {
         custo_und: "0", 
         custo_total: "0", 
         data_pg: py.status === "Pago" ? py.data : "", 
-        observacao: py.observacao, 
-        local_estoque: py.local_estoque, 
-        log_detalhe: msgLog 
-    }; 
+        observacao: py.observacao,
+        local_estoque: py.local_estoque,
+        data_prev_pgto: (document.getElementById('edit-v-prev-pgto') ? document.getElementById('edit-v-prev-pgto').value : ''),
+        log_detalhe: msgLog
+    };
     
     fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(envio) })
         .then(r => r.json())
@@ -5094,6 +5155,20 @@ function coletarDadosAnaliseIA() {
         produtos_com_risco_de_zerar: risco.slice(0, 6),
         produtos_encalhados_30d_sem_venda: encalhe.slice(0, 6),
         fiado_total_em_aberto: Math.round(fiadoTotal),
+        fiado_com_data_combinada: (() => {
+            const hojeFi = new Date().toISOString().split('T')[0];
+            const em7fi = new Date(); em7fi.setDate(em7fi.getDate() + 7);
+            const iso7fi = em7fi.toISOString().split('T')[0];
+            let vencido = 0, vence7d = 0, semData = 0;
+            vendasGlobal.forEach(v => {
+                if (v.status !== 'Pendente' && v.status !== 'Parcelado') return;
+                const valFi = parseDinheiro(v.valor_venda);
+                if (!v.dataPrevPgto) semData += valFi;
+                else if (v.dataPrevPgto < hojeFi) vencido += valFi;
+                else if (v.dataPrevPgto <= iso7fi) vence7d += valFi;
+            });
+            return { vencido: Math.round(vencido), vence_em_7_dias: Math.round(vence7d), sem_data_combinada: Math.round(semData) };
+        })(),
         encomendas_aguardando_producao: encomendasGlobal.filter(e => e.status === 'Pendente').length,
         clube_fidelidade: {
             regra: '1 selo a cada R$50 pagos; 8 selos = brinde de até R$50 (custo ~R$19)',
@@ -5634,6 +5709,28 @@ function renderizarDashboard() {
                 <p style="color:#cbd5e1; font-size:0.62rem; margin:10px 0 0 0; text-align:center;">💎 Patente máxima alcançada — você é lenda! 👏</p>`}
             </div>`;
 
+        // 📅 AGENDA DE COBRANÇAS: fiados com data combinada — vencidos gritam, os da semana avisam
+        let htmlCobrancas = '';
+        {
+            const hojeCob = new Date().toISOString().split('T')[0];
+            const em7 = new Date(); em7.setDate(em7.getDate() + 7);
+            const iso7 = em7.toISOString().split('T')[0];
+            const meusFiados = minhasVendasHist.filter(v => (v.status === 'Pendente' || v.status === 'Parcelado') && v.dataPrevPgto);
+            const vencidos = meusFiados.filter(v => v.dataPrevPgto < hojeCob);
+            const semana = meusFiados.filter(v => v.dataPrevPgto >= hojeCob && v.dataPrevPgto <= iso7);
+            const valVencidos = vencidos.reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+            const valSemana = semana.reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+            if (vencidos.length || semana.length) {
+                htmlCobrancas = `
+                <div class="dash-card" style="grid-column: span 2; padding: 14px; background: ${vencidos.length ? '#fef2f2' : '#fffbeb'}; border: 2px solid ${vencidos.length ? '#fca5a5' : '#fde68a'};" onclick="switchTab('vendas')" title="Toque pra ir cobrar" style="cursor:pointer;">
+                    <p style="margin:0; font-size:0.78rem; font-weight:900; color:${vencidos.length ? '#b91c1c' : '#92400e'};">📅 AGENDA DE COBRANÇAS</p>
+                    ${vencidos.length ? `<p style="margin:6px 0 0; font-size:0.72rem; color:#b91c1c; font-weight:700;">🚨 ${vencidos.length} combinado(s) VENCIDO(S): ${fmt(valVencidos)} — cobre hoje (📲 na aba Vendas)!</p>` : ''}
+                    ${semana.length ? `<p style="margin:6px 0 0; font-size:0.72rem; color:#92400e; font-weight:700;">⏰ ${semana.length} vence(m) nos próximos 7 dias: ${fmt(valSemana)} — lembre com carinho antes do dia.</p>` : ''}
+                    <p style="margin:6px 0 0; font-size:0.6rem; color:#a16207;">Cobrar no dia combinado libera SUA comissão e enche os selos do Clube do cliente. 💛</p>
+                </div>`;
+            }
+        }
+
         // 🔥 SEQUÊNCIA DE DIAS VENDENDO (streak): tolera o "ainda não vendi hoje" contando até ontem
         const diasComVendaStreak = new Set(minhasVendasHist.filter(v => v.status !== 'Presente').map(v => v.dataVendaIso));
         const hojeIsoStreak = new Date().toISOString().split('T')[0];
@@ -5716,7 +5813,7 @@ function renderizarDashboard() {
                     <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
 
-                ${secaoDash('v-missoes', '🎯 Missões do Mês', htmlMeta + htmlStreak + htmlProjecao, true)}
+                ${secaoDash('v-missoes', '🎯 Missões do Mês', htmlMeta + htmlCobrancas + htmlStreak + htmlProjecao, true)}
                 ${secaoDash('v-conquistas', `🏆 Conquistas & Ranking${minhasConquistas.length ? ` <span style="font-weight:700; color:#b45309; font-size:0.72rem;">· ${minhasConquistas.length} troféus</span>` : ''}`, htmlSala + htmlPatente + htmlRanking, false)}
                 ${secaoDash('v-catalogo', `🔗 Meu Catálogo Online${vcMeu.hoje > 0 ? ` <span style="font-weight:700; color:#0d9488; font-size:0.72rem;">· 👀 ${vcMeu.hoje} hoje</span>` : ''}`, htmlVisitasCat, false)}
                 ${secaoDash('v-analises', '📈 Minhas Análises', `
@@ -6210,6 +6307,15 @@ function renderizarDashboard() {
         if (encPendAn >= 3) frases.push(['🟡', `<b>${encPendAn} encomendas esperando produção</b> — é venda GARANTIDA parada na fila. Priorize esses itens na próxima leva da fábrica.`]);
 
         if (margemMedia > 0 && margemMedia < 80) frases.push(['🟡', `<b>Margem média em ${margemMedia.toFixed(0)}%</b>, abaixo do padrão da casa (~150%+). Confira os custos recentes de base/essência e o Termômetro de Preço.`]);
+
+        // 📅 Fiado com data combinada: vencidos são dinheiro parado com hora marcada pra voltar
+        {
+            const hojeAnCob = new Date().toISOString().split('T')[0];
+            const fiadosDatados = vendasGlobal.filter(v => (v.status === 'Pendente' || v.status === 'Parcelado') && v.dataPrevPgto);
+            const vencidosAn = fiadosDatados.filter(v => v.dataPrevPgto < hojeAnCob);
+            const valVencAn = vencidosAn.reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+            if (valVencAn > 0) frases.push(['🔴', `<b>${fmt(valVencAn)} em fiado VENCIDO</b> (${vencidosAn.length} combinado${vencidosAn.length > 1 ? 's' : ''} não cumprido${vencidosAn.length > 1 ? 's' : ''}). Esse dinheiro tem dono e data — acione a equipe pra cobrar hoje.`]);
+        }
 
         htmlAnalista = secaoDash('a-analista', '🧠 Analista Novera', `
             <div class="dash-card" style="grid-column: span 2; padding: 4px 15px 14px; background:#fff;">
