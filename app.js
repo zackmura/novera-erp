@@ -191,6 +191,74 @@ let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe 
 let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: só os dele; admin: equipe toda)
 let catalogoLinksGlobal = []; // 🗂️ links de catálogo criados (vendedor: os seus; admin: todos, com liga/desliga)
 let aceleradoresGlobal = []; // 💰 aceleradores de meta fechados (2% sobre vendas pagas acima da meta)
+let clubeResgatesGlobal = []; // 📇 resgates do Clube de Selos (pra calcular o saldo das cartelas)
+
+// 📇 Regras do Clube de Selos (configuráveis por chaves nos Parâmetros; padrão da casa abaixo)
+function configClube() {
+    return {
+        valorSelo: parseFloat(configuracoesGlobais.clube_valor_selo) || 50,
+        selosCartela: parseInt(configuracoesGlobais.clube_selos_cartela) || 8,
+        tetoPremio: parseFloat(configuracoesGlobais.clube_teto_premio) || 50
+    };
+}
+
+// 🧮 A cartela de um cliente: compras PAGAS desde a adesão + selos de boas-vindas − resgates.
+// O cliente NUNCA vê valores em R$ — só selos e quanto falta (queremos "preciso da Novera",
+// nunca "nossa, já gastei muito" rsrs)
+function calcularCartelaCliente(cli) {
+    if (!cli || !cli.clubeDesde) return null;
+    const cc = configClube();
+
+    // Vendas pagas desde a adesão, em ordem — pra saber TAMBÉM o dia em que cada selo nasceu
+    const pagas = vendasGlobal
+        .filter(v => v.status === 'Pago' && normalizarNomeBusca(v.cliente) === normalizarNomeBusca(cli.nome) && v.dataVendaIso && v.dataVendaIso >= cli.clubeDesde)
+        .sort((a, b) => String(a.dataVendaIso).localeCompare(String(b.dataVendaIso)));
+
+    let resgatado = 0;
+    clubeResgatesGlobal.forEach(rr => { if (normalizarNomeBusca(rr.cliente) === normalizarNomeBusca(cli.nome)) resgatado += rr.valorDescontado; });
+
+    const dataBRcurta = (iso) => iso ? iso.split('-').reverse().slice(0, 2).join('/') : '';
+    let acumulado = (cli.clubeBonus || 0) * cc.valorSelo - resgatado; // bônus entra, resgates saem
+    const datasSelos = [];
+    // Selos de boas-vindas (se sobraram após resgates) carimbam com a data da adesão
+    for (let s = 1; s <= Math.floor(acumulado / cc.valorSelo); s++) datasSelos.push(dataBRcurta(cli.clubeDesde));
+    pagas.forEach(v => {
+        const antes = Math.floor(Math.max(0, acumulado) / cc.valorSelo);
+        acumulado += parseDinheiro(v.valor_venda);
+        const depois = Math.floor(Math.max(0, acumulado) / cc.valorSelo);
+        for (let s = antes; s < depois; s++) datasSelos.push(dataBRcurta(v.dataVendaIso));
+    });
+
+    const selos = Math.min(cc.selosCartela, datasSelos.length);
+    return { selos, total: cc.selosCartela, faltam: Math.max(0, cc.selosCartela - selos), cheia: selos >= cc.selosCartela, tetoPremio: cc.tetoPremio, datas: datasSelos.slice(0, cc.selosCartela) };
+}
+
+// 🛒 FAIXA DO CLUBE NO PDV: digitou o cliente na venda, a situação dele aparece na hora —
+// sem precisar abrir o menu Clientes. Um toque abre a cartela (ou o convite).
+function atualizarFaixaClubePdv() {
+    const faixa = document.getElementById('faixa-clube-pdv');
+    const inp = document.getElementById('v-cliente');
+    if (!faixa || !inp) return;
+    const nomeDigitado = normalizarNomeBusca(inp.value);
+    if (!nomeDigitado || nomeDigitado.length < 2) { faixa.style.display = 'none'; return; }
+    const cli = clientesGlobal.find(x => normalizarNomeBusca(x.nome) === nomeDigitado);
+    if (!cli) { faixa.style.display = 'none'; return; } // cliente novo entra no cadastro na venda
+
+    const cart = calcularCartelaCliente(cli);
+    if (!cart) {
+        faixa.innerHTML = `<div onclick="abrirCartelaCliente(${cli.linha})" style="cursor:pointer; background:#fffbeb; border:1px dashed #fbbf24; border-radius:8px; padding:8px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <span style="font-size:0.72rem; color:#92400e; font-weight:700;">📇 ${cli.nome.split(' ')[0]} ainda NÃO está no Clube de Selos</span>
+            <span style="background:#f59e0b; color:#fff; border-radius:14px; padding:4px 12px; font-size:0.62rem; font-weight:800; white-space:nowrap;">Convidar ➜</span>
+        </div>`;
+    } else {
+        const selinhosPdv = Array.from({ length: cart.total }, (x, iS) => iS < cart.selos ? '🌸' : '⚪').join('');
+        faixa.innerHTML = `<div onclick="abrirCartelaCliente(${cli.linha})" style="cursor:pointer; background:${cart.cheia ? '#f0fdf4' : '#fdf5f7'}; border:1px solid ${cart.cheia ? '#86efac' : '#e3c6d2'}; border-radius:8px; padding:8px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:0.8rem; letter-spacing:1px;">${selinhosPdv}</span>
+            <span style="font-size:0.65rem; font-weight:800; color:${cart.cheia ? '#15803d' : '#966178'};">${cart.cheia ? '🎁 CARTELA CHEIA — entregar o brinde!' : `Clube: faltam ${cart.faltam} selo${cart.faltam > 1 ? 's' : ''} · essa venda PAGA ajuda!`}</span>
+        </div>`;
+    }
+    faixa.style.display = 'block';
+}
 
 // 💰 Regras do acelerador (configuráveis nos Parâmetros Globais)
 function configAcelerador() {
@@ -626,6 +694,7 @@ async function sincronizarDadosUnico() {
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
             aceleradoresGlobal = dados.aceleradores || [];
+            clubeResgatesGlobal = dados.clubeResgates || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -4261,12 +4330,23 @@ function filtrarVendas() {
             if(!gruposVendas[dataKeyIso]) { gruposVendas[dataKeyIso] = { display: dataDisplay, itens: [], totalDia: 0 }; }
             gruposVendas[dataKeyIso].totalDia += val;
 
+            // 📇 Chip do Clube ao lado do nome: mostra a cartela (ou convida) direto no histórico
+            let chipClube = '';
+            if (v.status !== 'Presente') {
+                const cliClube = clientesGlobal.find(x => normalizarNomeBusca(x.nome) === normalizarNomeBusca(v.cliente));
+                if (cliClube) {
+                    const cartV = calcularCartelaCliente(cliClube);
+                    if (cartV) chipClube = `<span onclick="abrirCartelaCliente(${cliClube.linha})" style="cursor:pointer; background:${cartV.cheia ? '#dcfce7' : '#fdf5f7'}; color:${cartV.cheia ? '#15803d' : '#966178'}; border:1px solid ${cartV.cheia ? '#86efac' : '#e3c6d2'}; border-radius:12px; padding:2px 9px; font-size:0.6rem; font-weight:800; white-space:nowrap;" title="Ver a cartela do Clube">${cartV.cheia ? '🎁 BRINDE!' : `🌸 ${cartV.selos}/${cartV.total}`}</span>`;
+                    else chipClube = `<span onclick="abrirCartelaCliente(${cliClube.linha})" style="cursor:pointer; background:#fffbeb; color:#92400e; border:1px dashed #fcd34d; border-radius:12px; padding:2px 9px; font-size:0.6rem; font-weight:800; white-space:nowrap;" title="Convidar pro Clube de Selos">📇 Clube?</span>`;
+                }
+            }
+
             gruposVendas[dataKeyIso].itens.push(`
             <div class="rotulo-card card-venda-list" style="border-left: 5px solid ${corBorda}; border-radius: 8px; padding: 15px;">
                 <div class="prod-info-main" style="flex:1;">
                     <div class="v-cli-block">
                         <h4 style="margin: 0 0 3px 0; font-size: 0.9rem; color: var(--brand-dark);">
-                            ${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span>
+                            ${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span> ${chipClube}
                         </h4>
                         ${txtLocal}
                         <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Vendedor: ${v.socio}</p>
@@ -5014,7 +5094,14 @@ function coletarDadosAnaliseIA() {
         produtos_com_risco_de_zerar: risco.slice(0, 6),
         produtos_encalhados_30d_sem_venda: encalhe.slice(0, 6),
         fiado_total_em_aberto: Math.round(fiadoTotal),
-        encomendas_aguardando_producao: encomendasGlobal.filter(e => e.status === 'Pendente').length
+        encomendas_aguardando_producao: encomendasGlobal.filter(e => e.status === 'Pendente').length,
+        clube_fidelidade: {
+            regra: '1 selo a cada R$50 pagos; 8 selos = brinde de até R$50 (custo ~R$19)',
+            total_clientes_cadastrados: clientesGlobal.length,
+            membros_do_clube: clientesGlobal.filter(cl => cl.clubeDesde).length,
+            cartelas_cheias_agora: clientesGlobal.filter(cl => { const ct = calcularCartelaCliente(cl); return ct && ct.cheia; }).length,
+            brindes_resgatados_total: clubeResgatesGlobal.length
+        }
     };
 }
 
@@ -6936,6 +7023,7 @@ async function sincronizarDadosSilencioso() {
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
             aceleradoresGlobal = dados.aceleradores || [];
+            clubeResgatesGlobal = dados.clubeResgates || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -7134,6 +7222,29 @@ const PAGINAS_GUIA = [
     <p style="margin:0; font-size:0.75rem; color:#166534;"><b>Segredo de quem vende muito:</b> cliente antigo compra de novo MUITO mais fácil que cliente novo. Cuidar da carteira (cobrar com carinho, lembrar aniversário, avisar novidade) vale mais que sair caçando gente nova.</p>
 </div>
 <p style="margin:0;">🔒 Sua carteira é SUA: cada vendedor só vê os próprios clientes.</p>` },
+
+{ id: 'clube', emoji: '📇', titulo: 'Clube de Selos: cliente fiel ganha presente', html: `
+<div style="background:#fdf5f7; border:2px solid #e3c6d2; border-radius:12px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-weight:800; color:#966178; font-size:0.85rem;">🌸 A regra inteira em 1 frase: a cada R$ 50 em compras PAGAS, o cliente ganha 1 selo — juntou 8 selos, ganha até R$ 50 em produtos de PRESENTE (1 perfume OU 2 cremes OU creme + home spray — ele escolhe!).</p>
+</div>
+<p style="margin-bottom:10px;"><b>Você não carimba NADA.</b> O app conta os selos sozinho. Seu trabalho é 3 coisas: convidar, avisar e entregar. 😄</p>
+
+<p style="margin-bottom:6px;"><b>👀 ONDE O CLUBE APARECE — os chips ao lado do nome do cliente:</b></p>
+<div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.75rem; margin-bottom:10px;">
+    <p style="margin:0 0 7px;"><span style="background:#fffbeb; color:#92400e; border:1px dashed #fcd34d; border-radius:12px; padding:2px 9px; font-size:0.62rem; font-weight:800;">📇 Clube?</span> &nbsp;= ainda não participa. <b>Toque pra convidar!</b></p>
+    <p style="margin:0 0 7px;"><span style="background:#fdf5f7; color:#966178; border:1px solid #e3c6d2; border-radius:12px; padding:2px 9px; font-size:0.62rem; font-weight:800;">🌸 3/8</span> &nbsp;= participa e já tem 3 selos. Toque pra ver a cartela.</p>
+    <p style="margin:0;"><span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:12px; padding:2px 9px; font-size:0.62rem; font-weight:800;">🎁 BRINDE!</span> &nbsp;= cartela CHEIA. Toque e entregue o presente!</p>
+</div>
+<p style="margin-bottom:10px;">Esses chips aparecem em <b>3 lugares</b>: no <b>histórico de vendas</b> (ao lado do nome), <b>na venda nova</b> (uma faixa surge quando você digita o cliente) e no menu <b>👥 Clientes</b>.</p>
+
+<p style="margin-bottom:6px;"><b>1º CONVIDAR:</b> toque no chip <b>📇 Clube?</b> → aparece a explicação prontinha pro cliente → coloque o WhatsApp dele (é o "ingresso") → pronto! Cliente antigo já entra com <b>2 selos de presente</b>, novo entra com 1.</p>
+<p style="margin-bottom:6px;"><b>2º ACOMPANHAR:</b> os selos enchem sozinhos a cada compra PAGA. Na cartela tem o botão <b>📲 Enviar Cartela no WhatsApp</b> — manda a FOTO da cartela (linda, com carimbos e datas) + a mensagem pronta: <i>"faltam só 2 pro seu presente!"</i>. Ver os selos juntando dá vontade de completar rsrs.</p>
+<p style="margin-bottom:10px;"><b>3º ENTREGAR:</b> chip verde 🎁 → toque → <b>"Resgatar o Brinde"</b> → monte a <b>sacolinha do brinde</b>: adicione os produtos que o cliente escolher (o app soma e trava em R$ 50 — 1 perfume, 2 cremes, creme + spray...) → <b>"✅ Entregar"</b>. O app dá baixa no estoque, registra tudo e zera a cartela sozinho. <b>Você NÃO mexe em status nenhum</b> — e não tem como errar: se a cartela não estiver cheia ou passar do limite, o sistema recusa.</p>
+
+<div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem; color:#166534;"><b>💡 Por que isso enche o SEU bolso:</b> só compra PAGA carimba selo — o cliente com fiado vai QUERER pagar rápido ("paga pra eu carimbar!"). Cliente com cartela pela metade não compra da concorrente. E o brinde quem paga é a empresa — pra você é só mais recompra e mais comissão.</p>
+</div>
+<p style="margin:0;">❓ Dúvidas comuns: <b>compras antigas contam?</b> Não — selos valem da entrada no Clube em diante (por isso o bônus de boas-vindas). <b>Fiado conta?</b> Só quando for pago. <b>Preciso anotar algo?</b> Nunca — é tudo automático.</p>` },
 
 { id: 'fabrica', emoji: '⏳', titulo: 'Maceração e Sugestões', html: `
 <p style="margin-bottom:8px;"><b>⏳ Maceração</b> é a aba que mostra a fábrica trabalhando: cada lote em produção e a data em que fica pronto.</p>
@@ -8437,6 +8548,263 @@ function salvarConferencia() {
 // ==========================================
 // 👥 MÓDULO: CADASTRO DE CLIENTES (ADMIN)
 // ==========================================
+// ==========================================
+// 📇 CLUBE DE SELOS — cartela visual, adesão, WhatsApp e resgate
+// Linguagem de gente: "cada R$ 50 em compras pagas = 1 selo; 8 selos = brinde!"
+// ==========================================
+// 💌 O nome que vai NAS MENSAGENS e na cartela: o de exibição se existir, senão o cadastro completo
+function nomeClienteMsg(c) {
+    return String((c && (c.nomeExibicao || c.nome)) || '').trim();
+}
+
+function setFiltroClube(valor) {
+    window._filtroClube = valor;
+    renderizarClientes();
+}
+
+function abrirCartelaCliente(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const antigo = document.getElementById('modal-cartela-clube');
+    if (antigo) antigo.remove();
+    const cc = configClube();
+    const cart = calcularCartelaCliente(c);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-cartela-clube';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    let corpo = '';
+    if (!cart) {
+        // ✨ CONVITE: explica o Clube em 3 linhas e pede só o WhatsApp
+        corpo = `
+            <div style="padding:0 20px 20px;">
+                <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:12px; padding:14px; margin-bottom:14px; text-align:left;">
+                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">🌸 A cada <b>R$ ${cc.valorSelo.toFixed(0)} em compras pagas</b>, ${nomeClienteMsg(c)} ganha <b>1 selo</b>.</p>
+                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">📇 Juntou <b>${cc.selosCartela} selos</b> → ganha <b>até R$ ${cc.tetoPremio.toFixed(0)} em produtos de PRESENTE</b> (1 perfume OU 2 cremes, por exemplo — ele escolhe!).</p>
+                    <p style="margin:0; font-size:0.78rem; color:#6d5c66;">🎉 E já entra ganhando <b>selo de boas-vindas</b> (2 se já for cliente da casa)!</p>
+                </div>
+                <label style="display:block; text-align:left; font-size:0.7rem; font-weight:800; color:#966178; margin-bottom:4px;">📱 WhatsApp do cliente (o "ingresso" do Clube)</label>
+                <input type="tel" id="clube-telefone" value="${c.telefone || ''}" placeholder="(35) 99999-9999" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; box-sizing:border-box; margin-bottom:12px;">
+                <button class="btn-salvar" style="margin:0;" onclick="aderirClube(${c.linha})">✨ Colocar no Clube!</button>
+            </div>`;
+    } else {
+        // 🌸 Carimbos de verdade: cada selo conquistado leva a DATA do dia em que nasceu
+        const selosHtml = Array.from({ length: cart.total }, (x, iS) => iS < cart.selos
+            ? `<div style="width:58px; height:58px; border-radius:50%; background:radial-gradient(circle at 50% 32%, #fdf0f5, #eec3d6 70%, #e0a8c2); border:2.5px solid #b87c96; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(150,97,120,0.35), inset 0 -3px 6px rgba(150,97,120,0.2); transform:rotate(${(iS % 3 - 1) * 7}deg);">
+                <span style="font-size:1.25rem; line-height:1;">🌸</span>
+                <span style="font-size:0.46rem; font-weight:900; color:#7a4a5e; letter-spacing:0.5px; margin-top:1px;">${cart.datas[iS] || ''}</span>
+            </div>`
+            : `<div style="width:58px; height:58px; border-radius:50%; background:rgba(255,255,255,0.6); border:2px dashed #d9c2cc; display:flex; align-items:center; justify-content:center; font-size:0.78rem; color:#c9b3bd; font-weight:800;">${iS + 1}º</div>`
+        ).join('');
+
+        // 💬 Mensagem viva conforme o progresso — sempre carinho, nunca "quanto gastou"
+        const nomeMarca = String(configuracoesGlobais.marca_nome || IDENTIDADE_PADRAO.marca_nome);
+        let msgCartela;
+        if (cart.cheia) msgCartela = '🎁 CARTELA CHEIA! Seu presente está te esperando — escolha o seu mimo!';
+        else if (cart.faltam <= 2) msgCartela = `🔥 Tá quase! Falta${cart.faltam > 1 ? 'm' : ''} só ${cart.faltam} selo${cart.faltam > 1 ? 's' : ''} pro seu presente!`;
+        else if (cart.selos > 0) msgCartela = `💛 Cada selo é um pedacinho do seu presente. Já são ${cart.selos} — continue!`;
+        else msgCartela = '🌸 Sua cartela começou! Cada compra te aproxima de um presente especial.';
+
+        corpo = `
+            <div style="padding:0 16px 18px;">
+                <div id="cartela-captura" style="background:linear-gradient(165deg, #fdfbfb 0%, #f9eff4 55%, #f4e4ec 100%); border:2px solid #b87c96; border-radius:20px; padding:4px; position:relative;">
+                    <div style="border:1px dashed rgba(150,97,120,0.4); border-radius:16px; padding:16px 12px 14px;">
+                        <p style="margin:0; font-family:'Playfair Display', serif; font-size:1.2rem; color:#966178; font-weight:700; letter-spacing:2px; text-transform:uppercase;">${nomeMarca}</p>
+                        <div style="display:flex; align-items:center; gap:8px; margin:4px 0 4px;"><div style="flex:1; height:1px; background:linear-gradient(90deg, transparent, #d9b8c6);"></div><span style="font-size:0.56rem; color:#b8869c; letter-spacing:3px; font-weight:800;">CLUBE DE FIDELIDADE</span><div style="flex:1; height:1px; background:linear-gradient(90deg, #d9b8c6, transparent);"></div></div>
+                        <p style="margin:0 0 14px; font-family:'Playfair Display', serif; font-style:italic; font-size:0.82rem; color:#a86f88;">${nomeClienteMsg(c)}</p>
+                        <div style="display:flex; gap:9px; flex-wrap:wrap; justify-content:center; margin-bottom:14px;">${selosHtml}</div>
+                        <p style="margin:0; font-size:0.8rem; font-weight:900; color:${cart.cheia ? '#15803d' : '#966178'};">${msgCartela}</p>
+                        <p style="margin:8px 0 0; font-size:0.56rem; color:#b8a0ab; letter-spacing:0.5px;">✦ A cada R$ ${cc.valorSelo.toFixed(0)} em compras, 1 selo · ${cc.selosCartela} selos = até R$ ${cc.tetoPremio.toFixed(0)} em presentes ✦</p>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+                    ${cart.cheia ? `<button class="btn-salvar" style="margin:0; background:#15803d; box-shadow:0 4px 0 #14532d;" onclick="abrirResgateClube(${c.linha})">🎁 Resgatar o Brinde</button>` : ''}
+                    <button class="btn-salvar" style="margin:0; background:#25D366; box-shadow:0 4px 0 #1b9c4b;" onclick="enviarCartelaCompleta(${c.linha})">📲 Enviar Cartela no WhatsApp</button>
+                    <button class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;" onclick="enviarImagemCartela()">📸 Só a imagem (compartilhar/baixar)</button>
+                </div>
+            </div>`;
+    }
+
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:22px; max-width:380px; width:100%; max-height:88vh; overflow-y:auto; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; text-align:center;">
+            <div style="padding:18px 20px 10px; position:relative;">
+                <button onclick="document.getElementById('modal-cartela-clube').remove()" style="position:absolute; top:12px; right:14px; background:#f3e8ed; border:none; width:30px; height:30px; border-radius:50%; font-weight:bold; color:#966178; cursor:pointer;">×</button>
+                <div style="font-size:2rem;">📇</div>
+                <h3 style="margin:4px 0 2px; color:#966178; font-size:1.05rem; font-weight:900;">${cart ? 'Cartela do Clube' : 'Convite pro Clube de Selos'}</h3>
+                <p style="margin:0 0 10px; color:#999; font-size:0.68rem;">${c.nome}</p>
+            </div>
+            ${corpo}
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+function aderirClube(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const tel = document.getElementById('clube-telefone').value.trim();
+    if (!tel) return mostrarAlerta("Falta o WhatsApp", "O número do cliente é o ingresso do Clube — pergunta pra ele rapidinho! 😊", "warning");
+    mostrarLoading("Colocando no Clube...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'aderir_clube', usuario: usuarioLogado, nome_cliente: c.nome, telefone: tel }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                c.clubeDesde = new Date().toISOString().split('T')[0];
+                c.clubeBonus = res.bonus || 1;
+                c.telefone = tel;
+                document.getElementById('modal-cartela-clube').remove();
+                mostrarAlerta("Bem-vindo(a) ao Clube! 🎉", `${c.nome} entrou com ${res.bonus} selo${res.bonus > 1 ? 's' : ''} de boas-vindas. Abra a cartela e mande a foto pra ele(a) no WhatsApp!`, "success");
+                renderizarClientes();
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Ops", res.erro || "Falha ao aderir.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
+}
+
+// 📲 Fluxo completo: gera a IMAGEM da cartela pro compartilhamento e abre o WhatsApp
+// do cliente com a mensagem pronta — a pessoa cola a foto e envia. Dois toques.
+async function enviarCartelaCompleta(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    const cart = calcularCartelaCliente(c);
+    if (!c || !cart) return;
+    const digitos = String(c.telefone || '').replace(/\D/g, '');
+    const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
+    const msg = cart.cheia
+        ? `🎁 ${nomeClienteMsg(c)}, sua cartela do Clube ENCHEU! Você ganhou um PRESENTE — me fala qual produto você quer escolher! 🥳`
+        : `🌸 Oi, ${nomeClienteMsg(c)}! Olha sua cartela do Clube: já são ${cart.selos} selo${cart.selos !== 1 ? 's' : ''} — falta${cart.faltam > 1 ? 'm' : ''} só ${cart.faltam} pro seu PRESENTE! 🎁`;
+    await enviarImagemCartela(); // primeiro a foto (compartilhar direto no zap do cliente)
+    window.open(fone ? `https://wa.me/${fone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// 📸 Fotografa a cartela (sempre em tema claro) e compartilha/baixa
+async function enviarImagemCartela() {
+    const alvo = document.getElementById('cartela-captura');
+    if (!alvo || typeof html2canvas === 'undefined') return;
+    mostrarLoading("Gerando a cartela...");
+    try {
+        const cv = await html2canvas(alvo, { scale: 2, backgroundColor: '#ffffff', onclone: removerTemaEscuroDoClone });
+        cv.toBlob(async (blob) => {
+            ocultarLoading();
+            if (!blob) return mostrarAlerta("Erro", "Não consegui gerar a imagem.", "error");
+            const arq = new File([blob], 'Cartela_Clube.png', { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [arq] })) {
+                try { await navigator.share({ files: [arq], title: 'Cartela do Clube' }); } catch (e) { /* cancelou */ }
+            } else {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob); a.download = 'Cartela_Clube.png'; a.click();
+            }
+        }, 'image/png');
+    } catch (e) { ocultarLoading(); mostrarAlerta("Erro", "Não consegui gerar a imagem.", "error"); }
+}
+
+// 🎁 Resgate = "sacolinha de brinde": UM produto de R$50 ou VÁRIOS que somem até R$50
+// (2 cremes de R$25, creme + home spray...). O app soma e trava no limite sozinho.
+function abrirResgateClube(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const cc = configClube();
+    const elegiveis = Object.values(estoqueAgrupado)
+        .filter(e => (parseFloat(e.preco) || 0) > 0 && (parseFloat(e.preco) || 0) <= cc.tetoPremio && (e.totalQtd || 0) > 0)
+        .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+    if (!elegiveis.length) return mostrarAlerta("Sem estoque", `Nenhum produto de até R$ ${cc.tetoPremio.toFixed(0)} disponível agora.`, "warning");
+
+    window._brindeItens = [];
+    const antigo = document.getElementById('modal-resgate-clube');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-resgate-clube';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.85); z-index:100000; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:20px; max-width:370px; width:100%; max-height:88vh; overflow-y:auto; padding:22px 20px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
+            <div style="font-size:2.4rem;">🎁</div>
+            <h3 style="margin:6px 0 4px; color:#15803d; font-size:1.05rem; font-weight:900;">Montar o Brinde</h3>
+            <p style="margin:0 0 12px; color:#888; font-size:0.7rem;">${nomeClienteMsg(c)} escolhe <b>até R$ ${cc.tetoPremio.toFixed(0)} em produtos</b> — pode ser 1 perfume, 2 cremes, creme + home spray... O app soma e não deixa passar do limite.</p>
+            <select id="resgate-produto" onchange="atualizarLocaisResgate()" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; margin-bottom:8px; background:#fff;">
+                ${elegiveis.map(e => `<option value="${String(e.nome).replace(/"/g, '&quot;')}">${e.codigo ? e.codigo + ' - ' : ''}${e.nome} · ${fmt(parseFloat(e.preco) || 0)}</option>`).join('')}
+            </select>
+            <select id="resgate-local" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; margin-bottom:10px; background:#fff;"></select>
+            <button onclick="adicionarItemBrinde(${c.linha})" style="width:100%; background:#e8f5e9; color:#166534; border:1px dashed #86efac; border-radius:10px; padding:11px; font-size:0.78rem; font-weight:800; cursor:pointer; font-family:'Montserrat',sans-serif; margin-bottom:10px;">➕ Colocar na sacolinha do brinde</button>
+            <div id="brinde-lista" style="text-align:left; margin-bottom:6px;"></div>
+            <div id="brinde-total" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:8px 12px; margin-bottom:12px; font-size:0.72rem; font-weight:800; color:#166534;"></div>
+            <button id="btn-entregar-brinde" class="btn-salvar" style="margin:0 0 8px; background:#15803d; box-shadow:0 4px 0 #14532d; opacity:0.5;" onclick="confirmarResgateClube(${c.linha})">✅ Entregar o Brinde</button>
+            <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-resgate-clube').remove();">Cancelar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+    atualizarLocaisResgate();
+    desenharSacolinhaBrinde();
+}
+
+function adicionarItemBrinde(linhaCli) {
+    const cc = configClube();
+    const nomeProd = document.getElementById('resgate-produto').value;
+    const local = document.getElementById('resgate-local').value;
+    const e = estoqueAgrupado[padronizarTexto(nomeProd)];
+    if (!e || !local) return mostrarAlerta("Atenção", "Escolha o produto e o local.", "warning");
+    const preco = parseFloat(e.preco) || 0;
+    const somaAtual = (window._brindeItens || []).reduce((s, it) => s + it.preco, 0);
+    if (somaAtual + preco > cc.tetoPremio + 0.01) {
+        return mostrarAlerta("Não cabe no limite", `O brinde pode somar até ${fmt(cc.tetoPremio)}. Já tem ${fmt(somaAtual)} na sacolinha — restam ${fmt(cc.tetoPremio - somaAtual)}.`, "warning");
+    }
+    // Confere se ainda há unidade sobrando no local (contando as que já estão na sacolinha)
+    const jaNaSacola = (window._brindeItens || []).filter(it => it.produto === nomeProd && it.local === local).length;
+    if ((e.locais[local] || 0) - jaNaSacola < 1) return mostrarAlerta("Sem estoque", `Não tem mais unidade de ${nomeProd} em ${local}.`, "warning");
+    window._brindeItens.push({ produto: nomeProd, local: local, preco: preco });
+    desenharSacolinhaBrinde();
+}
+
+function removerItemBrinde(idx) {
+    (window._brindeItens || []).splice(idx, 1);
+    desenharSacolinhaBrinde();
+}
+
+function desenharSacolinhaBrinde() {
+    const cc = configClube();
+    const itens = window._brindeItens || [];
+    const soma = itens.reduce((s, it) => s + it.preco, 0);
+    const lista = document.getElementById('brinde-lista');
+    const total = document.getElementById('brinde-total');
+    const btn = document.getElementById('btn-entregar-brinde');
+    if (!lista || !total) return;
+    lista.innerHTML = itens.length ? itens.map((it, i) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; border-bottom:1px dashed #eee; padding:6px 0;">
+            <span style="font-size:0.72rem; color:#444;">🎀 ${it.produto} <span style="color:#999;">(${it.local})</span></span>
+            <span style="display:flex; align-items:center; gap:6px;"><b style="font-size:0.72rem; color:#166534;">${fmt(it.preco)}</b><button onclick="removerItemBrinde(${i})" style="background:#fee2e2; color:#991b1b; border:none; border-radius:6px; padding:3px 8px; font-size:0.65rem; cursor:pointer;">🗑️</button></span>
+        </div>`).join('') : '<p style="text-align:center; color:#bbb; font-size:0.68rem; margin:4px 0;">A sacolinha do brinde está vazia — adicione acima. 👆</p>';
+    total.innerHTML = `Sacolinha: ${fmt(soma)} de ${fmt(cc.tetoPremio)} &nbsp;·&nbsp; ${soma < cc.tetoPremio ? `ainda cabem ${fmt(cc.tetoPremio - soma)}` : 'limite completo! 🎯'}`;
+    if (btn) btn.style.opacity = itens.length ? '1' : '0.5';
+}
+
+function atualizarLocaisResgate() {
+    const nomeProd = document.getElementById('resgate-produto').value;
+    const e = estoqueAgrupado[padronizarTexto(nomeProd)];
+    const selLoc = document.getElementById('resgate-local');
+    if (!e || !selLoc) return;
+    selLoc.innerHTML = Object.keys(e.locais).filter(l => e.locais[l] > 0).map(l => `<option value="${l}">📍 Sai de: ${l} (${e.locais[l]} un)</option>`).join('');
+}
+
+function confirmarResgateClube(linhaCli) {
+    const c = clientesGlobal.find(x => x.linha == linhaCli);
+    if (!c) return;
+    const itens = window._brindeItens || [];
+    if (!itens.length) return mostrarAlerta("Sacolinha vazia", "Adicione pelo menos 1 produto na sacolinha do brinde. 👆", "warning");
+    const nomesTxt = itens.map(it => it.produto).join(' + ');
+    mostrarLoading("Entregando o brinde...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'resgatar_brinde_clube', usuario: usuarioLogado, nome_cliente: c.nome, itens: itens.map(it => ({ produto: it.produto, local: it.local })) }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                const mR = document.getElementById('modal-resgate-clube'); if (mR) mR.remove();
+                const mC = document.getElementById('modal-cartela-clube'); if (mC) mC.remove();
+                mostrarAlerta("Brinde Entregue! 🎉", `${nomesTxt} saiu do estoque como presente do Clube. A cartela de ${nomeClienteMsg(c)} zerou e já começou a valer de novo!`, "success");
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Ops", res.erro || "Falha no resgate.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+        .finally(() => ocultarLoading());
+}
+
 function renderizarClientes() {
     const cont = document.getElementById('lista-cadastro-clientes');
     if (!cont) return;
@@ -8451,11 +8819,45 @@ function renderizarClientes() {
     const totalEl = document.getElementById('total-clientes-cadastrados');
     if (totalEl) totalEl.innerText = `(${clientesGlobal.length})`;
 
-    const filtrados = clientesGlobal.filter(c => !termo || normalizarNomeBusca(c.nome).includes(termo) || String(c.telefone || '').includes(termo));
+    // 📇 Filtro do Clube: um toque separa membros de não-membros (membro não se perde em lista de 200!)
+    const filtroClube = window._filtroClube || 'todos';
+    const membrosCount = clientesGlobal.filter(c => c.clubeDesde).length;
+    const chipsFiltro = document.getElementById('filtro-clube-chips');
+    if (chipsFiltro) {
+        const chipF = (valor, rotulo) => `<button onclick="setFiltroClube('${valor}')" style="flex:1; min-width:90px; padding:8px 10px; border-radius:20px; font-size:0.68rem; font-weight:800; cursor:pointer; font-family:'Montserrat',sans-serif; ${filtroClube === valor ? 'background:var(--primary-dark); color:#fff; border:1px solid var(--primary-dark);' : 'background:#fff; color:#966178; border:1px solid #e3c6d2;'}">${rotulo}</button>`;
+        chipsFiltro.innerHTML = chipF('todos', `Todos (${clientesGlobal.length})`) + chipF('clube', `📇 No Clube (${membrosCount})`) + chipF('fora', `Fora do Clube (${clientesGlobal.length - membrosCount})`);
+    }
+
+    let filtrados = clientesGlobal.filter(c => {
+        if (termo && !(normalizarNomeBusca(c.nome).includes(termo) || String(c.telefone || '').includes(termo))) return false;
+        if (filtroClube === 'clube' && !c.clubeDesde) return false;
+        if (filtroClube === 'fora' && c.clubeDesde) return false;
+        return true;
+    });
+
+    // No filtro do Clube, quem está mais perto de encher a cartela aparece PRIMEIRO
+    if (filtroClube === 'clube') {
+        filtrados = filtrados.map(c => ({ c, cart: calcularCartelaCliente(c) }))
+            .sort((a, b) => (b.cart ? b.cart.selos : 0) - (a.cart ? a.cart.selos : 0))
+            .map(x => x.c);
+    }
+
+    // 📣 QUASE LÁ: participantes com cartela cheia ou a 2 selos de encher — a hora de chamar!
+    let bannerClube = '';
+    if (!termo) {
+        const quentes = clientesGlobal.map(c => ({ c, cart: calcularCartelaCliente(c) })).filter(x => x.cart && x.cart.faltam <= 2);
+        if (quentes.length) {
+            bannerClube = `<div style="background:#fdf5f7; border:2px solid #e3c6d2; border-radius:12px; padding:12px 14px; margin-bottom:12px;">
+                <p style="margin:0 0 8px; font-weight:900; color:#966178; font-size:0.8rem;">📣 CARTELAS QUENTES — a hora de chamar no WhatsApp!</p>
+                ${quentes.slice(0, 5).map(x => `<p style="margin:0 0 5px; font-size:0.75rem; color:#6d5c66;">${x.cart.cheia ? '🎁' : '🔥'} <b>${x.c.nome}</b> — ${x.cart.cheia ? 'CARTELA CHEIA! Chame pra escolher o brinde' : `faltam só ${x.cart.faltam} selo${x.cart.faltam > 1 ? 's' : ''}`} <button onclick="abrirCartelaCliente(${x.c.linha})" style="background:#966178; color:#fff; border:none; border-radius:12px; padding:3px 10px; font-size:0.62rem; font-weight:800; cursor:pointer; margin-left:4px;">Ver cartela</button></p>`).join('')}
+            </div>`;
+        }
+    }
+
     if (!filtrados.length) {
-        cont.innerHTML = `<p style='color:#999; font-size:0.8rem;'>${clientesGlobal.length ? 'Nenhum cliente encontrado na busca.' : 'Nenhum cliente cadastrado ainda. Cadastre o primeiro acima! 👆'}</p>`;
+        cont.innerHTML = bannerClube + `<p style='color:#999; font-size:0.8rem;'>${clientesGlobal.length ? 'Nenhum cliente encontrado na busca.' : 'Nenhum cliente cadastrado ainda. Cadastre o primeiro acima! 👆'}</p>`;
     } else {
-        cont.innerHTML = filtrados.map(c => {
+        cont.innerHTML = bannerClube + filtrados.map(c => {
             const digitos = String(c.telefone || '').replace(/\D/g, '');
             const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
             const btnZap = fone ? `<a href="https://wa.me/${fone}" target="_blank" rel="noopener" class="btn-acao" style="width:36px; height:36px; background:#dcfce7; color:#15803d; border-color:#bbf7d0; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;" title="Abrir WhatsApp">📲</a>` : '';
@@ -8464,6 +8866,20 @@ function renderizarClientes() {
             const btnEditar = souDono ? `<button class="btn-acao" style="width:36px; height:36px;" onclick="editarCliente(${c.linha})" title="Editar">✏️</button>` : '';
             const btnExcluirCli = souDono ? `<button class="btn-acao" style="width:36px; height:36px; background:#fee2e2; color:#991b1b; border-color:#fecaca;" onclick="excluirCliente(${c.linha})" title="Excluir">🗑️</button>` : '';
             const badgeDono = isAdmin && c.criadoPor ? ` · ✍️ ${c.criadoPor}` : '';
+
+            // 📇 Faixa do Clube: mini-cartela pra quem participa; convite pra quem ainda não
+            const cart = calcularCartelaCliente(c);
+            let faixaClube = '';
+            if (cart) {
+                const selinhos = Array.from({ length: cart.total }, (x, iS) => iS < cart.selos ? '🌸' : '⚪').join('');
+                faixaClube = `<div onclick="abrirCartelaCliente(${c.linha})" style="cursor:pointer; margin-top:8px; background:${cart.cheia ? '#f0fdf4' : '#fdf5f7'}; border:1px ${cart.cheia ? 'solid #86efac' : 'dashed #e3c6d2'}; border-radius:8px; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-size:0.8rem; letter-spacing:2px;">${selinhos}</span>
+                    <span style="font-size:0.65rem; font-weight:800; color:${cart.cheia ? '#15803d' : '#966178'};">${cart.cheia ? '🎁 BRINDE LIBERADO! Toque aqui' : `faltam ${cart.faltam} selo${cart.faltam > 1 ? 's' : ''}`}</span>
+                </div>`;
+            } else if (souDono || isAdmin) {
+                faixaClube = `<button onclick="abrirCartelaCliente(${c.linha})" style="margin-top:8px; width:100%; background:#fff; color:#966178; border:1px dashed #e3c6d2; border-radius:8px; padding:7px; font-size:0.68rem; font-weight:800; cursor:pointer; font-family:'Montserrat',sans-serif;">📇 Convidar pro Clube de Selos</button>`;
+            }
+
             return `
             <div class="rotulo-card" style="flex-direction:column; align-items:stretch; border-left:5px solid var(--primary-dark); border-radius:8px; padding:12px 15px; margin-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -8481,6 +8897,7 @@ function renderizarClientes() {
                         ${btnExcluirCli}
                     </div>
                 </div>
+                ${faixaClube}
             </div>`;
         }).join('');
     }
@@ -8516,6 +8933,7 @@ function editarCliente(linha) {
     if (!c) return;
     document.getElementById('cad-cli-id').value = c.linha;
     document.getElementById('cad-cli-nome').value = c.nome;
+    const exibEl = document.getElementById('cad-cli-nome-exibicao'); if (exibEl) exibEl.value = c.nomeExibicao || '';
     document.getElementById('cad-cli-telefone').value = c.telefone || '';
     document.getElementById('cad-cli-aniversario').value = c.aniversario || '';
     document.getElementById('cad-cli-obs').value = c.obs || '';
@@ -8534,7 +8952,7 @@ function salvarCliente() {
     mostrarLoading("Salvando cliente...");
     fetch(API_NOVERA, {
         method: "POST", headers: cabecalhoAuth(),
-        body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_cliente", linha: linha || null, nome: nome, telefone: document.getElementById('cad-cli-telefone').value.trim(), aniversario: aniv, obs: document.getElementById('cad-cli-obs').value.trim() })
+        body: JSON.stringify({ usuario: usuarioLogado, acao: "salvar_cliente", linha: linha || null, nome: nome, nome_exibicao: (document.getElementById('cad-cli-nome-exibicao') ? document.getElementById('cad-cli-nome-exibicao').value.trim() : ''), telefone: document.getElementById('cad-cli-telefone').value.trim(), aniversario: aniv, obs: document.getElementById('cad-cli-obs').value.trim() })
     })
     .then(r => r.json())
     .then(res => {
@@ -8610,6 +9028,9 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-cat-compras')) document.getElementById('cfg-cat-compras').value = configuracoesGlobais.categorias_compras || '';
     if(document.getElementById('cfg-locais')) document.getElementById('cfg-locais').value = configuracoesGlobais.locais_estoque || '';
     if(document.getElementById('cfg-telefone-loja')) document.getElementById('cfg-telefone-loja').value = configuracoesGlobais.telefone_loja || '';
+    if(document.getElementById('cfg-clube-selo')) document.getElementById('cfg-clube-selo').value = configuracoesGlobais.clube_valor_selo || 50;
+    if(document.getElementById('cfg-clube-cartela')) document.getElementById('cfg-clube-cartela').value = configuracoesGlobais.clube_selos_cartela || 8;
+    if(document.getElementById('cfg-clube-teto')) document.getElementById('cfg-clube-teto').value = configuracoesGlobais.clube_teto_premio || 50;
     if(document.getElementById('cfg-acelerador-pct')) document.getElementById('cfg-acelerador-pct').value = configuracoesGlobais.acelerador_pct || 2;
     if(document.getElementById('cfg-acelerador-inicio')) document.getElementById('cfg-acelerador-inicio').value = configuracoesGlobais.acelerador_inicio || '2026-09-01';
 
@@ -8656,6 +9077,9 @@ function salvarParametrosSistema() {
                 categorias_compras: cats,
                 locais_estoque: locais,
                 telefone_loja: (document.getElementById('cfg-telefone-loja') ? document.getElementById('cfg-telefone-loja').value.trim() : ''),
+                clube_valor_selo: (document.getElementById('cfg-clube-selo') ? document.getElementById('cfg-clube-selo').value : '50'),
+                clube_selos_cartela: (document.getElementById('cfg-clube-cartela') ? document.getElementById('cfg-clube-cartela').value : '8'),
+                clube_teto_premio: (document.getElementById('cfg-clube-teto') ? document.getElementById('cfg-clube-teto').value : '50'),
                 acelerador_pct: (document.getElementById('cfg-acelerador-pct') ? document.getElementById('cfg-acelerador-pct').value : '2'),
                 acelerador_inicio: (document.getElementById('cfg-acelerador-inicio') ? document.getElementById('cfg-acelerador-inicio').value : '2026-09-01'),
                 ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
