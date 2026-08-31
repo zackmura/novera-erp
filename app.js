@@ -1485,6 +1485,24 @@ function renderizarProducao() {
             else if(p.genero_calc === "feminino") { corFundoGen = "#fce7f3"; corTextoGen = "#be185d"; }
             let badgeGenero = `<span style="background:${corFundoGen}; color:${corTextoGen}; padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; text-transform:uppercase; margin-left:5px; vertical-align: middle;">${p.genero_txt}</span>`;
 
+            // 🏬 ESTOQUE ATUAL DIRETO NO CARTÃO: decide a prioridade sem pular pra outra tela
+            const estRef = estoqueAgrupado[padronizarTexto(p.nome_produto)];
+            const qtdEstoque = estRef ? (parseFloat(estRef.totalQtd) || 0) : 0;
+            let detalheLocais = '';
+            if (estRef && estRef.locais) {
+                detalheLocais = Object.keys(estRef.locais).filter(l => estRef.locais[l] > 0).map(l => `${l}: ${estRef.locais[l]}`).join(' · ');
+            }
+            let corEstFundo = '#f0fdf4', corEstTexto = '#15803d', corEstBorda = '#86efac';
+            let txtEstoque = `🏬 Estoque hoje: <b>${qtdEstoque} un</b>${detalheLocais ? ` <span style="font-weight:500; opacity:0.8;">(${detalheLocais})</span>` : ''}`;
+            if (qtdEstoque <= 0) {
+                corEstFundo = '#fef2f2'; corEstTexto = '#b91c1c'; corEstBorda = '#fecaca';
+                txtEstoque = `🚨 Estoque <b>ZERADO</b> — este lote é prioridade!`;
+            } else if (qtdEstoque <= 3) {
+                corEstFundo = '#fff7ed'; corEstTexto = '#c2410c'; corEstBorda = '#fed7aa';
+                txtEstoque = `⏳ Acabando: só <b>${qtdEstoque} un</b> em estoque${detalheLocais ? ` <span style="font-weight:500; opacity:0.8;">(${detalheLocais})</span>` : ''}`;
+            }
+            const badgeEstoque = `<div style="margin-top: 6px; background: ${corEstFundo}; color: ${corEstTexto}; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; border: 1px solid ${corEstBorda}; display: inline-block;">${txtEstoque}</div>`;
+
             // AVISA A FÁBRICA QUE O LOTE JÁ ESTÁ VENDIDO
             let qtdEncomendada = totalEncomendadoPorProduto[padronizarTexto(p.nome_produto)] || 0;
             let badgeAlertaFabrica = qtdEncomendada > 0 ? `<div style="margin-top: 5px; background: #fff9e6; color: #b45309; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; border: 1px solid #fde047; display: inline-block;">⚠️ Atenção: ${qtdEncomendada} estão reservados!</div>` : '';
@@ -1520,6 +1538,7 @@ function renderizarProducao() {
                     </h4>
                     <p style="font-size: 0.75rem; color: var(--brand-dark); font-weight: 700; margin: 0 0 5px 0;">🧪 ${textoMacerando}</p>
                     <p style="font-size: 0.65rem; color: #888; margin: 0;">📅 Iniciado em: ${dataBR(p.data_inicio)}</p>
+                    ${badgeEstoque}
                     ${badgeAlertaFabrica}
                     ${htmlCaixas}
                 </div>
@@ -3431,6 +3450,128 @@ function buscarUltimoPrecoEssencia(nomeEssencia) {
     });
     return melhor;
 }
+
+// ==========================================
+// 🧠 MEMÓRIA DE COMPRAS: comece a digitar e o sistema completa
+// Cruza TUDO que já passou pelo sistema (Despesas pagas + planejamentos antigos)
+// e preenche categoria, último preço e última quantidade num toque.
+// ==========================================
+
+// Quando o item nunca teve categoria registrada, tenta adivinhar pelo nome
+function inferirCategoriaCompra(nome) {
+    const n = normalizarNomeBusca(nome);
+    if (/essencia|fragranc/.test(n)) return 'Fragâncias';
+    if (/\bbase\b|alcool|fixador|propileno|hidratante|creme/.test(n)) return 'Base/Álcool';
+    if (/frasco|vidro|valvula|tampa|bisnaga|pote|spray/.test(n)) return 'Frascos/Vidraria';
+    if (/embalagem|caixa|sacola|saco|fita|lacre|rotulo|etiqueta|papel|enfeite|laco|adesivo/.test(n)) return 'Embalagens';
+    if (/\bpla\b|filamento|impressora|bico/.test(n)) return 'Filamento PLA';
+    return '';
+}
+
+// Monta o "caderninho" de tudo que já compramos: 1 entrada por item,
+// sempre com o dado mais recente. Preço PAGO de verdade manda mais que o previsto.
+function montarMemoriaCompras() {
+    const mem = {};
+    const pegar = (nomeRaw) => {
+        const chave = normalizarNomeBusca(nomeRaw);
+        if (!chave || chave.length < 3) return null;
+        if (!mem[chave]) mem[chave] = { nome: String(nomeRaw).trim(), categoria: '', valor: 0, qtd: 1, dataPreco: '', origem: '' };
+        return mem[chave];
+    };
+    // 1) Planejamentos (inclusive os já comprados): é onde mora a CATEGORIA
+    [...comprasGlobal].sort((a, b) => String(a.dataPrevista || '').localeCompare(String(b.dataPrevista || ''))).forEach(c => {
+        const m = pegar(c.item); if (!m) return;
+        m.nome = String(c.item).trim();
+        if (c.categoria) m.categoria = c.categoria;
+        const v = parseDinheiro(c.valor_previsto);
+        if (v > 0 && m.origem !== 'pago') { m.valor = v; m.qtd = parseFloat(c.qtd) || 1; m.dataPreco = c.dataPrevista || ''; m.origem = 'planejado'; }
+    });
+    // 2) Despesas pagas: o preço REAL mais recente vence tudo
+    [...gastosGlobal].sort((a, b) => String(a.dataIso || '').localeCompare(String(b.dataIso || ''))).forEach(g => {
+        const m = pegar(g.item); if (!m) return;
+        m.nome = String(g.item).trim();
+        const v = parseDinheiro(g.valor);
+        if (v > 0) { m.valor = v; m.qtd = parseFloat(g.qtd) || 1; m.dataPreco = g.dataIso || ''; m.origem = 'pago'; }
+    });
+    Object.values(mem).forEach(m => { if (!m.categoria) m.categoria = inferirCategoriaCompra(m.nome); });
+    return mem;
+}
+
+// Acopla o painel de sugestões num campo de item: digitou 2 letras, aparecem
+// os itens do histórico; tocou num deles, preenche nome + categoria + preço + qtd.
+function iniciarSugestorCompra(inputId, catId, valorId, qtdId, aoEscolher) {
+    const inp = document.getElementById(inputId);
+    if (!inp || inp.dataset.sugestor) return;
+    inp.dataset.sugestor = '1';
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    const painel = document.createElement('div');
+    painel.style.cssText = 'position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid var(--border-color); border-radius:10px; max-height:250px; overflow-y:auto; z-index:6000; display:none; box-shadow:0 10px 25px rgba(0,0,0,0.15); margin-top:4px;';
+    wrap.appendChild(painel);
+
+    const fechar = () => { painel.style.display = 'none'; };
+
+    const render = () => {
+        const t = normalizarNomeBusca(inp.value);
+        if (t.length < 2) return fechar();
+        const mem = montarMemoriaCompras();
+        const lista = Object.keys(mem)
+            .filter(chave => chave.includes(t))
+            .sort((a, b) => {
+                const pa = a.startsWith(t) ? 0 : 1, pb = b.startsWith(t) ? 0 : 1;
+                if (pa !== pb) return pa - pb;
+                return String(mem[b].dataPreco).localeCompare(String(mem[a].dataPreco));
+            })
+            .slice(0, 8);
+        if (lista.length === 0) return fechar();
+        painel.innerHTML = lista.map(chave => {
+            const m = mem[chave];
+            const preco = m.valor > 0
+                ? `${m.origem === 'pago' ? '💰 último pago' : '📝 último previsto'}: <b>${fmt(m.valor)}</b>${m.dataPreco ? ` em ${dataBR(m.dataPreco)}` : ''}`
+                : '💰 sem preço no histórico';
+            const cat = m.categoria ? ` <span style="background:#fdf5f7; border:1px solid #f3d8e2; color:#966178; padding:1px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; vertical-align:middle;">${m.categoria}</span>` : '';
+            return `<div class="sug-compra-op" data-chave="${chave.replace(/"/g, '&quot;')}" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid #f3f4f6;">
+                <p style="margin:0; font-size:0.82rem; font-weight:700; color:var(--brand-dark);">${m.nome}${cat}</p>
+                <p style="margin:2px 0 0; font-size:0.68rem; color:#666;">${preco}</p>
+            </div>`;
+        }).join('');
+        painel.style.display = 'block';
+    };
+
+    inp.addEventListener('input', render);
+    inp.addEventListener('focus', render);
+    inp.addEventListener('blur', () => setTimeout(fechar, 250));
+    painel.addEventListener('mousedown', (e) => {
+        const alvo = e.target.closest('.sug-compra-op');
+        if (!alvo) return;
+        e.preventDefault(); // segura o blur até preencher tudo
+        const m = montarMemoriaCompras()[alvo.dataset.chave];
+        fechar();
+        if (!m) return;
+        inp.value = m.nome;
+        const elCat = catId ? document.getElementById(catId) : null;
+        const elVal = valorId ? document.getElementById(valorId) : null;
+        const elQtd = qtdId ? document.getElementById(qtdId) : null;
+        if (elCat && m.categoria) elCat.value = m.categoria;
+        if (elVal && m.valor > 0) elVal.value = fmt(m.valor);
+        if (elQtd && m.qtd) elQtd.value = m.qtd;
+        if (aoEscolher) aoEscolher(m);
+    });
+}
+
+// Liga o sugestor nos 3 lugares onde se digita item de compra
+(function ativarSugestoresCompras() {
+    const ligar = () => {
+        iniciarSugestorCompra('c-item', 'c-categoria', 'c-valor', 'c-qtd');
+        iniciarSugestorCompra('edit-c-item', 'edit-c-categoria', 'edit-c-valor', 'edit-c-qtd');
+        iniciarSugestorCompra('g-item', null, 'g-valor', 'g-qtd', () => calcularTotalGasto());
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ligar);
+    else ligar();
+})();
 
 function gerarSugestaoCompras() {
     // Mesma matemática do radar da Fábrica: físico + macerando - reservado em encomendas
@@ -7837,71 +7978,73 @@ async function gerarEtiquetaPDF() {
     document.getElementById('modal-gerar-etiqueta').style.display = 'none';
     mostrarLoading("Gerando Etiqueta...");
 
-    let listFem = "", listMasc = "";
-
+    // Separa por gênero (mantendo a ordem por código)
+    const fem = [], masc = [];
     checkboxes.forEach(chk => {
         const r = rotulosGlobal.find(x => x.linha == chk.value);
-        if (r) {
-            let gen = String(r.genero || "").toLowerCase().trim();
-            let linhaHtml = `<div style="display: flex; gap: 5px; font-size: 9px; margin-bottom: 2px;">
-                <span style="font-weight: 800; color: #2C2A2B;">${r.codigo}</span>
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.essencia}</span>
-            </div>`;
-
-            if (gen === 'feminino') {
-                listFem += linhaHtml;
-            } else {
-                listMasc += linhaHtml;
-            }
-        }
+        if (!r) return;
+        (String(r.genero || '').toLowerCase().trim() === 'feminino' ? fem : masc).push(r);
     });
 
-    let htmlEtiqueta = `
-    <div style="width: 110mm; height: 85mm; max-height: 85mm; background: #fff; padding: 5mm; box-sizing: border-box; font-family: 'Montserrat', sans-serif; color: #2C2A2B; overflow: hidden;">
-        <div style="text-align: center; margin-bottom: 8px;">
-            <img src="logo.png" style="height: 25px; margin-bottom: 3px; object-fit: contain;">
-            <h3 style="font-size: 11px; margin: 0; color: #966178; text-transform: uppercase; font-family: 'Playfair Display', serif; letter-spacing: 1px;">Novera Scent - Amostras</h3>
-        </div>
-        <div style="display: flex; gap: 4mm; height: calc(100% - 40px);">
-            <div style="flex: 1; overflow: hidden;">
-                <div style="font-weight: 900; border-bottom: 1px solid #f3d8e2; padding-bottom: 2px; margin-bottom: 4px; color: #be185d; font-size: 10px;">FEMININO</div>
-                <div style="display: flex; flex-direction: column;">
-                    ${listFem || "<i style='color:#ccc; font-size: 9px;'>Nenhum selecionado</i>"}
-                </div>
-            </div>
-            <div style="flex: 1; overflow: hidden;">
-                <div style="font-weight: 900; border-bottom: 1px solid #e0f2fe; padding-bottom: 2px; margin-bottom: 4px; color: #0369a1; font-size: 10px;">MASCULINO / OUTROS</div>
-                <div style="display: flex; flex-direction: column;">
-                    ${listMasc || "<i style='color:#ccc; font-size: 9px;'>Nenhum selecionado</i>"}
-                </div>
-            </div>
-        </div>
+    // 📄 PÁGINA FÍSICA EM PIXELS (mesma blindagem do catálogo): 110×85mm @96dpi.
+    // Nada de mm/calc na medição — o html2pdf se perdia, criava 2ª página e sumia com os itens.
+    const PAG_W = Math.round(110 * 96 / 25.4); // 416px
+    const PAG_H = Math.round(85 * 96 / 25.4);  // 321px
+    const PAD = 14, ALT_CABECALHO = 46, ALT_TITULO_COL = 17;
+    const alturaUtil = PAG_H - PAD * 2 - ALT_CABECALHO - ALT_TITULO_COL;
+
+    // 🔠 Fonte dinâmica: quanto mais itens na maior coluna, menor a letra — TUDO cabe, sempre
+    const maxLinhas = Math.max(fem.length, masc.length, 1);
+    const lineH = Math.max(7.5, Math.min(15, Math.floor(alturaUtil / maxLinhas)));
+    const fonte = Math.max(5.5, Math.min(9.5, lineH - 3));
+
+    const linhaHtml = (r) => `<div style="display:flex; gap:4px; align-items:baseline; height:${lineH}px; line-height:${lineH}px; overflow:hidden;">
+        <span style="font-weight:800; color:#2C2A2B; font-size:${fonte}px; flex-shrink:0;">${r.codigo || ''}</span>
+        <span style="font-size:${fonte}px; color:#4a4a4a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.essencia}</span>
     </div>`;
 
-    let tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlEtiqueta;
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.top = '0';
-    tempDiv.style.left = '-9999px';
-    document.body.appendChild(tempDiv);
+    // Quem sai da tela é o EMBRULHO — a página fica "normal" dentro dele, senão o clone
+    // do gerador herda o deslocamento e fotografa o vazio (folha branca)
+    const hostEtq = document.createElement('div');
+    hostEtq.style.cssText = 'position:absolute; left:-9999px; top:0;';
+    const pagina = document.createElement('div');
+    pagina.style.cssText = `width:${PAG_W}px; height:${PAG_H}px; padding:${PAD}px; box-sizing:border-box; background:#fff; font-family:'Montserrat', sans-serif; color:#2C2A2B; overflow:hidden;`;
+    pagina.innerHTML = `
+        <div style="text-align:center; height:${ALT_CABECALHO}px; box-sizing:border-box;">
+            <img src="logo.png" style="height:24px; object-fit:contain;">
+            <h3 style="font-size:11px; margin:2px 0 0; color:#966178; text-transform:uppercase; font-family:'Playfair Display', serif; letter-spacing:2px;">Novera Scent · Amostras</h3>
+        </div>
+        <div style="display:flex; gap:12px;">
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:900; border-bottom:1px solid #f3d8e2; color:#be185d; font-size:9.5px; height:${ALT_TITULO_COL}px; box-sizing:border-box; letter-spacing:1px;">🌸 FEMININO (${fem.length})</div>
+                ${fem.map(linhaHtml).join('') || `<i style="color:#ccc; font-size:8px;">Nenhum selecionado</i>`}
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:900; border-bottom:1px solid #dbe4ea; color:#525a66; font-size:9.5px; height:${ALT_TITULO_COL}px; box-sizing:border-box; letter-spacing:1px;">🔷 MASCULINO / OUTROS (${masc.length})</div>
+                ${masc.map(linhaHtml).join('') || `<i style="color:#ccc; font-size:8px;">Nenhum selecionado</i>`}
+            </div>
+        </div>`;
+    hostEtq.appendChild(pagina);
+    document.body.appendChild(hostEtq);
 
     try {
-        await new Promise(r => setTimeout(r, 300));
-        let opt = {
+        await new Promise(r => setTimeout(r, 300)); // respiro pro logo carregar
+        // Extrai o motor jsPDF (o bundle não expõe por fora) e cola a página única — nunca sobra folha
+        const pdfEtq = await html2pdf().set({
             margin: 0,
-            filename: `Etiqueta_Caixa_Amostras_${new Date().getTime()}.pdf`,
-            image: { type: 'jpeg', quality: 1.0 },
-            html2canvas: { scale: 4, useCORS: true, scrollY: 0, windowY: 0, onclone: removerTemaEscuroDoClone },
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 4, useCORS: true, backgroundColor: '#ffffff', scrollY: 0, windowY: 0 },
             jsPDF: { unit: 'mm', format: [110, 85], orientation: 'landscape' },
-            pagebreak: { mode: ['avoid-all'] }
-        };
-        await html2pdf().set(opt).from(tempDiv.firstElementChild).save();
-        mostrarAlerta("Sucesso", "Etiqueta gerada lindamente!", "success");
+            pagebreak: { mode: [] }
+        }).from(pagina).toPdf().get('pdf');
+        while (pdfEtq.internal.getNumberOfPages() > 1) pdfEtq.deletePage(pdfEtq.internal.getNumberOfPages());
+        pdfEtq.save(`Etiqueta_Caixa_Amostras_${new Date().getTime()}.pdf`);
+        mostrarAlerta("Sucesso", `Etiqueta gerada com ${fem.length + masc.length} essências, em 1 folha de 11×8,5cm!`, "success");
     } catch (err) {
         console.error(err);
-        mostrarAlerta("Erro", "Falha ao gerar o PDF.", "error");
+        mostrarAlerta("Erro na Etiqueta", `Falha ao gerar o PDF: ${err && err.message ? err.message : 'motivo desconhecido'}. Me mande print desta mensagem!`, "error");
     } finally {
-        document.body.removeChild(tempDiv);
+        document.body.removeChild(hostEtq);
         ocultarLoading();
     }
 }
@@ -9256,20 +9399,8 @@ function mesclarClientesUI() {
 }
 
 // Função para o Admin confirmar o Acerto de Contas com o Vendedor
-function acertarCaixaVenda(id) {
-    abrirConfirmacao("Acertar Caixa?", "Você confirma que o valor dessa venda entrou na conta e a comissão do vendedor foi repassada?", "🤝", "#0369a1", "#082f49", "✔️ Confirmar Acerto", () => {
-        mostrarLoading("Acertando e validando...");
-        const msgLog = `🤝 Confirmou acerto de caixa e repasse da venda ID: ${id}`;
-        fetch(API_NOVERA, { 
-            method: "POST", headers: cabecalhoAuth(), 
-            body: JSON.stringify({ usuario: usuarioLogado, acao: "acertar_caixa_venda", linha: id, log_detalhe: msgLog }) 
-        })
-        .then(() => {
-            mostrarAlerta("Acertado!", "Caixa finalizado com sucesso.", "success");
-            sincronizarDadosUnico();
-        });
-    });
-}
+// (a função acertarCaixaVenda vive lá em cima, perto das outras ações de venda —
+// aqui existia uma cópia antiga duplicada que engolia a versão com tratamento de erro)
 
 // ==========================================
 // 🎛️ MÓDULO: PARÂMETROS GLOBAIS (ADMIN)
