@@ -199,6 +199,7 @@ if ('serviceWorker' in navigator) {
 let rotulosGlobal = [], estoqueGlobal = [], gastosGlobal = [], vendasGlobal = [];
 let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
 let logsGlobal = [];
+let movEstoqueGlobal = []; // 📜 movimentações físicas de estoque desde o dia 1 (canal dedicado do servidor)
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
@@ -623,6 +624,10 @@ function aplicarPermissoes() {
         if (btnQrV) btnQrV.style.display = 'none';
         const btnConfV = document.getElementById('btn-conferencia-estoque');
         if (btnConfV) btnConfV.style.display = 'none';
+        const btnMalaV = document.getElementById('btn-transfer-lote');
+        if (btnMalaV) btnMalaV.style.display = 'none';
+        const btnExgV = document.getElementById('btn-extrato-geral');
+        if (btnExgV) btnExgV.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -642,6 +647,10 @@ function aplicarPermissoes() {
         if (btnQrA) btnQrA.style.display = 'block';
         const btnConfA = document.getElementById('btn-conferencia-estoque');
         if (btnConfA) btnConfA.style.display = 'block';
+        const btnMalaA = document.getElementById('btn-transfer-lote');
+        if (btnMalaA) btnMalaA.style.display = 'block';
+        const btnExgA = document.getElementById('btn-extrato-geral');
+        if (btnExgA) btnExgA.style.display = 'block';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -703,6 +712,7 @@ async function sincronizarDadosUnico() {
             encomendasGlobal = dados.encomendas || []; comprasGlobal = dados.compras || [];
             producaoGlobal = dados.producao || []; // ADICIONE AQUI
             logsGlobal = dados.logs || [];
+            movEstoqueGlobal = dados.movimentosEstoque || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
             descontosProdutoGlobal = dados.descontosProduto || [];
@@ -2129,6 +2139,7 @@ function renderizarEstoque() {
         const txtCusto = isAdmin ? `<p style="margin:0; font-size:0.75rem; color:#888;">Custo: ${safeFmt(e.custo)}</p>` : '';
         const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
         const btnTransferirEst = (isAdmin && qtdExibicao > 0) ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="abrirModalTransferirEstoque('${nomeEncode}')" title="Transferir Entre Locais">🔄</button>` : '';
+        const btnExtratoEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#fdf5f7; color:#966178; border-color:#f3d8e2;" onclick="abrirExtratoProduto('${nomeEncode}')" title="Extrato: o filme completo deste produto">📜</button>` : '';
 
         gruposEstoque[tipoKey].itens.push(`
         <div class="rotulo-card card-estoque-list" style="${opacidade}">
@@ -2154,6 +2165,7 @@ function renderizarEstoque() {
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
+                    ${btnExtratoEst}
                     ${btnTransferirEst}
                     ${btnEditarEst}
                 </div>
@@ -2518,6 +2530,573 @@ function confirmarTransferirEstoque() {
         transferenciaEmAndamento = false;
         if (btn) { btn.disabled = false; btn.innerHTML = '✅ Confirmar Transferência'; }
     });
+}
+
+// ==========================================
+// 🧳 MALA DE TRANSFERÊNCIA: DE → PARA escolhido UMA vez, vários produtos juntos.
+// Acabou o "um por um trocando origem e destino toda hora".
+// ==========================================
+let malaTransferencia = {}; // chave padronizada do produto -> qtd na mala
+
+function listaLocaisConhecidos() {
+    // União: locais oficiais (Parâmetros) + locais que existem de fato no estoque
+    const vistos = {}; // normalizado -> nome de exibição
+    const registrar = (l) => { const t = String(l || '').trim(); if (!t) return; const n = normalizarNomeBusca(t); if (!vistos[n]) vistos[n] = t; };
+    (configuracoesGlobais.locais_estoque || '').split(',').forEach(registrar);
+    estoqueGlobal.forEach(e => registrar(e.local || 'Sede'));
+    return Object.values(vistos).sort((a, b) => a.localeCompare(b));
+}
+
+function abrirModalTransferenciaLote() {
+    malaTransferencia = {};
+    const todos = listaLocaisConhecidos();
+    // Origem só faz sentido se o local tem ALGO na prateleira
+    const comAlgo = todos.filter(l => Object.values(estoqueAgrupado).some(e => (e.locais && e.locais[l]) > 0));
+    if (comAlgo.length === 0) return mostrarAlerta("Aviso", "Nenhum local tem estoque disponível para transferir.", "warning");
+
+    document.getElementById('tl-origem').innerHTML = comAlgo.map(l => `<option value="${l}">${l}</option>`).join('');
+    document.getElementById('tl-destino').innerHTML = todos.map(l => `<option value="${l}">${l}</option>`).join('');
+    // Sugere um destino diferente da origem
+    const selD = document.getElementById('tl-destino');
+    if (todos.length > 1 && selD.value === document.getElementById('tl-origem').value) selD.selectedIndex = (selD.selectedIndex + 1) % todos.length;
+
+    document.getElementById('tl-busca').value = '';
+    renderizarMalaTransferencia();
+    document.getElementById('modal-transfer-lote').style.display = 'flex';
+}
+
+function fecharModalTransferenciaLote() { document.getElementById('modal-transfer-lote').style.display = 'none'; }
+
+function trocarOrigemMala() {
+    // Origem nova = mala nova (as quantidades eram do saldo do local antigo)
+    const tinhaItens = Object.keys(malaTransferencia).length > 0;
+    malaTransferencia = {};
+    renderizarMalaTransferencia();
+    if (tinhaItens) mostrarAlerta("Mala esvaziada", "Você trocou o local de origem, então tirei tudo da mala pra não misturar saldos.", "warning");
+}
+
+function renderizarMalaTransferencia() {
+    const lista = document.getElementById('tl-lista');
+    const origem = document.getElementById('tl-origem').value;
+    const t = normalizarNomeBusca(document.getElementById('tl-busca').value);
+
+    const itens = Object.keys(estoqueAgrupado)
+        .map(chave => ({ chave, e: estoqueAgrupado[chave], saldo: (estoqueAgrupado[chave].locais && estoqueAgrupado[chave].locais[origem]) || 0 }))
+        .filter(x => x.saldo > 0)
+        .filter(x => !t || normalizarNomeBusca(x.e.nome + ' ' + (x.e.codigo || '') + ' ' + (x.e.tipo || '')).includes(t))
+        .sort((a, b) => String(a.e.tipo).localeCompare(String(b.e.tipo)) || String(a.e.nome).localeCompare(String(b.e.nome)));
+
+    if (itens.length === 0) {
+        lista.innerHTML = `<p style="text-align:center; color:#999; font-size:0.8rem; padding:20px 0;">${t ? 'Nada encontrado com essa busca…' : `Nenhum produto com estoque em ${origem}.`}</p>`;
+        atualizarResumoMala();
+        return;
+    }
+
+    let html = '', tipoAtual = '';
+    itens.forEach(x => {
+        const tipoTxt = String(x.e.tipo || 'Outros').toUpperCase();
+        if (tipoTxt !== tipoAtual) { tipoAtual = tipoTxt; html += `<p style="margin:12px 0 6px; font-size:0.62rem; font-weight:900; letter-spacing:1px; color:#966178;">📦 ${tipoTxt}</p>`; }
+        const chaveEnc = encodeURIComponent(x.chave);
+        const qtdMala = malaTransferencia[x.chave] || 0;
+        html += `
+        <div data-chave="${chaveEnc}" style="background:${qtdMala > 0 ? '#f0fdf4' : '#fff'}; border:1px solid ${qtdMala > 0 ? '#86efac' : 'var(--border-color)'}; border-radius:10px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px;">
+            <div style="flex:1; min-width:0;">
+                <p style="margin:0; font-size:0.8rem; font-weight:800; color:var(--brand-dark); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><span style="background:var(--primary-dark); color:#fff; padding:1px 5px; border-radius:4px; font-size:0.6rem; margin-right:4px;">${x.e.codigo || '—'}</span>${x.e.nome}</p>
+                <p style="margin:2px 0 0; font-size:0.66rem; color:#888;">tem <b>${x.saldo} un</b> em ${origem}</p>
+            </div>
+            <div style="display:flex; gap:5px; align-items:center; flex-shrink:0;">
+                <button class="btn-acao" style="width:32px; height:32px; font-weight:900;" onclick="ajustarItemMala('${chaveEnc}', -1)">−</button>
+                <input type="number" class="tl-qtd-item" value="${qtdMala}" min="0" max="${x.saldo}" onchange="definirItemMala('${chaveEnc}', this.value)" style="width:52px; text-align:center; padding:7px 2px; margin:0; font-weight:800;">
+                <button class="btn-acao" style="width:32px; height:32px; font-weight:900; background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="ajustarItemMala('${chaveEnc}', 1)">+</button>
+            </div>
+        </div>`;
+    });
+    lista.innerHTML = html;
+    atualizarResumoMala();
+}
+
+function saldoOrigemMalaItem(chave) {
+    const origem = document.getElementById('tl-origem').value;
+    const e = estoqueAgrupado[chave];
+    return (e && e.locais && e.locais[origem]) || 0;
+}
+
+// Atualiza SÓ a linha tocada (sem redesenhar a lista, que faria a rolagem pular pro topo)
+function atualizarLinhaMala(chave) {
+    const chaveEnc = encodeURIComponent(chave);
+    const row = document.querySelector(`#tl-lista [data-chave="${chaveEnc}"]`);
+    if (!row) return;
+    const qtd = malaTransferencia[chave] || 0;
+    row.style.background = qtd > 0 ? '#f0fdf4' : '#fff';
+    row.style.borderColor = qtd > 0 ? '#86efac' : 'var(--border-color)';
+    const inp = row.querySelector('.tl-qtd-item');
+    if (inp) inp.value = qtd;
+}
+
+function ajustarItemMala(chaveEnc, delta) {
+    const chave = decodeURIComponent(chaveEnc);
+    const novo = Math.max(0, Math.min(saldoOrigemMalaItem(chave), (malaTransferencia[chave] || 0) + delta));
+    if (novo === 0) delete malaTransferencia[chave]; else malaTransferencia[chave] = novo;
+    atualizarLinhaMala(chave);
+    atualizarResumoMala();
+}
+
+function definirItemMala(chaveEnc, valor) {
+    const chave = decodeURIComponent(chaveEnc);
+    const novo = Math.max(0, Math.min(saldoOrigemMalaItem(chave), parseInt(valor) || 0));
+    if (novo === 0) delete malaTransferencia[chave]; else malaTransferencia[chave] = novo;
+    atualizarLinhaMala(chave);
+    atualizarResumoMala();
+}
+
+function atualizarResumoMala() {
+    const resumo = document.getElementById('tl-resumo');
+    const btn = document.getElementById('btn-confirmar-mala');
+    if (!resumo || !btn) return;
+    const chaves = Object.keys(malaTransferencia);
+    const totalUn = chaves.reduce((s, c) => s + malaTransferencia[c], 0);
+    const destino = document.getElementById('tl-destino').value;
+    if (chaves.length === 0) {
+        resumo.innerHTML = `Mala vazia — toque no <b style="color:#2e7d32;">+</b> dos produtos que vão viajar`;
+        btn.innerHTML = '🚚 TRANSFERIR TUDO';
+        return;
+    }
+    resumo.innerHTML = `🧳 Na mala: <b>${chaves.length} produto(s)</b> · <b>${totalUn} un</b>`;
+    btn.innerHTML = `🚚 LEVAR ${totalUn} UN PARA ${String(destino).toUpperCase()}`;
+}
+
+let malaEmEnvio = false; // trava contra clique duplo
+async function confirmarTransferenciaLote() {
+    if (malaEmEnvio) return;
+    const origem = document.getElementById('tl-origem').value;
+    const destino = document.getElementById('tl-destino').value;
+    const chaves = Object.keys(malaTransferencia);
+    if (chaves.length === 0) return mostrarAlerta("Mala vazia", "Toque no + dos produtos que você quer transferir.", "warning");
+    if (normalizarNomeBusca(origem) === normalizarNomeBusca(destino)) return mostrarAlerta("Atenção", "Origem e destino são o mesmo local. Escolha destinos diferentes.", "warning");
+
+    malaEmEnvio = true;
+    const btn = document.getElementById('btn-confirmar-mala');
+    if (btn) btn.disabled = true;
+
+    const ok = [], falhas = [];
+    try {
+        let i = 0;
+        for (const chave of chaves) {
+            i++;
+            const e = estoqueAgrupado[chave];
+            const qtd = malaTransferencia[chave];
+            if (!e) { falhas.push(chave); continue; }
+            if (btn) btn.innerHTML = `⏳ ENVIANDO ${i} DE ${chaves.length}...`;
+            mostrarLoading(`Transferindo ${i} de ${chaves.length}: ${e.nome}`);
+            try {
+                const r = await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "transferir_estoque", nome: e.nome, qtd: qtd, local_origem: origem, local_destino: destino, log_detalhe: `🧳 Mala de transferência: ${qtd}x [${e.nome}] ${origem} → ${destino}` }) });
+                const res = await r.json();
+                if (res.sucesso) ok.push({ qtd, nome: e.nome }); else falhas.push(e.nome);
+            } catch (err) { falhas.push(e.nome); }
+        }
+    } finally {
+        ocultarLoading();
+        malaEmEnvio = false;
+        if (btn) btn.disabled = false;
+    }
+
+    fecharModalTransferenciaLote();
+    if (falhas.length === 0) {
+        // 📲 Oferece o romaneio: a listinha do que foi, pra quem recebe conferir na chegada
+        abrirConfirmacao(
+            "Mala entregue! 🧳",
+            `${ok.length} produto(s) transferido(s) de ${origem} para ${destino}.\n\nQuer enviar o ROMANEIO (a listinha do que foi) pelo WhatsApp, pra quem recebe conferir se chegou tudo?`,
+            "📲", "#22c55e", "#15803d", "📲 Enviar Romaneio",
+            () => enviarRomaneioMala(origem, destino, ok)
+        );
+    } else {
+        mostrarAlerta("Atenção", `${ok.length} transferido(s), mas ${falhas.length} falharam: ${falhas.join(', ')}. Confira o estoque e tente esses de novo.`, "warning");
+    }
+    sincronizarDadosUnico();
+}
+
+// 📲 ROMANEIO: monta a mensagem de conferência e abre o WhatsApp.
+// Se o local de destino "lembrar" o nome de alguém da equipe com telefone cadastrado, já abre direto no contato.
+function enviarRomaneioMala(origem, destino, itens) {
+    const marca = configuracoesGlobais.marca_nome || 'Novera Scent';
+    const destinoNorm = normalizarNomeBusca(destino);
+    const pessoa = usuariosGlobal.find(u => {
+        const n = normalizarNomeBusca(u.usuario);
+        return n && n.length >= 3 && (destinoNorm.includes(n) || n.includes(destinoNorm)) && String(u.telefone || '').trim();
+    });
+    const digitos = String((pessoa && pessoa.telefone) || '').replace(/\D/g, '');
+    const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
+
+    const hoje = new Date();
+    const dataHoje = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+    const totalUn = itens.reduce((s, x) => s + (x.qtd || 0), 0);
+
+    const msg = `🧳 *ROMANEIO DE TRANSFERÊNCIA — ${marca.toUpperCase()}*\n\n` +
+        `🚪 Saiu de: *${origem}*\n🎯 Chegando em: *${destino}*\n📅 ${dataHoje}\n\n` +
+        itens.map(x => `▪️ ${x.qtd}x ${x.nome}`).join('\n') +
+        `\n\n📦 *Total: ${totalUn} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa! 😉`;
+
+    window.open(fone ? `https://wa.me/${fone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ==========================================
+// 📜 EXTRATO DO PRODUTO: o filme completo de um item, numa linha do tempo.
+// Junta 3 fontes: Fábrica (lotes), Vendas e o Diário de Bordo (transferências, ajustes, envases, conferências).
+// ==========================================
+function abrirExtratoProduto(nomeEncoded) {
+    const nome = decodeURIComponent(nomeEncoded);
+    const e = estoqueAgrupado[padronizarTexto(nome)];
+    const alvo = normalizarNomeBusca(nome);
+    if (!alvo) return;
+
+    const eventos = [];
+
+    // 1) FÁBRICA: cada lote que começou a macerar
+    producaoGlobal.forEach(p => {
+        if (normalizarNomeBusca(p.nome_produto) !== alvo) return;
+        const aindaRolando = p.status === 'Em Andamento';
+        eventos.push({
+            chave: `${p.data_inicio || ''} 08:00`,
+            dataIso: p.data_inicio || '', hora: '',
+            emoji: '🧪',
+            quem: '',
+            txt: `Entrou na maceração: lote de <b>${p.qtd_prevista} un</b>${aindaRolando ? ` <span style="color:#b45309; font-weight:800;">(ainda macerando)</span>` : ''}`
+        });
+    });
+
+    // 2) VENDAS (e brindes do Clube) deste produto
+    vendasGlobal.forEach(v => {
+        if (normalizarNomeBusca(v.produto) !== alvo) return;
+        const ehPresente = v.status === 'Presente';
+        eventos.push({
+            chave: `${v.dataVendaIso || ''} 12:00`,
+            dataIso: v.dataVendaIso || '', hora: '',
+            emoji: ehPresente ? '🎁' : '🛒',
+            quem: v.socio || '',
+            txt: ehPresente
+                ? `Brinde do Clube: <b>${v.qtd}x</b> para ${v.cliente || 'cliente'}`
+                : `Venda: <b>${v.qtd}x</b> para ${v.cliente || 'cliente'} <span style="color:#888;">(${v.status})</span>`
+        });
+    });
+
+    // 3) DIÁRIO DE BORDO: só o que mexe fisicamente no estoque e cita este produto
+    const marcadores = ['🏭', '🍾', '📦', '🔄', '🧳', '📋'];
+    const palavras = ['ajust', 'confer', 'transfer', 'envas', 'fabric', 'estoque'];
+    logsMovimentoEstoque().forEach(l => {
+        const det = String(l.detalhe || '');
+        if (!normalizarNomeBusca(det).includes(alvo)) return;
+        const detNorm = normalizarNomeBusca(det);
+        if (!marcadores.some(m => det.includes(m)) && !palavras.some(p => detNorm.includes(p))) return;
+        const m = String(l.dataHora || '').match(/(\d{2})\/(\d{2})\/(\d{4})\D*(\d{2}:\d{2})?/);
+        eventos.push({
+            chave: m ? `${m[3]}-${m[2]}-${m[1]} ${m[4] || '12:00'}` : '0000',
+            dataIso: m ? `${m[3]}-${m[2]}-${m[1]}` : '', hora: (m && m[4]) || '',
+            emoji: '',
+            quem: l.usuario || '',
+            txt: det
+        });
+    });
+
+    eventos.sort((a, b) => String(b.chave).localeCompare(String(a.chave)));
+
+    // Cabeçalho: onde o produto está AGORA
+    document.getElementById('ex-nome-produto').innerText = (e && e.nome) || nome;
+    let saldoTxt = 'Sem estoque no momento.';
+    if (e && e.totalQtd > 0) {
+        const partes = Object.keys(e.locais).filter(l => e.locais[l] > 0).map(l => `${l}: <b>${e.locais[l]}</b>`);
+        saldoTxt = `📍 Hoje: ${partes.join(' · ')} — total <b>${e.totalQtd} un</b>`;
+    }
+    document.getElementById('ex-saldo-atual').innerHTML = saldoTxt;
+
+    // Linha do tempo (mais recente em cima)
+    const LIMITE = 120;
+    let html = '';
+    if (eventos.length === 0) {
+        html = `<p style="text-align:center; color:#999; font-size:0.8rem; padding:20px 0;">Nenhuma movimentação registrada pra este produto ainda.</p>`;
+    } else {
+        html = `<div style="border-left:2px solid #e8dde1; margin-left:6px; padding-left:16px;">` + eventos.slice(0, LIMITE).map(ev => {
+            const dataTxt = /^\d{4}-\d{2}-\d{2}$/.test(ev.dataIso)
+                ? `${ev.dataIso.slice(8, 10)}/${ev.dataIso.slice(5, 7)}/${ev.dataIso.slice(0, 4)}${ev.hora ? ' às ' + ev.hora : ''}`
+                : 'data desconhecida';
+            return `
+            <div style="position:relative; background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:10px 12px; margin-bottom:8px;">
+                <span style="position:absolute; left:-23px; top:14px; width:11px; height:11px; border-radius:50%; background:var(--primary-dark); border:2px solid #fff;"></span>
+                <p style="margin:0 0 3px; font-size:0.62rem; font-weight:800; color:#999; letter-spacing:0.5px;">📅 ${dataTxt}${ev.quem ? ` · ✍️ ${ev.quem}` : ''}</p>
+                <p style="margin:0; font-size:0.78rem; color:var(--brand-dark); line-height:1.4;">${ev.emoji ? ev.emoji + ' ' : ''}${ev.txt}</p>
+            </div>`;
+        }).join('') + `</div>`;
+        if (eventos.length > LIMITE) html += `<p style="text-align:center; color:#999; font-size:0.7rem;">Mostrando os ${LIMITE} mais recentes de ${eventos.length}. O resto vive no Diário de Bordo.</p>`;
+    }
+    document.getElementById('ex-lista').innerHTML = html;
+    document.getElementById('modal-extrato-produto').style.display = 'flex';
+}
+
+// ==========================================
+// 📜 DIÁRIO DO ESTOQUE: todas as movimentações de TODOS os itens, dia a dia.
+// Filtros: período (Hoje / 7 / 30 dias / Tudo) + tipo de movimento + busca livre.
+// ==========================================
+let exgPeriodo = '7', exgTipo = '', exgLimite = 80;
+
+// Fonte dos movimentos: o canal dedicado do servidor (histórico COMPLETO).
+// Se ele ainda não existir (server antigo), usa os logs comuns — que alcançam só os últimos ~500 registros.
+function logsMovimentoEstoque() {
+    return (movEstoqueGlobal && movEstoqueGlobal.length) ? movEstoqueGlobal : logsGlobal;
+}
+
+// Junta as 3 fontes numa lista única, cada evento carimbado com um tipo pros filtros
+function coletarMovimentosEstoque() {
+    const eventos = [];
+
+    producaoGlobal.forEach(p => {
+        eventos.push({
+            chave: `${p.data_inicio || ''} 08:00`, dataIso: p.data_inicio || '', hora: '',
+            tipo: 'fabrica', quem: '', emoji: '🧪',
+            txt: `Entrou na maceração: lote de <b>${p.qtd_prevista} un</b> de ${p.nome_produto}${p.status === 'Em Andamento' ? ` <span style="color:#b45309; font-weight:800;">(ainda macerando)</span>` : ''}`
+        });
+    });
+
+    vendasGlobal.forEach(v => {
+        const ehPresente = v.status === 'Presente';
+        eventos.push({
+            chave: `${v.dataVendaIso || ''} 12:00`, dataIso: v.dataVendaIso || '', hora: '',
+            tipo: ehPresente ? 'brinde' : 'venda', quem: v.socio || '', emoji: ehPresente ? '🎁' : '🛒',
+            txt: ehPresente
+                ? `Brinde do Clube: <b>${v.qtd}x</b> ${v.produto} para ${v.cliente || 'cliente'}`
+                : `Venda: <b>${v.qtd}x</b> ${v.produto} para ${v.cliente || 'cliente'} <span style="color:#888;">(${v.status})</span>`
+        });
+    });
+
+    logsMovimentoEstoque().forEach(l => {
+        const det = String(l.detalhe || '');
+        const detNorm = normalizarNomeBusca(det);
+        let tipo = '';
+        if (det.includes('🔄') || det.includes('🧳') || detNorm.includes('transfer')) tipo = 'transfer';
+        else if (det.includes('🍾') || det.includes('🏭') || detNorm.includes('envas') || detNorm.includes('fabricou')) tipo = 'fabrica';
+        else if (det.includes('📦') || detNorm.includes('ajust') || detNorm.includes('confer')) tipo = 'ajuste';
+        if (!tipo) return; // só o que mexe fisicamente no estoque
+        const m = String(l.dataHora || '').match(/(\d{2})\/(\d{2})\/(\d{4})\D*(\d{2}:\d{2})?/);
+        eventos.push({
+            chave: m ? `${m[3]}-${m[2]}-${m[1]} ${m[4] || '12:00'}` : '0000',
+            dataIso: m ? `${m[3]}-${m[2]}-${m[1]}` : '', hora: (m && m[4]) || '',
+            tipo, quem: l.usuario || '', emoji: '', txt: det
+        });
+    });
+
+    return eventos;
+}
+
+function abrirExtratoGeral() {
+    exgPeriodo = '7'; exgTipo = ''; exgLimite = 80;
+    exgTimelineDados = null; // dados novos a cada abertura (o estoque pode ter mudado)
+    document.getElementById('exg-busca').value = '';
+    alternarGuiaExg('movs');
+    renderizarExtratoGeral();
+    document.getElementById('modal-extrato-geral').style.display = 'flex';
+}
+
+// ==========================================
+// 📈 LINHA DO TEMPO DO ESTOQUE: viaje no tempo com o dedo.
+// Reconstrói o saldo dia a dia ANDANDO DE TRÁS PRA FRENTE: hoje eu sei quanto tem;
+// ontem = hoje − entradas de hoje + saídas de hoje. E assim até o início do Diário.
+// ==========================================
+let exgGuia = 'movs', exgTimelineDados = null, exgChartTimeline = null;
+
+function alternarGuiaExg(guia) {
+    exgGuia = guia;
+    const ehMovs = guia === 'movs';
+    document.getElementById('exg-filtros').style.display = ehMovs ? 'block' : 'none';
+    document.getElementById('exg-lista').style.display = ehMovs ? 'block' : 'none';
+    document.getElementById('exg-timeline').style.display = ehMovs ? 'none' : 'block';
+    const estilo = (btn, ativo) => { btn.style.background = ativo ? 'var(--primary-dark)' : '#fff'; btn.style.color = ativo ? '#fff' : 'var(--primary-dark)'; };
+    estilo(document.getElementById('exg-tab-movs'), ehMovs);
+    estilo(document.getElementById('exg-tab-time'), !ehMovs);
+    if (!ehMovs) montarTimelineEstoque();
+}
+
+function reconstruirSerieEstoque() {
+    const fmtIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Preço de venda ATUAL de cada produto (pra estimar o valor da prateleira em cada dia)
+    const precoDe = {};
+    Object.keys(estoqueAgrupado).forEach(k => { precoDe[k] = parseDinheiro(estoqueAgrupado[k].preco) || 0; });
+
+    // Delta de cada dia: quanto o estoque total mudou naquele dia (unidades e valor)
+    const deltaUn = {}, deltaVal = {};
+    const add = (iso, nomeProduto, d) => {
+        if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso) || !d) return;
+        const dia = iso.slice(0, 10);
+        deltaUn[dia] = (deltaUn[dia] || 0) + d;
+        deltaVal[dia] = (deltaVal[dia] || 0) + d * (precoDe[padronizarTexto(nomeProduto)] || 0);
+    };
+
+    // SAÍDAS: toda venda e brinde tira da prateleira (histórico completo desde o dia 1)
+    vendasGlobal.forEach(v => add(v.dataVendaIso, v.produto, -(parseFloat(v.qtd) || 0)));
+
+    // ENTRADAS E AJUSTES: lidos do Diário de Bordo (canal completo, se o servidor já mandar)
+    const num = (s) => parseFloat(String(s).replace(',', '.')) || 0;
+    let inicioLogs = '';
+    logsMovimentoEstoque().forEach(l => {
+        const m = String(l.dataHora || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        if (!m) return;
+        const iso = `${m[3]}-${m[2]}-${m[1]}`;
+        if (!inicioLogs || iso < inicioLogs) inicioLogs = iso;
+        const det = String(l.detalhe || '');
+        let r;
+        if ((r = det.match(/🍾 Envase: ([\d.,]+)x \[(.+?)\]/))) add(iso, r[2], num(r[1]));
+        else if ((r = det.match(/🏭 Fabricou ([\d.,]+)x \[(.+?)\]/))) add(iso, r[2], num(r[1]));
+        else if ((r = det.match(/📦 Ajuste \[(.+?)\]: Tinha ([\d.,]+) un\s*(?:->|→)\s*Ficou com ([\d.,]+) un/))) add(iso, r[1], num(r[3]) - num(r[2]));
+        else if (det.startsWith('📋 Conferência de estoque')) {
+            // Formato: "Nome [Local]: antes → depois; Nome2 [Local]: antes → depois"
+            const corpo = det.split('): ')[1] || '';
+            corpo.split(';').forEach(seg => {
+                const rr = seg.match(/(.+?) \[[^\]]*\]:\s*([\d.,]+)\s*(?:->|→)\s*([\d.,]+)/);
+                if (rr) add(iso, rr[1].trim(), num(rr[3]) - num(rr[2]));
+            });
+        }
+    });
+
+    // Ponto de partida: a prateleira de HOJE (essa é 100% exata)
+    let un = 0, val = 0;
+    Object.keys(estoqueAgrupado).forEach(k => {
+        const q = parseFloat(estoqueAgrupado[k].totalQtd) || 0;
+        un += q; val += q * (precoDe[k] || 0);
+    });
+
+    if (!inicioLogs) { const d0 = new Date(); d0.setDate(d0.getDate() - 30); inicioLogs = fmtIso(d0); }
+
+    // Caminha de hoje pra trás, guardando o saldo do FIM de cada dia
+    const dias = [], sUn = [], sVal = [];
+    const cursor = new Date();
+    for (let seg = 0; seg < 730; seg++) { // trava: no máximo 2 anos de linha
+        const isoD = fmtIso(cursor);
+        dias.push(isoD);
+        sUn.push(Math.max(0, Math.round(un)));
+        sVal.push(Math.max(0, val));
+        if (isoD <= inicioLogs) break;
+        un -= (deltaUn[isoD] || 0);
+        val -= (deltaVal[isoD] || 0);
+        cursor.setDate(cursor.getDate() - 1);
+    }
+    dias.reverse(); sUn.reverse(); sVal.reverse();
+    return { dias, sUn, sVal };
+}
+
+function montarTimelineEstoque() {
+    if (!exgTimelineDados) exgTimelineDados = reconstruirSerieEstoque();
+    const dados = exgTimelineDados;
+
+    const slider = document.getElementById('exg-slider');
+    slider.max = dados.dias.length - 1;
+    slider.value = dados.dias.length - 1;
+
+    if (typeof Chart === 'undefined') {
+        document.getElementById('exg-time-data').innerText = 'Gráfico indisponível sem internet na primeira carga.';
+        return;
+    }
+    if (exgChartTimeline) { exgChartTimeline.destroy(); exgChartTimeline = null; }
+    const ctx = document.getElementById('exg-canvas-timeline').getContext('2d');
+    exgChartTimeline = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: '#966178', backgroundColor: 'rgba(150,97,120,0.15)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { font: { size: 9 } } },
+                x: { ticks: { font: { size: 8 }, maxTicksLimit: 6, maxRotation: 0 } }
+            }
+        }
+    });
+    atualizarTimelineEstoque(slider.value);
+}
+
+function atualizarTimelineEstoque(idx) {
+    const dados = exgTimelineDados;
+    if (!dados) return;
+    const i = Math.max(0, Math.min(dados.dias.length - 1, parseInt(idx) || 0));
+    const iso = dados.dias[i];
+    const ehHoje = i === dados.dias.length - 1;
+
+    document.getElementById('exg-time-data').innerText = `📅 ${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}${ehHoje ? ' (HOJE)' : ''}`;
+    document.getElementById('exg-time-un').innerText = `${dados.sUn[i]} un na prateleira`;
+    document.getElementById('exg-time-valor').innerText = `💰 ~${fmt(dados.sVal[i])} em produtos (preços de hoje)`;
+
+    if (exgChartTimeline) {
+        exgChartTimeline.data.labels = dados.dias.slice(0, i + 1).map(d => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
+        exgChartTimeline.data.datasets[0].data = dados.sUn.slice(0, i + 1);
+        exgChartTimeline.update('none');
+    }
+}
+
+function setFiltroExg(campo, valor) {
+    if (campo === 'periodo') exgPeriodo = valor; else exgTipo = valor;
+    exgLimite = 80;
+    renderizarExtratoGeral();
+}
+
+function maisExtratoGeral() { exgLimite += 150; renderizarExtratoGeral(); }
+
+function renderizarExtratoGeral() {
+    // Chips de período e tipo (redesenhados a cada render pra marcar o ativo)
+    const chip = (ativo, onclick, rotulo) => `<button onclick="${onclick}" style="border:1px solid ${ativo ? 'var(--primary-dark)' : 'var(--border-color)'}; background:${ativo ? 'var(--primary-dark)' : '#fff'}; color:${ativo ? '#fff' : 'var(--brand-dark)'}; padding:6px 10px; border-radius:20px; font-size:0.68rem; font-weight:800; cursor:pointer;">${rotulo}</button>`;
+    document.getElementById('exg-chips-periodo').innerHTML =
+        chip(exgPeriodo === 'hoje', "setFiltroExg('periodo','hoje')", '📅 Hoje') +
+        chip(exgPeriodo === '7', "setFiltroExg('periodo','7')", '7 dias') +
+        chip(exgPeriodo === '30', "setFiltroExg('periodo','30')", '30 dias') +
+        chip(exgPeriodo === '', "setFiltroExg('periodo','')", '∞ Tudo');
+    document.getElementById('exg-chips-tipo').innerHTML =
+        chip(exgTipo === '', "setFiltroExg('tipo','')", 'Todos') +
+        chip(exgTipo === 'fabrica', "setFiltroExg('tipo','fabrica')", '🏭 Fábrica') +
+        chip(exgTipo === 'transfer', "setFiltroExg('tipo','transfer')", '🔄 Transferências') +
+        chip(exgTipo === 'ajuste', "setFiltroExg('tipo','ajuste')", '📦 Ajustes') +
+        chip(exgTipo === 'venda', "setFiltroExg('tipo','venda')", '🛒 Vendas') +
+        chip(exgTipo === 'brinde', "setFiltroExg('tipo','brinde')", '🎁 Brindes');
+
+    // Corte do período
+    let corteIso = '';
+    if (exgPeriodo) {
+        const d = new Date();
+        if (exgPeriodo === '7') d.setDate(d.getDate() - 6);
+        if (exgPeriodo === '30') d.setDate(d.getDate() - 29);
+        corteIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const tBusca = normalizarNomeBusca(document.getElementById('exg-busca').value);
+
+    const eventos = coletarMovimentosEstoque()
+        .filter(ev => !corteIso || ev.dataIso >= corteIso)
+        .filter(ev => !exgTipo || ev.tipo === exgTipo)
+        .filter(ev => !tBusca || normalizarNomeBusca(ev.txt + ' ' + ev.quem).includes(tBusca))
+        .sort((a, b) => String(b.chave).localeCompare(String(a.chave)));
+
+    const cont = document.getElementById('exg-lista');
+    if (eventos.length === 0) {
+        cont.innerHTML = `<p style="text-align:center; color:#999; font-size:0.8rem; padding:20px 0;">Nenhuma movimentação nesse período/filtro.</p>`;
+        return;
+    }
+
+    // Agrupa por dia, com cabeçalho contando as movimentações
+    let html = '', diaAtual = '', renderizados = 0;
+    for (const ev of eventos) {
+        if (renderizados >= exgLimite) break;
+        if (ev.dataIso !== diaAtual) {
+            diaAtual = ev.dataIso;
+            const totalDia = eventos.filter(x => x.dataIso === diaAtual).length;
+            const diaTxt = /^\d{4}-\d{2}-\d{2}$/.test(diaAtual) ? `${diaAtual.slice(8, 10)}/${diaAtual.slice(5, 7)}/${diaAtual.slice(0, 4)}` : 'Data desconhecida';
+            html += `<div style="background:var(--primary-dark); color:#fff; border-radius:8px; padding:8px 12px; margin:${html ? '18px' : '0'} 0 8px; display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; font-weight:900;">
+                <span>📅 ${diaTxt}</span><span style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:6px;">${totalDia} movimentação(ões)</span>
+            </div>`;
+        }
+        html += `
+        <div style="background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px;">
+            <p style="margin:0 0 2px; font-size:0.6rem; font-weight:800; color:#999;">${ev.hora ? '🕐 ' + ev.hora : ''}${ev.quem ? `${ev.hora ? ' · ' : ''}✍️ ${ev.quem}` : ''}</p>
+            <p style="margin:0; font-size:0.76rem; color:var(--brand-dark); line-height:1.4;">${ev.emoji ? ev.emoji + ' ' : ''}${ev.txt}</p>
+        </div>`;
+        renderizados++;
+    }
+    if (eventos.length > exgLimite) {
+        html += `<button class="btn-salvar" style="background:#fff; color:var(--primary-dark); border:2px dashed var(--primary-dark); box-shadow:none; margin-top:10px; font-size:0.8rem;" onclick="maisExtratoGeral()">⬇️ Mostrar mais (${eventos.length - exgLimite} restantes)</button>`;
+    }
+    cont.innerHTML = html;
 }
 
 function abrirModalCatalogo() { const tipos = new Set(estoqueGlobal.map(e => padronizarTexto(e.tipo)).filter(t => t)); let html = `<label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="cat-todas" onchange="toggleTodasCategorias(this)" checked style="width:16px; height:16px; flex-shrink:0;"> <strong>Selecionar Todas</strong></label><div style="border-top:1px dashed #E8DDE1; margin-bottom:10px;"></div>`;[...tipos].forEach(t => { let nomeBonito = t.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); html += `<label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; margin-bottom:8px; cursor:pointer;"><input type="checkbox" class="chk-cat-tipo" value="${t}" checked onchange="verificarCategorias()" style="width:16px; height:16px; flex-shrink:0;"> ${nomeBonito}</label>`; }); document.getElementById('cat-checkbox-container').innerHTML = html; const listaProdCat = document.getElementById('cat-lista-produtos'); if (listaProdCat) { listaProdCat.style.display = 'none'; document.getElementById('cat-produtos-rows').innerHTML = ''; document.getElementById('cat-prod-busca').value = ''; document.getElementById('cat-ajuste-pct').value = ''; const vFixoEl = document.getElementById('cat-valor-fixo'); if (vFixoEl) vFixoEl.value = ''; } document.getElementById('modal-gerar-catalogo').style.display = 'flex'; }
@@ -7368,8 +7947,9 @@ async function sincronizarDadosSilencioso() {
             vendasGlobal = dados.vendas || []; 
             encomendasGlobal = dados.encomendas || []; 
             comprasGlobal = dados.compras || [];
-            producaoGlobal = dados.producao || []; 
+            producaoGlobal = dados.producao || [];
             logsGlobal = dados.logs || [];
+            movEstoqueGlobal = dados.movimentosEstoque || [];
             usuariosGlobal = dados.usuarios || [];
             bonusComissaoGlobal = dados.bonusComissao || [];
             descontosProdutoGlobal = dados.descontosProduto || [];

@@ -577,13 +577,25 @@ html.tema-escuro .secao-dash { background: var(--card-bg, #3b3050); }
     
     .estoque-botoes-desktop {
         flex-direction: row !important; /* Muda de coluna para linha */
-        gap: 15px !important;
+        flex-wrap: wrap !important; /* Com 5 botões, os que não couberem descem de linha em vez de espremer */
+        gap: 12px !important;
     }
-    
+
     .estoque-botoes-desktop .btn-salvar {
         width: auto !important;
-        padding: 0 25px !important;
-        height: 45px;
+        padding: 10px 20px !important;
+        height: auto; /* deixa o texto de 2 linhas aparecer inteiro em vez de ser cortado */
+        min-height: 45px;
+        font-size: 0.78rem;
+        line-height: 1.3;
+    }
+
+    /* 📜 Diário do Estoque no PC: modal largo e gráfico alto pra linha do tempo brilhar */
+    #modal-extrato-geral .modal-box-alert {
+        max-width: 900px !important;
+    }
+    #exg-canvas-wrap {
+        height: 380px !important;
     }
 
     /* B) Centro de Comando Fixo (Filtros + Totais) */

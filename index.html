@@ -224,6 +224,8 @@
                     <button class="btn-salvar" style="margin-top:0; background: var(--primary-dark);" onclick="abrirModalCatalogo()">📖 Catálogo (PDF ou Link Online)</button>
                     <button class="btn-salvar" id="btn-qr-codes" style="margin-top:0; background: #2C2A2B; color: #fff; border-color: #2C2A2B; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="abrirModalQrCode()">🖨️ Imprimir QR Codes</button>
                     <button class="btn-salvar" id="btn-conferencia-estoque" style="margin-top:0; background: #0369a1; display:none;" onclick="abrirModalConferencia()">📋 Conferência de Estoque</button>
+                    <button class="btn-salvar" id="btn-transfer-lote" style="margin-top:0; background: #8d6e63; box-shadow: 0 4px 10px rgba(141,110,99,0.35); display:none;" onclick="abrirModalTransferenciaLote()">🧳 Mala de Transferência (vários de uma vez)</button>
+                    <button class="btn-salvar" id="btn-extrato-geral" style="margin-top:0; background: #966178; box-shadow: 0 4px 10px rgba(150,97,120,0.35); display:none;" onclick="abrirExtratoGeral()">📜 Diário do Estoque (todas as movimentações)</button>
                 </div>
             </div>
             
@@ -1268,6 +1270,67 @@
         </div>
     </div>
     <button id="btn-confirmar-transferencia" class="btn-salvar" style="background: #0369a1; box-shadow: 0 4px 0 #075985; margin-bottom: 0;" onclick="confirmarTransferirEstoque()">✅ Confirmar Transferência</button>
+</div></div>
+
+<!-- 🧳 MALA DE TRANSFERÊNCIA: escolhe DE → PARA uma vez, marca vários produtos e manda tudo junto -->
+<div id="modal-transfer-lote" class="modal-overlay-alert"><div class="modal-box-alert" style="max-width: 540px; width: 95%; padding: 0; display: flex; flex-direction: column; max-height: 92vh; text-align: left; overflow: hidden;">
+    <div style="padding: 18px 20px 12px; border-bottom: 1px solid var(--border-color); position: relative; flex-shrink: 0;">
+        <button onclick="fecharModalTransferenciaLote()" style="position: absolute; top: 12px; right: 12px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
+        <h3 class="modal-title-alert" style="margin: 0 0 4px 0; color: var(--brand-dark); text-align: left;">🧳 Mala de Transferência</h3>
+        <p style="font-size: 0.72rem; color: #888; margin: 0 0 12px 0;">Escolha o caminho <b>uma vez só</b>, coloque as quantidades na mala e mande tudo junto.</p>
+        <div class="row" style="margin-bottom: 8px;">
+            <div class="col"><label>🚪 De onde sai</label><select id="tl-origem" onchange="trocarOrigemMala()"></select></div>
+            <div class="col"><label>🎯 Para onde vai</label><select id="tl-destino" onchange="atualizarResumoMala()"></select></div>
+        </div>
+        <input type="text" id="tl-busca" autocomplete="off" placeholder="🔍 Buscar produto pra colocar na mala..." oninput="renderizarMalaTransferencia()" style="width: 100%; box-sizing: border-box; margin: 0;">
+    </div>
+    <div id="tl-lista" style="flex: 1; overflow-y: auto; padding: 10px 15px; background: #fbf8f9;"></div>
+    <div style="padding: 12px 15px; border-top: 1px solid var(--border-color); flex-shrink: 0; background: #fff;">
+        <p id="tl-resumo" style="font-size: 0.78rem; font-weight: 800; color: var(--brand-dark); margin: 0; text-align: center;">Mala vazia</p>
+        <button id="btn-confirmar-mala" class="btn-salvar" style="margin-top: 10px; background: #2e7d32; box-shadow: 0 4px 0 #1b5e20;" onclick="confirmarTransferenciaLote()">🚚 TRANSFERIR TUDO</button>
+    </div>
+</div></div>
+
+<!-- 📜 EXTRATO DO PRODUTO: o "filme" completo de um item — fábrica, transferências, ajustes e vendas -->
+<div id="modal-extrato-produto" class="modal-overlay-alert"><div class="modal-box-alert" style="max-width: 540px; width: 95%; padding: 0; display: flex; flex-direction: column; max-height: 92vh; text-align: left; overflow: hidden;">
+    <div style="padding: 18px 20px 12px; border-bottom: 1px solid var(--border-color); position: relative; flex-shrink: 0;">
+        <button onclick="document.getElementById('modal-extrato-produto').style.display='none'" style="position: absolute; top: 12px; right: 12px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
+        <h3 class="modal-title-alert" style="margin: 0 0 4px 0; color: var(--brand-dark); text-align: left;">📜 Extrato do Produto</h3>
+        <p id="ex-nome-produto" style="font-size: 0.85rem; font-weight: 800; color: var(--primary-dark); margin: 0 0 6px 0;"></p>
+        <p id="ex-saldo-atual" style="font-size: 0.7rem; color: #666; margin: 0;"></p>
+    </div>
+    <div id="ex-lista" style="flex: 1; overflow-y: auto; padding: 15px 20px; background: #fbf8f9;"></div>
+</div></div>
+
+<!-- 📜 DIÁRIO DO ESTOQUE: todas as movimentações de todos os itens, dia a dia, com filtros -->
+<div id="modal-extrato-geral" class="modal-overlay-alert"><div class="modal-box-alert" style="max-width: 560px; width: 95%; padding: 0; display: flex; flex-direction: column; max-height: 92vh; text-align: left; overflow: hidden;">
+    <div style="padding: 18px 20px 12px; border-bottom: 1px solid var(--border-color); position: relative; flex-shrink: 0;">
+        <button onclick="document.getElementById('modal-extrato-geral').style.display='none'" style="position: absolute; top: 12px; right: 12px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button>
+        <h3 class="modal-title-alert" style="margin: 0 0 8px 0; color: var(--brand-dark); text-align: left;">📜 Diário do Estoque</h3>
+        <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+            <button id="exg-tab-movs" onclick="alternarGuiaExg('movs')" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid var(--primary-dark); font-size: 0.72rem; font-weight: 800; cursor: pointer;">📋 Movimentações</button>
+            <button id="exg-tab-time" onclick="alternarGuiaExg('time')" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid var(--primary-dark); font-size: 0.72rem; font-weight: 800; cursor: pointer;">📈 Linha do Tempo</button>
+        </div>
+        <div id="exg-filtros">
+            <div id="exg-chips-periodo" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;"></div>
+            <div id="exg-chips-tipo" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;"></div>
+            <input type="text" id="exg-busca" autocomplete="off" placeholder="🔍 Buscar produto, cliente ou pessoa..." oninput="renderizarExtratoGeral()" style="width: 100%; box-sizing: border-box; margin: 0;">
+        </div>
+    </div>
+    <div id="exg-lista" style="flex: 1; overflow-y: auto; padding: 15px 20px; background: #fbf8f9;"></div>
+    <div id="exg-timeline" style="flex: 1; overflow-y: auto; padding: 15px 20px; background: #fbf8f9; display: none;">
+        <div style="text-align: center; background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+            <p id="exg-time-data" style="margin: 0; font-size: 0.7rem; font-weight: 800; color: #999; letter-spacing: 1px;">—</p>
+            <p id="exg-time-un" style="margin: 4px 0 0; font-size: 1.9rem; font-weight: 900; color: var(--brand-dark);">—</p>
+            <p id="exg-time-valor" style="margin: 2px 0 0; font-size: 0.75rem; font-weight: 700; color: #2e7d32;">—</p>
+        </div>
+        <div style="background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px;">
+            <div id="exg-canvas-wrap" style="height: 190px; position: relative;"><canvas id="exg-canvas-timeline"></canvas></div>
+            <input type="range" id="exg-slider" min="0" max="0" value="0" oninput="atualizarTimelineEstoque(this.value)" style="width: 100%; margin: 10px 0 2px; accent-color: var(--primary-dark);">
+            <p style="margin: 0; font-size: 0.62rem; color: #999; text-align: center;">⬅️ Deslize pra viajar no tempo e ver o estoque crescer dia a dia ➡️</p>
+        </div>
+        <p style="margin: 10px 0 0; font-size: 0.62rem; color: #999; line-height: 1.5;">ℹ️ Reconstrução a partir do Diário: vendas são completas; entradas da fábrica e ajustes dependem do histórico de logs — quanto mais antigo, mais estimado. Valores calculados com os preços de venda de hoje.</p>
+    </div>
 </div></div>
 
 <div id="modal-editar-venda" class="modal-overlay-alert"><div class="modal-box-alert" style="padding-top: 40px; text-align:left;"><button onclick="document.getElementById('modal-editar-venda').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: var(--border-color); border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; color: var(--primary-dark); cursor: pointer;">×</button><h3 class="modal-title-alert" style="margin-bottom: 20px; color: var(--brand-dark); text-align:center;">✏️ Editar Venda</h3><input type="hidden" id="edit-v-linha"><div class="row"><div class="col"><label>Data</label><input type="date" id="edit-v-data"></div><div class="col"><label>Cliente</label><input type="text" id="edit-v-cliente" list="lista-clientes"></div></div><div class="input-group"><label>Produto Vendido</label><select id="edit-v-produto" onchange="autoPreencherEdicaoVenda()"></select></div><div class="input-group"><label>Sócio</label><input type="text" id="edit-v-socio" list="lista-socios-dinamica"></div><div class="row"><div class="col"><label>Qtd</label><input type="number" id="edit-v-qtd" oninput="autoPreencherEdicaoVenda()"></div><div class="col"><label>Valor Total</label><input type="text" id="edit-v-valor" class="mask-money"></div></div><div class="row"><div class="col"><label>Status PG</label>
