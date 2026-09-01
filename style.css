@@ -63,6 +63,14 @@ html.tema-escuro .nav-item-more { color: #b7a8bf; }
 /* Superfícies principais no escuro: a borda mantém o tom do fundo, e o "miolo" é mais clarinho */
 html.tema-escuro .card { box-shadow: 0 15px 35px rgba(0,0,0,0.35); border-color: rgba(224, 174, 199, 0.1); }
 html.tema-escuro .rotulo-card { background: #453a5c; border-color: rgba(224, 174, 199, 0.2); }
+
+/* 🧩 CARTÕES DE ETAPA (PDV 1-2-3 e Central de Consulta): cada bloco com moldura e cabeçalho próprios */
+.pdv-card { background: #fff; border: 1px solid var(--border-color); border-radius: 14px; margin-bottom: 18px; overflow: hidden; box-shadow: 0 2px 10px rgba(44, 42, 43, 0.05); }
+.pdv-card-head { display: flex; align-items: center; gap: 9px; padding: 11px 16px; background: #fdf5f7; border-bottom: 1px solid #f3d8e2; font-weight: 900; font-size: 0.76rem; letter-spacing: 0.6px; color: var(--brand-dark); text-transform: uppercase; }
+.pdv-passo { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-dark); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 900; flex-shrink: 0; }
+.pdv-card-body { padding: 15px; }
+html.tema-escuro .pdv-card { background: #453a5c; border-color: rgba(224, 174, 199, 0.2); }
+html.tema-escuro .pdv-card-head { background: rgba(0, 0, 0, 0.2); border-bottom-color: rgba(224, 174, 199, 0.2); color: #f0e6ea; }
 html.tema-escuro .dash-card { background: #453a5c; }
 html.tema-escuro input, html.tema-escuro select, html.tema-escuro textarea { background: #453a5c; color: #f5f0fa; border-color: #5e4d75; }
 html.tema-escuro input:focus, html.tema-escuro select:focus, html.tema-escuro textarea:focus { background: #4d4166; }

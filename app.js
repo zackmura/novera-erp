@@ -483,11 +483,13 @@ function switchTab(tabId) {
 }
 
 function toggleVendasTab(tab) {
-    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view');
-    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes');
+    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view'), vHist = document.getElementById('vendas-historico-view');
+    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes'), btnHist = document.getElementById('btn-sub-historico');
     document.querySelectorAll('.sub-nav-btn', document.getElementById('tab-vendas')).forEach(b => { b.classList.remove('active'); });
-    vReg.style.display = 'none'; vLot.style.display = 'none';
-    if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); } else { vReg.style.display = 'block'; btnReg.classList.add('active'); }
+    vReg.style.display = 'none'; vLot.style.display = 'none'; if (vHist) vHist.style.display = 'none';
+    if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); }
+    else if (tab === 'historico' && vHist) { vHist.style.display = 'block'; if (btnHist) btnHist.classList.add('active'); }
+    else { vReg.style.display = 'block'; btnReg.classList.add('active'); }
 }
 
 function toggleGastosTab(tab) {
@@ -4945,6 +4947,16 @@ function limparFiltrosVendas() {
     document.getElementById('f-v-cliente').value = '';
     const elProd = document.getElementById('f-v-produto'); if (elProd) elProd.value = '';
     const elCom = document.getElementById('f-v-comissao'); if (elCom) elCom.value = '';
+    const elBusca = document.getElementById('f-v-busca'); if (elBusca) elBusca.value = '';
+    visaoVendas = '';
+    filtrarVendas();
+}
+
+// ⚡ VISÕES DE 1 TOQUE do histórico: Hoje, 7 dias, Este mês, Vencidos, Falta acerto.
+// Tocar de novo no chip ativo volta pro "Tudo". Convivem com a busca e os filtros avançados.
+let visaoVendas = '';
+function setVisaoVendas(v) {
+    visaoVendas = (visaoVendas === v) ? '' : v;
     filtrarVendas();
 }
 
@@ -4960,16 +4972,24 @@ function filtrarVendas() {
     const fDia = document.getElementById('f-v-dia').value, fMes = document.getElementById('f-v-mes').value, fStatus = document.getElementById('f-v-status').value, fSocio = document.getElementById('f-v-socio').value.toLowerCase().trim(), fCliente = normalizarNomeBusca(document.getElementById('f-v-cliente').value); // trim + sem acento: "Cleo " acha "Cléo"
     const elFComissao = document.getElementById('f-v-comissao'); const fComissao = elFComissao ? elFComissao.value : '';
     const elFProduto = document.getElementById('f-v-produto'); const fProduto = elFProduto ? normalizarNomeBusca(elFProduto.value) : '';
+    const elFBusca = document.getElementById('f-v-busca'); const fBusca = elFBusca ? normalizarNomeBusca(elFBusca.value) : '';
+
+    // Datas de referência das visões rápidas
+    const dHj = new Date();
+    const hojeIsoV = `${dHj.getFullYear()}-${String(dHj.getMonth() + 1).padStart(2, '0')}-${String(dHj.getDate()).padStart(2, '0')}`;
+    const d7 = new Date(); d7.setDate(d7.getDate() - 6);
+    const corte7Iso = `${d7.getFullYear()}-${String(d7.getMonth() + 1).padStart(2, '0')}-${String(d7.getDate()).padStart(2, '0')}`;
+    const mesAtualIso = hojeIsoV.slice(0, 7);
 
     // Mudou qualquer filtro? Volta a paginação pro começo (senão "Mostrar mais" de uma busca vaza pra outra)
-    const assinaturaAtual = [fTipoData, fDia, fMes, fStatus, fSocio, fCliente, fProduto, fComissao].join('|');
+    const assinaturaAtual = [fTipoData, fDia, fMes, fStatus, fSocio, fCliente, fProduto, fComissao, fBusca, visaoVendas].join('|');
     if (assinaturaAtual !== assinaturaFiltrosVendas) { assinaturaFiltrosVendas = assinaturaAtual; limiteVendasLista = 30; }
 
     // 🚨 Aviso visual de filtro ativo: muda a cara do botão de filtros pra ninguém esquecer que a visão está filtrada
     const temFiltroAtivo = !!(fDia || fMes || fStatus || fSocio || fCliente || fComissao || fProduto || fTipoData !== 'venda');
     const btnToggleF = document.getElementById('btn-toggle-filtros-vendas');
     if (btnToggleF) {
-        btnToggleF.innerHTML = temFiltroAtivo ? '⚠️ FILTROS ATIVOS — a lista está filtrada' : '🔍 Ocultar / Mostrar Filtros';
+        btnToggleF.innerHTML = temFiltroAtivo ? '⚠️ FILTROS ATIVOS — a lista está filtrada' : '⚙️ Filtros Avançados (mostrar / ocultar)';
         btnToggleF.style.background = temFiltroAtivo ? '#fef3c7' : '#fdf5f7';
         btnToggleF.style.borderColor = temFiltroAtivo ? '#f59e0b' : '#f3d8e2';
         btnToggleF.style.color = temFiltroAtivo ? '#92400e' : 'var(--primary-dark)';
@@ -4980,8 +5000,49 @@ function filtrarVendas() {
     let nomesAdmins = usuariosGlobal.filter(u => u.cargo === 'Admin' || u.cargo === 'Administrador').map(u => String(u.usuario).toLowerCase().trim());
     nomesAdmins.push('amor', 'fernando', 'natália', 'natalia', 'novera', 'admin', 'sem vendedor', '');
 
+    // ⚡ CHIPS DE VISÃO RÁPIDA (com contadores nos que pedem ação)
+    const chipsVisaoEl = document.getElementById('chips-visao-vendas');
+    if (chipsVisaoEl) {
+        let cntHoje = 0, cntVenc = 0, cntAcerto = 0;
+        vendasGlobal.forEach(v => {
+            if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return;
+            if (v.dataVendaIso === hojeIsoV && v.status !== 'Presente') cntHoje++;
+            const pendC = v.status === 'Pendente' || v.status === 'Parcelado';
+            if (pendC && v.dataPrevPgto && v.dataPrevPgto < hojeIsoV) cntVenc++;
+            if (isAdmin && v.status === 'Pago' && !v.repasse_feito && !nomesAdmins.includes(String(v.socio || '').toLowerCase().trim())) cntAcerto++;
+        });
+        const chipVisao = (id, rotulo, corAtiva) => {
+            const ativo = visaoVendas === id;
+            const cor = corAtiva || 'var(--primary-dark)';
+            return `<button onclick="setVisaoVendas('${id}')" style="flex-shrink:0; white-space:nowrap; border-radius:20px; padding:7px 13px; font-size:0.68rem; font-weight:800; cursor:pointer; border:1px solid ${ativo ? cor : 'var(--border-color)'}; background:${ativo ? cor : '#fff'}; color:${ativo ? '#fff' : 'var(--brand-dark)'};">${rotulo}</button>`;
+        };
+        chipsVisaoEl.innerHTML =
+            chipVisao('', '📋 Tudo') +
+            chipVisao('hoje', `📅 Hoje${cntHoje ? ` (${cntHoje})` : ''}`) +
+            chipVisao('7d', '7 dias') +
+            chipVisao('mes', '🗓️ Este mês') +
+            chipVisao('vencidos', `🔴 Vencidos${cntVenc ? ` (${cntVenc})` : ''}`, '#b91c1c') +
+            (isAdmin ? chipVisao('acerto', `🤝 Falta acerto${cntAcerto ? ` (${cntAcerto})` : ''}`, '#0369a1') : '');
+    }
+
     let filtradas = vendasGlobal.filter(v => {
         if (!isAdmin && String(v.socio || '').toLowerCase().trim() !== usuarioLogado.toLowerCase().trim()) return false;
+
+        // ⚡ Visão rápida escolhida no chip
+        if (visaoVendas === 'hoje' && v.dataVendaIso !== hojeIsoV) return false;
+        if (visaoVendas === '7d' && !(v.dataVendaIso && v.dataVendaIso >= corte7Iso)) return false;
+        if (visaoVendas === 'mes' && !(v.dataVendaIso && v.dataVendaIso.startsWith(mesAtualIso))) return false;
+        if (visaoVendas === 'vencidos') {
+            const pendV = v.status === 'Pendente' || v.status === 'Parcelado';
+            if (!(pendV && v.dataPrevPgto && v.dataPrevPgto < hojeIsoV)) return false;
+        }
+        if (visaoVendas === 'acerto') {
+            if (!isAdmin) return false;
+            if (!(v.status === 'Pago' && !v.repasse_feito && !nomesAdmins.includes(String(v.socio || '').toLowerCase().trim()))) return false;
+        }
+
+        // 🔎 Busca rápida: um campo só, acha em cliente, produto, vendedor e observação
+        if (fBusca && !normalizarNomeBusca(`${v.cliente || ''} ${v.produto || ''} ${v.socio || ''} ${v.observacao || ''}`).includes(fBusca)) return false;
 
         // Filtro exclusivo de Admin: quem já pagou mas ainda falta (ou já teve) o acerto de comissão com o vendedor
         if (fComissao && isAdmin) {
@@ -8090,15 +8151,16 @@ const PAGINAS_GUIA = [
 </div>
 <p style="margin:0;">📌 Regra de ouro: <b>nunca responda "não tenho"</b>. Olhe o Estoque — se existe em QUALQUER local, você pode vender.</p>` },
 
-{ id: 'filtros', emoji: '🔍', titulo: 'Os Filtros do Histórico de Vendas', html: `
-<p style="margin-bottom:8px;">Lá embaixo na aba Vendas fica o <b>Histórico</b> — todas as suas vendas. Com muitos registros, os <b>filtros</b> acham qualquer coisa em segundos. Toque em <b>🔍 Ocultar/Mostrar Filtros</b> pra abri-los:</p>
-<p style="margin-bottom:6px;">• <b>FILTRAR DATA POR</b>: escolha se o Dia/Mês vale pra <b>data da venda</b> ou pra <b>data do pagamento</b>.</p>
-<p style="margin-bottom:6px;">• <b>STATUS</b>: só os <b>Pendentes</b> (fiado a receber), só os <b>Pagos</b>, ou Todos.</p>
-<p style="margin-bottom:6px;">• <b>DIA / MÊS</b>: um dia exato ou o mês inteiro.</p>
-<p style="margin-bottom:6px;">• <b>CLIENTE</b>: digite parte do nome — "mari" acha Mariana e Marília.</p>
-<p style="margin-bottom:6px;">• <b>PRODUTO</b>: por nome ou código (N034 ou só 34).</p>
+{ id: 'filtros', emoji: '🔍', titulo: 'Consultando suas Vendas (Histórico)', html: `
+<p style="margin-bottom:8px;">Na aba Vendas, toque na sub-aba <b>📊 Histórico</b> — é a tela de consulta, separada da tela de vender. Lá você acha qualquer venda em segundos, de 3 jeitos:</p>
+<p style="margin-bottom:6px;">1️⃣ <b>🔍 BUSCA RÁPIDA</b> (o campo no topo): digite qualquer coisa — nome do cliente ("mari" acha Mariana e Marília), produto ou até um pedaço da observação.</p>
+<p style="margin-bottom:8px;">2️⃣ <b>OS CHIPS DE 1 TOQUE</b> (as bolinhas abaixo da busca):</p>
+<p style="margin-bottom:6px;">• <b>📅 Hoje / 7 dias / 🗓️ Este mês</b>: suas vendas do período, num toque.</p>
+<p style="margin-bottom:6px;">• <b>🔴 Vencidos</b>: TODOS os fiados com a data combinada estourada, juntos — sua lista de cobrança pronta! O numerinho mostra quantos são.</p>
+<p style="margin-bottom:6px;">• Tocou no chip de novo? Volta pro <b>📋 Tudo</b>.</p>
+<p style="margin-bottom:6px;">3️⃣ <b>⚙️ FILTROS AVANÇADOS</b>: pro uso fino — dia exato, status, data por venda ou por pagamento, produto por código (N034 ou só 34).</p>
 <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:8px;">
-    <p style="margin:0; font-size:0.75rem;"><b>Uso do dia a dia:</b> "quem ainda me deve?" → Status: <b>Pendente</b>. "O que a Mariana já comprou?" → Cliente: <b>mari</b>. "Quanto vendi em julho?" → Mês: <b>julho</b>.</p>
+    <p style="margin:0; font-size:0.75rem;"><b>Uso do dia a dia:</b> "quem devo cobrar?" → chip <b>🔴 Vencidos</b>. "O que a Mariana já comprou?" → busca: <b>mari</b>. "Quanto vendi este mês?" → chip <b>🗓️ Este mês</b>.</p>
 </div>
 <p style="margin:0;">⚠️ A lista parece vazia mas você TEM vendas? Provavelmente um filtro ficou ativo — o app avisa em amarelo, e o botão <b>Limpar Filtros</b> zera tudo.</p>` },
 

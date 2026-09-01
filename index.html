@@ -385,6 +385,7 @@
            <div id="banner-chegando-em-breve" style="display:none;"></div>
            <div class="sub-nav-container">
                 <button id="btn-sub-registro" class="sub-nav-btn active" onclick="toggleVendasTab('registro')">🛒 PDV Rápido</button>
+                <button id="btn-sub-historico" class="sub-nav-btn" onclick="toggleVendasTab('historico')">📊 Histórico</button>
                 <button id="btn-sub-lotes" class="sub-nav-btn" onclick="toggleVendasTab('lotes')">📄 Docs & Lotes</button>
                 <!-- NOVO BOTÃO: MAPA DE SEPARAÇÃO (SÓ ADMIN) -->
                 <button id="btn-sub-separacao" class="sub-nav-btn" onclick="abrirMapaSeparacao()" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-weight: bold;">🛍️ Separar Pedidos</button>
@@ -395,8 +396,9 @@
                 <div class="vendas-pdv-wrapper">
                     <!-- Esquerda: Dados e Produtos -->
                     <div class="vendas-col-left">
-                        <div class="section-title" style="margin-top:0;">🛍️ Dados do Pedido</div>
-                        <div style="background: #fdf5f7; border: 1px solid #f3d8e2; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                        <div class="pdv-card">
+                            <div class="pdv-card-head"><span class="pdv-passo">1</span>🛍️ Dados do Pedido</div>
+                            <div class="pdv-card-body">
                             <div class="row"><div class="col"><label>Data da Venda</label><input type="date" id="v-data"></div><div class="col"><label>Cliente</label><input type="text" id="v-cliente" list="lista-clientes" oninput="atualizarFaixaClubePdv()" onchange="atualizarFaixaClubePdv()"></div></div>
                             <div id="faixa-clube-pdv" style="display:none;"></div>
                             <div class="row"><div class="col"><label>Vendedor</label><input type="text" id="v-socio" list="lista-socios-dinamica"></div><div class="col"><label>Status PG</label><select id="v-status" onchange="onStatusVendaChange(false)"><option value="Pendente">Pendente</option><option value="Pago">Pago</option><option value="Parcelado">⏳ Parcelado</option><option value="Presente">🎁 Presente / Bonificação</option></select></div></div>
@@ -411,9 +413,12 @@
                                 <small style="font-size:0.6rem; color:#b45309;">Cliente vai pagar em partes? Registre e depois ajuste cada item no ✏️ do histórico.</small>
                             </div>
                             <div class="input-group" style="margin-bottom: 0;"><label>Observação Geral do Pedido (Opcional)</label><textarea id="v-observacao"></textarea></div>
+                            </div>
                         </div>
-                        
-                        <div class="section-title">🛒 Adicionar Produto</div>
+
+                        <div class="pdv-card">
+                            <div class="pdv-card-head"><span class="pdv-passo">2</span>🛒 Adicionar Produtos</div>
+                            <div class="pdv-card-body">
                         <div style="display: flex; gap: 15px; align-items: flex-end; margin-bottom: 15px;">
                             <div style="flex: 1;">
                                 <label>Produto (Do Estoque)</label>
@@ -436,12 +441,16 @@
 
                         <div class="row"><div class="col"><label>Qtd</label><input type="number" id="v-qtd" value="1" oninput="autoPreencherValorVenda()"></div><div class="col"><label>Valor do Item</label><input type="text" id="v-valor" class="mask-money"></div></div>
                         
-                        <button class="btn-acao" style="width: 100%; height: 45px; background: #e0f2fe; color: #0369a1; border: 1px dashed #bae6fd; border-radius: 12px; font-weight: bold; font-size: 0.9rem; margin-bottom: 20px;" onclick="adicionarItemCarrinho()">➕ INSERIR NO CARRINHO</button>
+                        <button class="btn-acao" style="width: 100%; height: 45px; background: #e0f2fe; color: #0369a1; border: 1px dashed #bae6fd; border-radius: 12px; font-weight: bold; font-size: 0.9rem;" onclick="adicionarItemCarrinho()">➕ INSERIR NO CARRINHO</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Direita: Carrinho Fixo -->
                     <div class="vendas-col-right">
-                        <div class="section-title" style="margin-top: 0;">📦 Resumo do Pedido</div>
+                        <div class="pdv-card" style="border-color: #bbf7d0;">
+                            <div class="pdv-card-head" style="background: #f0fdf4; border-bottom-color: #bbf7d0;"><span class="pdv-passo" style="background: #2e7d32;">3</span>📦 Conferir e Finalizar</div>
+                            <div class="pdv-card-body">
                         <div id="carrinho-lista" style="background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; min-height: 60px; margin-bottom: 15px;">
                             <p style="text-align: center; color: #999; font-size: 0.8rem; margin: 10px 0;">Carrinho vazio. Adicione produtos acima.</p>
                         </div>
@@ -450,17 +459,32 @@
                             <span id="carrinho-total" style="font-size: 1.5rem; font-weight: 900;">R$ 0,00</span>
                         </div>
 
-                        <button id="btn-finalizar-venda" class="btn-salvar" style="background: #2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3); width: 100%;" onclick="salvarVendaCarrinho()">✅ FINALIZAR VENDA COMPLETA</button>
+                        <button id="btn-finalizar-venda" class="btn-salvar" style="background: #2e7d32; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.3); width: 100%; margin-top: 0;" onclick="salvarVendaCarrinho()">✅ FINALIZAR VENDA COMPLETA</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-               <!-- Histórico Ocupa a tela toda embaixo -->
-                <div class="section-title" style="margin-top: 35px;">📊 Histórico de Vendas (Itens)</div>              
-                
+            </div>
+
+            <!-- SUB-ABA 1B: HISTÓRICO DE VENDAS (consulta separada do PDV — vender é uma tela, consultar é outra) -->
+            <div id="vendas-historico-view" style="display: none;">
+                <div class="section-title" style="margin-top: 0;">📊 Histórico de Vendas (Itens)</div>
+
                 <!-- PAINEL FIXO EFEITO VIDRO (Filtros + Totais) -->
                 <div class="vendas-sticky-header">
-                    
-                    <button id="btn-toggle-filtros-vendas" class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 8px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">🔍 Ocultar / Mostrar Filtros</button>
+
+                    <div class="pdv-card" style="margin-bottom: 12px;">
+                    <div class="pdv-card-head">🔎 Encontre uma venda</div>
+                    <div class="pdv-card-body" style="padding: 12px;">
+
+                    <!-- 🔎 Busca única: acha por cliente, produto, vendedor ou observação — sem abrir filtro nenhum -->
+                    <input type="text" id="f-v-busca" autocomplete="off" placeholder="🔍 Busca rápida: cliente, produto ou vendedor..." oninput="filtrarVendas()" style="width: 100%; box-sizing: border-box; margin: 0 0 8px 0;">
+
+                    <!-- ⚡ Visões de 1 toque (no celular o trilho desliza pro lado) -->
+                    <div id="chips-visao-vendas" style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; -webkit-overflow-scrolling: touch;"></div>
+
+                    <button id="btn-toggle-filtros-vendas" class="btn-salvar" style="background: #fdf5f7; color: var(--primary-dark); border: 1px solid #f3d8e2; box-shadow: none; padding: 12px; font-size: 0.8rem; margin-top: 0; margin-bottom: 8px; width: 100%; font-weight: 700;" onclick="const f = document.getElementById('filtros-vendas-container'); f.style.display = f.style.display === 'none' ? 'block' : 'none';">⚙️ Filtros Avançados (mostrar / ocultar)</button>
                     <button id="btn-limpar-filtros-vendas" class="btn-salvar" style="display: none; background: #fff; color: #b91c1c; border: 1px dashed #fca5a5; box-shadow: none; padding: 10px; font-size: 0.75rem; margin-top: 0; margin-bottom: 15px; width: 100%; font-weight: 800;" onclick="limparFiltrosVendas()">🧹 Limpar Filtros (voltar ao padrão)</button>
 
                     <div id="filtros-vendas-container" style="display: none;">
@@ -503,7 +527,11 @@
                             </div>
                         </div>
                     </div>
-                    
+
+                    </div>
+                    </div>
+
+                    <p style="margin: 0 0 8px 2px; font-size: 0.66rem; font-weight: 800; color: #999; letter-spacing: 1px; text-transform: uppercase;">📈 Totais do que está na tela (respeitam a busca e os filtros)</p>
                     <div class="dash-grid">
                         <div class="dash-card highlight" style="margin-bottom:0;"><h3>Total Vendido</h3><p class="valor" id="dash-v-total">R$ 0,00</p></div>
                         <div class="dash-card receita" style="margin-bottom:0;"><h3>Recebido (Na Conta)</h3><p class="valor" id="dash-v-receita">R$ 0,00</p></div>
@@ -513,7 +541,8 @@
                     </div>
 
                 </div> <!-- FIM DO PAINEL FIXO -->
-                
+
+                <div class="section-title" style="margin-top: 20px;">🧾 Vendas Encontradas</div>
                 <!-- O CSS VAI TRANSFORMAR ISSO NUMA LISTA NO PC -->
                 <div id="lista-vendas-cadastradas"></div>
             </div>
