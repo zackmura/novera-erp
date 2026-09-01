@@ -2691,7 +2691,7 @@ async function confirmarTransferenciaLote() {
             try {
                 const r = await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "transferir_estoque", nome: e.nome, qtd: qtd, local_origem: origem, local_destino: destino, log_detalhe: `🧳 Mala de transferência: ${qtd}x [${e.nome}] ${origem} → ${destino}` }) });
                 const res = await r.json();
-                if (res.sucesso) ok.push({ qtd, nome: e.nome }); else falhas.push(e.nome);
+                if (res.sucesso) ok.push({ qtd, nome: e.nome, codigo: e.codigo || '' }); else falhas.push(e.nome);
             } catch (err) { falhas.push(e.nome); }
         }
     } finally {
@@ -2733,7 +2733,7 @@ function enviarRomaneioMala(origem, destino, itens) {
 
     const msg = `🧳 *ROMANEIO DE TRANSFERÊNCIA — ${marca.toUpperCase()}*\n\n` +
         `🚪 Saiu de: *${origem}*\n🎯 Chegando em: *${destino}*\n📅 ${dataHoje}\n\n` +
-        itens.map(x => `▪️ ${x.qtd}x ${x.nome}`).join('\n') +
+        itens.map(x => `▪️ ${x.qtd}x ${x.codigo ? `*${x.codigo}* · ` : ''}${x.nome}`).join('\n') +
         `\n\n📦 *Total: ${totalUn} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa! 😉`;
 
     window.open(fone ? `https://wa.me/${fone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
