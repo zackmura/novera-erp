@@ -67,8 +67,11 @@
     .nome { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.35rem; line-height: 1.2; margin-top: 2px; color: var(--tinta); }
     .descricao { font-family: Georgia, 'Times New Roman', serif; font-size: 0.82rem; color: #6d5c66; font-style: italic; line-height: 1.6; margin-top: 9px; }
     .filete { height: 1px; margin: 11px 0 7px; }
-    .nota { margin-top: 4px; font-size: 0.72rem; color: #6d5c66; }
-    .nota b { display: inline-block; min-width: 74px; font-size: 0.6rem; font-weight: 800; letter-spacing: 2px; }
+    .nota { margin-top: 6px; font-size: 0.72rem; color: #6d5c66; display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; }
+    .nota b { display: inline-block; min-width: 74px; font-size: 0.6rem; font-weight: 800; letter-spacing: 2px; padding-top: 4px; flex-shrink: 0; }
+    .nota-itens { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+    .nota-i { display: inline-flex; align-items: center; background: #fcfafb; border: 1px solid #eee; border-radius: 20px; padding: 2px 9px 2px 6px; white-space: nowrap; line-height: 1.5; }
+    .ic-nota { width: 17px; height: 17px; display: inline-block; vertical-align: -3px; flex-shrink: 0; }
     .chips { margin-top: 11px; }
     .chip { display: inline-block; border-radius: 20px; padding: 4.5px 13px; font-size: 0.6rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 5px 0; border: 1px solid; }
     .rodape-cartao { display: flex; justify-content: space-between; align-items: baseline; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--filete, #eadfe4); }
@@ -573,6 +576,56 @@
         return FAMILIAS_CANONICAS.filter(c => f.indexOf(semAcento(c)) !== -1);
     }
 
+    // ============ 🎨 NOTAS ILUSTRADAS (padrão da casa: notas/*.svg) ============
+    // Cada nota olfativa aponta pra uma ilustração desenhada. A ordem importa:
+    // o mais específico vem primeiro ("flor de laranjeira" antes de "laranja").
+    const ICONES_NOTAS = [
+        ['flor de laranjeira', 'flor-laranjeira'], ['neroli', 'flor-laranjeira'], ['petitgrain', 'folhas'],
+        ['laranja', 'laranja'], ['tangerina', 'laranja'], ['mandarina', 'laranja'], ['toranja', 'laranja'],
+        ['bergamota', 'limao'], ['limao', 'limao'], ['yuzu', 'limao'], ['citrico', 'limao'], ['citrus', 'limao'],
+        ['maca verde', 'maca-verde'], ['maca', 'maca'], ['pera', 'pera'], ['pessego', 'pessego'], ['damasco', 'pessego'],
+        ['morango', 'morango'], ['framboesa', 'morango'], ['frutas vermelhas', 'morango'], ['cereja', 'cereja'],
+        ['amora', 'amora'], ['mirtilo', 'amora'], ['cassis', 'amora'], ['groselha', 'amora'],
+        ['uva', 'uva'], ['ameixa', 'uva'], ['abacaxi', 'abacaxi'], ['frutas tropicais', 'abacaxi'],
+        ['manga', 'manga'], ['melancia', 'melancia'], ['melao', 'manga'], ['lichia', 'manga'], ['maracuja', 'manga'],
+        ['coco', 'coco'], ['banana', 'manga'], ['kiwi', 'maca-verde'], ['frutas', 'maca'], ['fruta', 'maca'],
+        ['rosa turca', 'rosa'], ['rosas', 'rosa'], ['rosa', 'rosa'], ['peonia', 'flor-rosa'], ['magnolia', 'flor-rosa'],
+        ['fresia', 'flor-rosa'], ['heliotropio', 'flor-rosa'], ['flor de cerejeira', 'flor-rosa'],
+        ['jasmim', 'jasmim'], ['ylang', 'jasmim'], ['mimosa', 'jasmim'], ['osmanthus', 'jasmim'], ['camomila', 'jasmim'],
+        ['gardenia', 'flor-branca'], ['hibisco', 'flor-rosa'], ['orquidea', 'flor-branca'], ['frangipani', 'flor-branca'], ['tiare', 'flor-branca'],
+        ['violeta', 'violeta'], ['lilas', 'violeta'], ['lavanda', 'lavanda'], ['iris', 'violeta'],
+        ['lirio do vale', 'folhas'], ['lirio', 'flor-branca'], ['tulipa', 'flor-rosa'], ['girassol', 'jasmim'],
+        ['flores brancas', 'flor-branca'], ['flores', 'flor-rosa'], ['flor', 'flor-rosa'], ['floral', 'flor-rosa'],
+        ['mel silvestre', 'mel'], ['caramelo', 'caramelo'], ['toffee', 'caramelo'], ['praline', 'caramelo'],
+        ['baunilha', 'baunilha'], ['fava tonka', 'fava'], ['fava', 'fava'], ['chantilly', 'creme'], ['creme', 'creme'], ['leite', 'creme'],
+        ['chocolate', 'chocolate'], ['cacau', 'chocolate'], ['cafe', 'cafe'], ['expresso', 'cafe'],
+        ['algodao doce', 'doce'], ['acucar', 'doce'], ['marshmallow', 'doce'], ['biscoito', 'doce'],
+        ['amendoa', 'nozes'], ['avela', 'nozes'], ['pistache', 'nozes'], ['nozes', 'nozes'], ['mel', 'mel'],
+        ['canela', 'canela'], ['cravo', 'canela'], ['noz-moscada', 'canela'], ['tabaco', 'tabaco'],
+        ['pimenta rosa', 'pimenta'], ['pimenta', 'pimenta'], ['especiarias', 'pimenta'], ['gengibre', 'gengibre'], ['cardamomo', 'gengibre'], ['anis', 'anis'],
+        ['sandalo', 'madeira'], ['cedro', 'madeira'], ['madeira', 'madeira'], ['oud', 'madeira'], ['mogno', 'madeira'], ['cashmeran', 'madeira'], ['betula', 'madeira'],
+        ['patchouli', 'patchouli'], ['patchouly', 'patchouli'], ['musgo', 'folhas'], ['folhas', 'folhas'], ['bambu', 'folhas'],
+        ['cha verde', 'cha'], ['menta', 'folhas'], ['hortela', 'folhas'], ['alecrim', 'folhas'], ['salvia', 'folhas'], ['manjericao', 'folhas'], ['absinto', 'folhas'], ['verde', 'folhas'],
+        ['capim', 'vetiver'], ['vetiver', 'vetiver'],
+        ['ambar', 'ambar'], ['ambroxan', 'ambar'], ['almiscar', 'almiscar'], ['musk', 'almiscar'], ['algodao', 'almiscar'], ['po de arroz', 'almiscar'], ['talco', 'almiscar'],
+        ['couro', 'couro'], ['rum', 'bebida'], ['whisky', 'bebida'], ['conhaque', 'bebida'], ['vinho', 'bebida'], ['champagne', 'bebida'], ['gin', 'bebida'],
+        ['incenso', 'incenso'], ['olibano', 'incenso'], ['mirra', 'incenso'], ['benjoim', 'incenso'],
+        ['marinh', 'marinho'], ['maresia', 'marinho'], ['oceano', 'marinho'], ['aquatic', 'agua'], ['agua', 'agua'], ['chuva', 'agua'], ['orvalho', 'agua'], ['gelo', 'agua'],
+        ['cera de abelha', 'abelha'], ['abelha', 'abelha'], ['cha', 'cha']
+    ];
+    // Mantém o nome antigo pra não mexer em quem chama; agora devolve a ilustração da casa
+    function emojiDaNota(nome) {
+        const n = String(nome).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const img = (arq) => `<img class="ic-nota" src="notas/${arq}.svg" alt="" loading="lazy" onerror="this.remove()">`;
+        for (const par of ICONES_NOTAS) {
+            const k = par[0];
+            // Palavra curta exige "palavra inteira" (senão "mel" acharia "melancia" e "cha" acharia "chantilly")
+            if (k.length <= 4) { if (new RegExp('(^|[^a-z])' + k + '([^a-z]|$)').test(n)) return img(par[1]); }
+            else if (n.includes(k)) return img(par[1]);
+        }
+        return img('gota'); // nota desconhecida ganha a gotinha de perfume da casa
+    }
+
     // ============ 🖼️ VITRINE ============
     function cartaoHtml(item) {
         const pal = paleta(item.genero);
@@ -584,7 +637,13 @@
             : `<div class="foto" style="background:linear-gradient(160deg, ${pal.letterbox}, ${pal.filete});"><span class="ns" style="color:${pal.placTxt}">NS</span></div>`;
 
         const f = item.ficha || {};
-        const nota = (rot, val) => val ? `<div class="nota"><b style="color:${pal.suave}">${rot}</b>${esc(val)}</div>` : '';
+        // Cada nota vira um "selinho" com desenho: Laranja Sanguínea → 🍊 Laranja Sanguínea
+        const nota = (rot, val) => {
+            if (!val) return '';
+            const itens = String(val).split(/[,;·]/).map(x => x.trim()).filter(Boolean);
+            if (!itens.length) return '';
+            return `<div class="nota"><b style="color:${pal.suave}">${rot}</b><span class="nota-itens">${itens.map(x => `<span class="nota-i" style="border-color:${pal.chipBorda}">${emojiDaNota(x)}&nbsp;${esc(x)}</span>`).join('')}</span></div>`;
+        };
         const chips = f.ocasioes ? `<div class="chips">${String(f.ocasioes).split(/[·,;]/).map(o => o.trim()).filter(Boolean).slice(0, 4).map(o =>
             `<span class="chip" style="border-color:${pal.chipBorda}; background:${pal.chipFundo}; color:${pal.medio}">${esc(o)}</span>`).join('')}</div>` : '';
         // 💡 Dica de aplicação + ingredientes: guardados num bloco discreto que abre no toque
