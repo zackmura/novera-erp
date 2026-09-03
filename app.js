@@ -210,6 +210,7 @@ let conquistasGlobal = []; // 🏆 sala de troféus permanente (vendedor recebe 
 let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: só os dele; admin: equipe toda)
 let catalogoLinksGlobal = []; // 🗂️ links de catálogo criados (vendedor: os seus; admin: todos, com liga/desliga)
 let aceleradoresGlobal = []; // 💰 aceleradores de meta fechados (2% sobre vendas pagas acima da meta)
+let bonusEquipeGlobal = []; // 👥 bônus de equipe fechados (X% sobre vendas pagas dos indicados vai pra quem indicou)
 let clubeResgatesGlobal = []; // 📇 resgates do Clube de Selos (pra calcular o saldo das cartelas)
 
 // 📇 Regras do Clube de Selos (configuráveis por chaves nos Parâmetros; padrão da casa abaixo)
@@ -286,6 +287,8 @@ function configAcelerador() {
         inicio: configuracoesGlobais.acelerador_inicio || '2026-09-01'
     };
 }
+// 👥 % do bônus de equipe: quem indicou ganha isso sobre as vendas PAGAS dos indicados (1 nível só)
+function pctBonusGerente() { return parseFloat(configuracoesGlobais.pct_bonus_gerente) || 2; }
 let diasVendasRecolhidos = new Set(); // quais dias estão recolhidos na lista de Vendas — sobrevive a re-renderizações (sync, filtro, etc.)
 let usuarioLogado = ""; 
 let usuarioCargo = ""; 
@@ -724,6 +727,7 @@ async function sincronizarDadosUnico() {
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
             aceleradoresGlobal = dados.aceleradores || [];
+            bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
@@ -5876,6 +5880,46 @@ function acertarAcelerador(idAcel, nomeVend, valorTxt) {
     });
 }
 
+// 👥 Admin confirma que pagou o bônus de equipe da gerente (mesmo ciclo do acelerador)
+function acertarBonusEquipe(idBonus, nomeGer, valorTxt) {
+    abrirConfirmacao("Acertar Bônus de Equipe?", `Confirma que você pagou ${valorTxt} de bônus de equipe para ${nomeGer}? Isso marca como PAGO e some da lista de pendências.`, "👥", "#15803d", "#14532d", "✔️ Sim, paguei", () => {
+        mostrarLoading("Registrando acerto...");
+        fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'acertar_bonus_equipe', usuario: usuarioLogado, id_bonus: idBonus }) })
+            .then(r => r.json())
+            .then(res => {
+                if (res.sucesso) { mostrarAlerta("Acertado!", `Bônus de equipe de ${nomeGer} marcado como pago.`, "success"); sincronizarDadosUnico(); }
+                else mostrarAlerta("Erro", res.erro || "Falha ao registrar.", "error");
+            })
+            .catch(() => mostrarAlerta("Erro", "Falha de conexão.", "error"))
+            .finally(() => ocultarLoading());
+    });
+}
+
+// 👥 Monta o seletor "Indicado(a) por" do cadastro da Equipe (todo vendedor pode ser gerente, menos a própria pessoa)
+function montarSelectGerente(nomeAtual) {
+    const sel = document.getElementById('u-gerente');
+    if (!sel) return;
+    const valorAntes = sel.value;
+    const vendedores = usuariosGlobal.filter(u => u.cargo === 'Vendedor' && normalizarNomeBusca(u.usuario) !== normalizarNomeBusca(nomeAtual || ''));
+    sel.innerHTML = '<option value="">Ninguém (veio direto)</option>' + vendedores.map(u => `<option value="${u.usuario}">${u.usuario}</option>`).join('');
+    sel.value = valorAntes;
+}
+
+// 💡 Dica do custo neutro: escolheu quem indicou, o sistema sugere a comissão da pessoa nova
+function atualizarDicaGerente() {
+    const dica = document.getElementById('dica-gerente');
+    const sel = document.getElementById('u-gerente');
+    if (!dica || !sel) return;
+    const gNome = sel.value;
+    if (!gNome) { dica.style.display = 'none'; return; }
+    const ger = usuariosGlobal.find(u => normalizarNomeBusca(u.usuario) === normalizarNomeBusca(gNome));
+    const comGer = ger ? (parseFloat(ger.comissao) || 0) : 0;
+    if (comGer <= 0) { dica.style.display = 'none'; return; }
+    const sugestao = Math.max(0, comGer - pctBonusGerente());
+    dica.innerHTML = `💡 ${gNome} tem <b>${comGer}%</b> de comissão — para o custo ficar neutro pra você, sugerimos <b>${sugestao}%</b> para esta pessoa (${gNome} ganha os <b>${pctBonusGerente()}%</b> do Bônus de Equipe por fora).`;
+    dica.style.display = 'block';
+}
+
 // 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
 function estatisticasVisitasCatalogo(nomeVendedor) {
     const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
@@ -6524,6 +6568,42 @@ function renderizarDashboard() {
                 </div>`;
         }
 
+        // 👥 MINHA EQUIPE: se eu indiquei vendedores, vejo o time render (números agregados,
+        // sem clientes nem detalhes — o cliente é patrimônio de cada vendedora)
+        let htmlEquipeGerente = '';
+        {
+            const meusIndicados = usuariosGlobal.filter(u => u.cargo === 'Vendedor' && normalizarNomeBusca(u.gerente || '') === normalizarNomeBusca(usuarioLogado));
+            if (meusIndicados.length) {
+                const pctEq = pctBonusGerente();
+                const hjEq = new Date();
+                const pfxEq = `${hjEq.getFullYear()}-${String(hjEq.getMonth() + 1).padStart(2, '0')}`;
+                let totalBaseEq = 0;
+                const linhasInd = meusIndicados.map(u => {
+                    const pagasI = vendasGlobal.filter(v => normalizarNomeBusca(v.socio) === normalizarNomeBusca(u.usuario) && v.dataVendaIso && v.dataVendaIso.startsWith(pfxEq) && v.status === 'Pago').reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+                    totalBaseEq += pagasI;
+                    return `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #c7d9f0; padding:6px 0;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#1e3a5f;">👤 ${u.usuario}</span>
+                        <span style="font-size:0.68rem; color:#3b6ea5;">vendeu pago <b>${fmt(pagasI)}</b> → seu bônus <b style="color:#1d4ed8;">${fmt(pagasI * pctEq / 100)}</b></span>
+                    </div>`;
+                }).join('');
+
+                const meusBonusFechados = bonusEquipeGlobal.filter(b => normalizarNomeBusca(b.gerente) === normalizarNomeBusca(usuarioLogado));
+                const htmlBEFechados = meusBonusFechados.slice(0, 3).map(b => {
+                    const mesBrBE = b.mes.split('-').reverse().join('/');
+                    return `<p style="font-size:0.66rem; margin:6px 0 0; text-align:center; color:${b.acertado ? '#15803d' : '#b45309'}; font-weight:700;">👥 Bônus ${mesBrBE}: <b>${fmt(b.valor)}</b> ${b.acertado ? '— pago ✅' : '— ⏳ aguardando acerto'}</p>`;
+                }).join('');
+
+                htmlEquipeGerente = `
+                <div class="dash-card" style="grid-column: span 2; padding: 16px; background: #eff6ff; border: 2px solid #93b8e0;">
+                    <h3 style="color:#1e3a5f; font-size:0.8rem; font-weight:900; margin:0 0 4px 0;">👥 MINHA EQUIPE (você é gerente!)</h3>
+                    <p style="font-size:0.64rem; color:#3b6ea5; margin:0 0 8px 0; line-height:1.5;">Você ganha <b>${pctEq}%</b> de TUDO que as pessoas que você indicou venderem e RECEBEREM. Elas vendem, você lucra junto — sem tirar nada delas. Quanto mais você ensinar, mais rende! 💙</p>
+                    ${linhasInd}
+                    <p style="font-size:0.74rem; font-weight:900; color:#1d4ed8; margin:8px 0 0; text-align:center; background:#fff; border:1px solid #c7d9f0; border-radius:8px; padding:8px;">💰 Acumulado neste mês: ${fmt(totalBaseEq * pctEq / 100)} <span style="font-weight:600; font-size:0.62rem; color:#3b6ea5;">(fecha dia 1º, só vendas pagas)</span></p>
+                    ${htmlBEFechados}
+                </div>`;
+            }
+        }
+
         // 🎖️ PATENTE DE CARREIRA: baseada no acumulado da vida toda — nunca reseta, só sobe
         const carreiraTotal = minhasVendasHist.reduce((s, v) => s + (v.status !== 'Presente' ? parseDinheiro(v.valor_venda) : 0), 0);
         const PATENTES = [['🌱', 'Iniciante', 0], ['🥉', 'Bronze', 1000], ['🥈', 'Prata', 5000], ['🥇', 'Ouro', 15000], ['💎', 'Diamante', 50000]];
@@ -6668,7 +6748,7 @@ function renderizarDashboard() {
                     <p style="font-size:0.6rem; color:#888; margin-top:3px;">Aguardando clientes/acerto</p>
                 </div>
 
-                ${secaoDash('v-missoes', '🎯 Missões do Mês', htmlMeta + htmlCobrancas + htmlStreak + htmlProjecao, true)}
+                ${secaoDash('v-missoes', '🎯 Missões do Mês', htmlMeta + htmlEquipeGerente + htmlCobrancas + htmlStreak + htmlProjecao, true)}
                 ${secaoDash('v-conquistas', `🏆 Conquistas & Ranking${minhasConquistas.length ? ` <span style="font-weight:700; color:#b45309; font-size:0.72rem;">· ${minhasConquistas.length} troféus</span>` : ''}`, htmlSala + htmlPatente + htmlRanking, false)}
                 ${secaoDash('v-catalogo', `🔗 Meu Catálogo Online${vcMeu.hoje > 0 ? ` <span style="font-weight:700; color:#0d9488; font-size:0.72rem;">· 👀 ${vcMeu.hoje} hoje</span>` : ''}`, htmlVisitasCat, false)}
                 ${secaoDash('v-analises', '📈 Minhas Análises', `
@@ -7107,6 +7187,47 @@ function renderizarDashboard() {
         }
     }
 
+    // 👥 BÔNUS DE EQUIPE (programa de indicação): pendências de acerto + prévia do mês corrente
+    let htmlBonusEquipeAdmin = '';
+    {
+        const pctBEAdm = pctBonusGerente();
+        const indicados = usuariosGlobal.filter(u => u.cargo === 'Vendedor' && String(u.gerente || '').trim());
+        const pendentesBE = bonusEquipeGlobal.filter(b => !b.acertado);
+        const linhasPendBE = pendentesBE.map(b => `
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #c7d9f0; padding:7px 0; gap:8px;">
+                <span style="font-size:0.78rem; font-weight:700; color:#1e3a5f;">👥 ${b.gerente} <span style="font-size:0.6rem; color:#3b6ea5;">· ${b.mes.split('-').reverse().join('/')} · equipe vendeu pago ${fmt(b.baseVendas)}</span></span>
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <b style="font-size:0.85rem; color:#1d4ed8;">${fmt(b.valor)}</b>
+                    <button onclick="acertarBonusEquipe(${b.linha}, '${b.gerente}', '${fmt(b.valor).replace(/'/g, '')}')" style="background:#e8f5e9; color:#166534; border:1px solid #bbf7d0; border-radius:8px; padding:6px 12px; font-size:0.65rem; font-weight:800; cursor:pointer;">✔️ Acertei</button>
+                </span>
+            </div>`).join('');
+
+        // Prévia do mês corrente: quanto cada gerente está acumulando com as vendas pagas dos indicados
+        let linhasPreviaBE = '';
+        if (indicados.length) {
+            const hjBE = new Date();
+            const pfxBE = `${hjBE.getFullYear()}-${String(hjBE.getMonth() + 1).padStart(2, '0')}`;
+            const porGer = {};
+            indicados.forEach(u => {
+                const pagasI = vendasGlobal.filter(v => normalizarNomeBusca(v.socio) === normalizarNomeBusca(u.usuario) && v.dataVendaIso && v.dataVendaIso.startsWith(pfxBE) && v.status === 'Pago').reduce((s, v) => s + parseDinheiro(v.valor_venda), 0);
+                if (pagasI <= 0) return;
+                const gK = String(u.gerente).trim();
+                porGer[gK] = (porGer[gK] || 0) + pagasI;
+            });
+            linhasPreviaBE = Object.keys(porGer).map(g => `<span style="display:inline-block; background:#fff; border:1px solid #c7d9f0; border-radius:14px; padding:3px 10px; font-size:0.62rem; font-weight:800; color:#1e3a5f; margin:0 4px 4px 0;">${g}: +${fmt(porGer[g] * pctBEAdm / 100)} <span style="font-weight:600; color:#3b6ea5;">(equipe ${fmt(porGer[g])})</span></span>`).join('');
+        }
+
+        if (linhasPendBE || linhasPreviaBE || indicados.length) {
+            htmlBonusEquipeAdmin = `
+            <div class="dash-card" style="grid-column: span 2; padding: 15px; background: #eff6ff; border: 1px solid #c7d9f0;">
+                <h3 style="color:#1e3a5f; font-size:0.8rem; font-weight:900; margin:0 0 8px 0; border-bottom:1px dashed #c7d9f0; padding-bottom:6px;">👥 BÔNUS DE EQUIPE (${pctBEAdm}% s/ vendas pagas dos indicados — 1 nível)</h3>
+                ${linhasPendBE || '<p style="font-size:0.7rem; color:#3b6ea5; margin:4px 0; text-align:center;">Nenhum bônus pendente de acerto. ✅</p>'}
+                ${linhasPreviaBE ? `<p style="font-size:0.62rem; color:#3b6ea5; margin:8px 0 4px; font-weight:800;">📈 Acumulando neste mês (fecha dia 1º):</p><div>${linhasPreviaBE}</div>` : `<p style="font-size:0.62rem; color:#3b6ea5; margin:6px 0 0;">${indicados.length ? 'Nenhuma venda paga dos indicados ainda neste mês.' : ''}</p>`}
+                <p style="font-size:0.6rem; color:#64748b; margin:8px 0 0;">Defina quem indicou quem no cadastro da <b>Equipe</b> (campo "Indicado(a) por"). Você paga a gerente direto, junto do acerto normal.</p>
+            </div>`;
+        }
+    }
+
     // 🧠 ANALISTA NOVERA (Camada 1): lê os números do período e fala em português de gente,
     // com semáforo e a próxima ação — instantâneo, local e sempre honesto
     let htmlAnalista = '';
@@ -7287,7 +7408,7 @@ function renderizarDashboard() {
                     </div>
                 </div>`, true)}
 
-            ${secaoDash('a-equipe', '👥 Equipe & Comissões', htmlRanking + htmlAceleradoresAdmin, true)}
+            ${secaoDash('a-equipe', '👥 Equipe & Comissões', htmlRanking + htmlAceleradoresAdmin + htmlBonusEquipeAdmin, true)}
 
             ${secaoDash('a-catalogo', '🌐 Catálogo Online', htmlVisitasCatAdmin || '<p style="grid-column: span 2; text-align:center; color:#999; font-size:0.75rem; padding:10px 0;">Nenhuma visita registrada ainda.</p>', false)}
 
@@ -7793,7 +7914,8 @@ function descricaoConquista(badgeId) {
         coroa_ouro: 'Foi quem mais vendeu na equipe no mês. A número 1! 👑',
         coroa_prata: 'Ficou em 2º lugar em vendas na equipe no mês.',
         coroa_bronze: 'Ficou em 3º lugar em vendas na equipe no mês.',
-        mes_sem_fiado: 'Fechou o mês com 5+ vendas e todas recebidas — zero fiado pendente.'
+        mes_sem_fiado: 'Fechou o mês com 5+ vendas e todas recebidas — zero fiado pendente.',
+        mentora: 'Indicou alguém pra equipe e essa pessoa fez a primeira venda! Você plantou uma vendedora — e ganha bônus sobre as vendas pagas dela pra sempre. 🌱'
     };
     return mapa[badgeId] || 'Conquista especial da Novera.';
 }
@@ -8020,6 +8142,7 @@ async function sincronizarDadosSilencioso() {
             visitasCatalogoGlobal = dados.visitasCatalogo || [];
             catalogoLinksGlobal = dados.catalogoLinks || [];
             aceleradoresGlobal = dados.aceleradores || [];
+            bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
@@ -9211,6 +9334,8 @@ async function gerarPdfQrCodes() {
 function renderizarUsuarios() {
     const container = document.getElementById('lista-usuarios-cards');
     if(!container) return;
+    // Mantém o seletor "Indicado(a) por" sempre atualizado com a equipe atual (sem perder a escolha em edição)
+    montarSelectGerente(document.getElementById('u-nome') ? document.getElementById('u-nome').value : '');
     if(usuariosGlobal.length === 0) {
         container.innerHTML = "<p style='text-align:center; color:#999;'>Nenhum usuário encontrado.</p>";
         return;
@@ -9233,6 +9358,7 @@ function renderizarUsuarios() {
                     👤 ${u.usuario} ${badgeCargo}
                 </h4>
                 <p style="font-size:0.75rem; color:#888; margin:0;">ID: ${u.id} | <b style="color:var(--primary-dark);">Comissão: ${taxa}%</b>${u.telefone ? ` | 📱 ${u.telefone}` : ` | <span style="color:#c2410c;">📵 sem WhatsApp p/ catálogo</span>`}</p>
+                ${(() => { const nIndic = usuariosGlobal.filter(x => x.cargo === 'Vendedor' && normalizarNomeBusca(x.gerente || '') === normalizarNomeBusca(u.usuario)).length; let tags = ''; if (u.gerente) tags += `<span style="background:#eff6ff; color:#1e3a5f; border:1px solid #c7d9f0; border-radius:10px; padding:1px 8px; font-size:0.6rem; font-weight:800; margin-right:4px;">👥 Indicado(a) por ${u.gerente}</span>`; if (nIndic) tags += `<span style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:10px; padding:1px 8px; font-size:0.6rem; font-weight:800;">🌱 Gerente de ${nIndic} vendedor(a)${nIndic > 1 ? 's' : ''} (+${pctBonusGerente()}%)</span>`; return tags ? `<p style="margin:4px 0 0;">${tags}</p>` : ''; })()}
             </div>
 
             <div class="prod-actions">
@@ -9257,15 +9383,17 @@ function salvarUsuario() {
     const comissao = parseFloat(document.getElementById('u-comissao').value) || 0;
     const metaMensal = parseFloat(document.getElementById('u-meta') ? document.getElementById('u-meta').value : 0) || 0;
     const telefoneU = document.getElementById('u-telefone') ? document.getElementById('u-telefone').value.trim() : '';
+    const gerenteU = document.getElementById('u-gerente') ? document.getElementById('u-gerente').value.trim() : '';
 
     if(!nome) return mostrarAlerta("Atenção", "Preencha o nome de usuário.", "warning");
+    if (gerenteU && normalizarNomeBusca(gerenteU) === normalizarNomeBusca(nome)) return mostrarAlerta("Atenção", "A pessoa não pode ser indicada por ela mesma. 😉", "warning");
     if(!id && !senha) return mostrarAlerta("Atenção", "Crie uma senha para o novo usuário.", "warning");
 
     const acao = id ? "atualizar_usuario" : "salvar_usuario";
     mostrarLoading("Salvando...");
     const msgLog = id ? `✏️ Editou usuário: ${nome} (${cargo} - ${comissao}%${metaMensal ? ` - meta ${fmt(metaMensal)}` : ''})` : `👤 Novo membro: ${nome} (${cargo} - ${comissao}%)`;
 
-    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, meta_mensal: metaMensal, telefone: telefoneU, log_detalhe: msgLog };
+    let payload = { usuario: usuarioLogado, acao: acao, id_usuario: id, nome_usuario: nome, cargo_usuario: cargo, comissao: comissao, meta_mensal: metaMensal, telefone: telefoneU, gerente: gerenteU, log_detalhe: msgLog };
     if(!id) payload.senha_usuario = senha; 
 
     fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify(payload) })
@@ -9288,6 +9416,9 @@ function prepararEdicaoUsuario(id) {
     document.getElementById('u-comissao').value = u.comissao || 0;
     const uMetaEl = document.getElementById('u-meta'); if (uMetaEl) uMetaEl.value = u.meta_mensal || '';
     const uTelEl = document.getElementById('u-telefone'); if (uTelEl) uTelEl.value = u.telefone || '';
+    montarSelectGerente(u.usuario);
+    const uGerEl = document.getElementById('u-gerente'); if (uGerEl) uGerEl.value = u.gerente || '';
+    atualizarDicaGerente();
 
     document.getElementById('div-u-senha').style.display = 'none';
     document.getElementById('btn-salvar-usuario').innerText = "💾 Salvar Alterações";
@@ -9304,6 +9435,9 @@ function cancelarEdicaoUsuario() {
     document.getElementById('u-comissao').value = "";
     const uMetaEl2 = document.getElementById('u-meta'); if (uMetaEl2) uMetaEl2.value = "";
     const uTelEl2 = document.getElementById('u-telefone'); if (uTelEl2) uTelEl2.value = "";
+    montarSelectGerente('');
+    const uGerEl2 = document.getElementById('u-gerente'); if (uGerEl2) uGerEl2.value = "";
+    atualizarDicaGerente();
     document.getElementById('u-senha').value = "";
     document.getElementById('div-u-senha').style.display = 'block';
     document.getElementById('btn-salvar-usuario').innerText = "➕ Cadastrar Usuário";
@@ -10064,6 +10198,7 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-clube-cartela')) document.getElementById('cfg-clube-cartela').value = configuracoesGlobais.clube_selos_cartela || 8;
     if(document.getElementById('cfg-clube-teto')) document.getElementById('cfg-clube-teto').value = configuracoesGlobais.clube_teto_premio || 50;
     if(document.getElementById('cfg-acelerador-pct')) document.getElementById('cfg-acelerador-pct').value = configuracoesGlobais.acelerador_pct || 2;
+    if(document.getElementById('cfg-bonus-gerente')) document.getElementById('cfg-bonus-gerente').value = configuracoesGlobais.pct_bonus_gerente || 2;
     if(document.getElementById('cfg-acelerador-inicio')) document.getElementById('cfg-acelerador-inicio').value = configuracoesGlobais.acelerador_inicio || '2026-09-01';
 
     // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
@@ -10113,6 +10248,7 @@ function salvarParametrosSistema() {
                 clube_selos_cartela: (document.getElementById('cfg-clube-cartela') ? document.getElementById('cfg-clube-cartela').value : '8'),
                 clube_teto_premio: (document.getElementById('cfg-clube-teto') ? document.getElementById('cfg-clube-teto').value : '50'),
                 acelerador_pct: (document.getElementById('cfg-acelerador-pct') ? document.getElementById('cfg-acelerador-pct').value : '2'),
+                pct_bonus_gerente: (document.getElementById('cfg-bonus-gerente') ? document.getElementById('cfg-bonus-gerente').value : '2'),
                 acelerador_inicio: (document.getElementById('cfg-acelerador-inicio') ? document.getElementById('cfg-acelerador-inicio').value : '2026-09-01'),
                 ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
             }
