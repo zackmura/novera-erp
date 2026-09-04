@@ -6046,7 +6046,8 @@ function coletarDadosAnaliseIA() {
     vendasGlobal.forEach(v => { if (v.status === 'Pendente' || v.status === 'Parcelado') fiadoTotal += parseDinheiro(v.valor_venda); });
 
     return {
-        contexto_do_negocio: 'Perfumaria artesanal brasileira de contratipos (inspirações). Perfume 40ml vendido a ~R$50 com custo ~R$19; produção própria com maceração de ~20 dias (não dá pra repor da noite pro dia). Vendedores são AUTÔNOMOS em busca de renda extra (NÃO são funcionários — motivação sem cobrança de chefe), ganham comissão (~10%) + acelerador de 2% sobre vendas pagas acima da meta. Público de classe popular/média; vendas por WhatsApp, fiado é comum e cada vendedor tem catálogo online próprio com gamificação (troféus, metas, ranking).',
+        contexto_do_negocio: 'Perfumaria artesanal brasileira de contratipos (inspirações). Perfume 40ml vendido a ~R$50 com custo ~R$19; produção própria com maceração de ~20 dias (não dá pra repor da noite pro dia). Vendedores são AUTÔNOMOS em busca de renda extra (NÃO são funcionários — motivação sem cobrança de chefe), ganham comissão (~10%) + acelerador de 2% sobre vendas pagas acima da meta. Público de classe popular/média; vendas por WhatsApp, fiado é comum e cada vendedor tem catálogo online próprio com gamificação (troféus, metas, ranking). REGRA DE OURO SOBRE FIADO: vender com pagamento combinado pra ~30 dias é ESTRATÉGIA DELIBERADA da diretoria pra fidelizar clientes — fiado alto com data combinada em dia NÃO é problema e NÃO deve aparecer como risco; trate como risco APENAS o fiado VENCIDO (passou da data combinada) ou sem data combinada, e sugira a cobrança desses.',
+        instrucoes_da_diretoria: String(configuracoesGlobais.ia_instrucoes || '').trim() || 'Nenhuma instrução extra no momento.',
         historico_ultimos_6_meses: historico,
         equipe_vendedores_autonomos: equipe,
         top5_produtos_mes: tops.slice(0, 5),
@@ -6130,7 +6131,7 @@ async function abrirAnaliseProfundaIA(forcarNovo) {
         const dados = coletarDadosAnaliseIA();
         const prompt = `Você é um consultor sênior de pequenos negócios de varejo e perfumaria no Brasil. Seja SINCERO e direto — elogie só o que merece, aponte problemas sem rodeios, mas sempre com a próxima ação prática. Analise os dados reais abaixo e responda SOMENTE com JSON válido nesta estrutura exata:
 {"nota_geral": <número 0 a 10 do momento do negócio>, "resumo": "<2-3 frases do momento, linguagem simples de dono de negócio>", "pontos_fortes": ["<3 itens, citando números dos dados>"], "riscos": ["<3 itens, citando números>"], "acoes_da_semana": ["<3 ações concretas e específicas para fazer NESTA semana>"], "analise_produtos": "<parágrafo sincero sobre o portfólio: o que vende, o que encalha, o que produzir> ", "ideias_de_produtos": ["<2-3 ideias de produtos novos que combinam com esse público e mercado>"], "analise_equipe": "<parágrafo sobre os vendedores autônomos: quem vai bem, quem precisa de apoio, e COMO motivar sem agir como patrão (eles não são funcionários)>", "visao_mercado": "<parágrafo sobre tendências do mercado brasileiro de perfumaria artesanal/contratipos aplicadas a ESTE negócio>"}
-Regras: português simples, sem jargão de consultoria; cite nomes de produtos e vendedores dos dados; números em R$. DADOS REAIS: ${JSON.stringify(dados)}`;
+Regras: português simples, sem jargão de consultoria; cite nomes de produtos e vendedores dos dados; números em R$. As "instrucoes_da_diretoria" dentro dos dados são ordens do dono do negócio: OBEDEÇA-AS SEMPRE, elas mandam mais que qualquer regra geral sua. DADOS REAIS: ${JSON.stringify(dados)}`;
 
         const modelos = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
         let parecer = null, erroFinal = '';
@@ -6195,7 +6196,32 @@ function mostrarModalAnaliseIA(a, quandoTxt) {
                 ${blocoHtml('🧴 PRODUTOS', paragrafo(a.analise_produtos) + (Array.isArray(a.ideias_de_produtos) && a.ideias_de_produtos.length ? `<p style="margin:8px 0 4px; font-size:0.68rem; font-weight:800; color:#7c3aed;">💡 Ideias de produtos novos:</p>${listaHtml(a.ideias_de_produtos, '✨')}` : ''), '#966178')}
                 ${blocoHtml('👥 EQUIPE (AUTÔNOMOS)', paragrafo(a.analise_equipe), '#b45309')}
                 ${blocoHtml('🌎 VISÃO DE MERCADO', paragrafo(a.visao_mercado), '#0f766e')}
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:8px 12px; margin-top:4px;">
+
+                <!-- 💬 Conversa continuada: aprofunde o parecer sem gerar tudo de novo -->
+                <div style="margin-top:4px; border-top:2px dashed #e9d5ff; padding-top:14px;">
+                    <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:900; color:#7c3aed; letter-spacing:1.5px;">💬 CONTINUE A CONVERSA COM O CONSULTOR</h4>
+                    <div id="ia-conversa">${(() => { try { const cIa = JSON.parse(localStorage.getItem('novera_parecer_ia') || '{}'); return (cIa.conversa || []).map(c => bolhaPerguntaIA(c.p) + bolhaRespostaIA(c.r)).join(''); } catch (eCv) { return ''; } })()}</div>
+                    <div style="display:flex; gap:5px; flex-wrap:wrap; margin:6px 0 8px;">
+                        <button onclick="perguntarConsultorIA('Detalha as 3 ações da semana passo a passo, como se fosse pra alguém leigo executar amanhã cedo.')" style="background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; border-radius:14px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">🧾 Detalha as ações</button>
+                        <button onclick="perguntarConsultorIA('Escreve uma mensagem pronta e motivadora pra eu mandar no grupo de WhatsApp dos vendedores com base nesse parecer, sem parecer patrão cobrando.')" style="background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; border-radius:14px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">📲 Mensagem pra equipe</button>
+                        <button onclick="perguntarConsultorIA('Aprofunda a análise de produtos: o que produzir, o que promover e o que aposentar, com números.')" style="background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; border-radius:14px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">🧴 Foca nos produtos</button>
+                        <button onclick="perguntarConsultorIA('Explica em detalhe por que deu essa nota e o que exatamente me faria subir 2 pontos.')" style="background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; border-radius:14px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">📉 Por que essa nota?</button>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="ia-pergunta" autocomplete="off" placeholder="Ou pergunte qualquer coisa..." onkeydown="if(event.key==='Enter'){perguntarConsultorIA();}" style="flex:1; padding:10px 12px; border:1px solid #e9d5ff; border-radius:10px; font-size:0.78rem; margin:0; box-sizing:border-box;">
+                        <button onclick="perguntarConsultorIA()" style="background:linear-gradient(135deg, #5b21b6, #7c3aed); color:#fff; border:none; border-radius:10px; padding:0 16px; font-size:0.9rem; font-weight:900; cursor:pointer;">➤</button>
+                    </div>
+                </div>
+
+                <!-- 📌 Instruções permanentes do dono: a IA obedece em TODO parecer -->
+                <details style="margin-top:12px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:10px 12px;">
+                    <summary style="font-size:0.66rem; font-weight:800; color:#7c3aed; cursor:pointer;">📌 Instruções da Diretoria (o consultor sempre obedece)</summary>
+                    <textarea id="ia-instrucoes" rows="3" style="width:100%; box-sizing:border-box; margin:8px 0 6px; padding:8px; border:1px solid #e9d5ff; border-radius:8px; font-size:0.72rem; font-family:inherit;" placeholder="Ex: Fiado de 30 dias é nossa estratégia de fidelização, não trate como problema.">${String(configuracoesGlobais.ia_instrucoes || '').replace(/</g, '&lt;')}</textarea>
+                    <button onclick="salvarInstrucoesIA()" style="background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:0.64rem; font-weight:800; cursor:pointer;">💾 Salvar instruções</button>
+                    <p style="font-size:0.58rem; color:#9b7fc4; margin:6px 0 0;">Fica salvo pra sempre (você e a Natália) e entra em TODA análise e conversa. Pro parecer de hoje reconsiderar, toque em 🔄 Gerar novo.</p>
+                </details>
+
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:8px 12px; margin-top:10px;">
                     <span style="font-size:0.62rem; color:#7c3aed; font-weight:700;">📌 Parecer de hoje${quandoTxt ? ` às ${quandoTxt}` : ''} — fica guardado o dia todo.</span>
                     <button onclick="document.getElementById('modal-analise-ia').remove(); abrirAnaliseProfundaIA(true);" style="background:#fff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:8px; padding:6px 12px; font-size:0.62rem; font-weight:800; cursor:pointer; white-space:nowrap;">🔄 Gerar novo</button>
                 </div>
@@ -6203,6 +6229,88 @@ function mostrarModalAnaliseIA(a, quandoTxt) {
             </div>
         </div>`;
     document.body.appendChild(overlay);
+}
+
+// 💬 Bolhas da conversa com o consultor (pergunta do dono à direita, resposta à esquerda)
+function bolhaPerguntaIA(p) {
+    return `<div style="display:flex; justify-content:flex-end; margin:0 0 6px;"><span style="background:#7c3aed; color:#fff; border-radius:14px 14px 3px 14px; padding:8px 12px; font-size:0.74rem; max-width:85%; line-height:1.5;">${String(p || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span></div>`;
+}
+function bolhaRespostaIA(r) {
+    let s = String(r || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[•*-]\s+/gm, '• ');
+    const corpo = s.split(/\n{2,}/).map(p => `<p style="margin:0 0 7px;">${p.replace(/\n/g, '<br>')}</p>`).join('');
+    return `<div style="display:flex; justify-content:flex-start; margin:0 0 10px;"><div style="background:#f5f3f7; color:#333; border:1px solid #e9e2ef; border-radius:14px 14px 14px 3px; padding:9px 12px; font-size:0.74rem; max-width:92%; line-height:1.55;">🤖 ${corpo}</div></div>`;
+}
+
+// 💬 Pergunta de continuação: usa o parecer do dia + histórico + dados frescos — resposta em segundos
+let iaPerguntando = false;
+async function perguntarConsultorIA(perguntaPreset) {
+    const inp = document.getElementById('ia-pergunta');
+    const pergunta = String(perguntaPreset || (inp ? inp.value : '')).trim();
+    const cont = document.getElementById('ia-conversa');
+    if (!pergunta || !cont || iaPerguntando) return;
+    const chave = localStorage.getItem('novera_ai_key');
+    if (!chave) return mostrarAlerta("Falta a chave da IA", "Configure a Chave Gemini em ⚙️ Configurações → Chaves de Integração.", "warning");
+
+    iaPerguntando = true;
+    if (inp && !perguntaPreset) inp.value = '';
+    cont.innerHTML += bolhaPerguntaIA(pergunta) + `<div id="ia-digitando" style="font-size:0.7rem; color:#9b7fc4; margin:0 0 10px;">🤖 <i>pensando e escrevendo...</i></div>`;
+    const dig = document.getElementById('ia-digitando');
+    if (dig) dig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    try {
+        let cacheIa = {};
+        try { cacheIa = JSON.parse(localStorage.getItem('novera_parecer_ia') || '{}'); } catch (eP) { }
+        const conversa = cacheIa.conversa || [];
+        const dados = coletarDadosAnaliseIA();
+        const historico = conversa.slice(-5).map(c => `PERGUNTA ANTERIOR DO DONO: ${c.p}\nSUA RESPOSTA: ${c.r}`).join('\n\n');
+        const promptSeg = `Você é o consultor sênior da Novera (varejo de perfumaria artesanal no Brasil). Você já entregou hoje o parecer em JSON abaixo e agora o DONO do negócio está conversando com você sobre ele. Responda a pergunta em português simples e direto, no máximo ~180 palavras, em TEXTO CORRIDO (pode usar **negrito** e listas com •), citando números reais dos dados quando ajudar. As "instrucoes_da_diretoria" dos dados são ordens do dono: obedeça sempre.
+SEU PARECER DE HOJE: ${JSON.stringify(cacheIa.parecer || {})}
+${historico ? historico + '\n' : ''}DADOS REAIS ATUALIZADOS: ${JSON.stringify(dados)}
+PERGUNTA DE AGORA: ${pergunta}`;
+
+        const modelosSeg = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        let resposta = '';
+        for (const mSeg of modelosSeg) {
+            try {
+                const rSeg = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mSeg}:generateContent?key=${chave}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: promptSeg }] }], generationConfig: { temperature: 0 } })
+                });
+                if (!rSeg.ok) continue;
+                const bSeg = await rSeg.json();
+                resposta = (bSeg.candidates && bSeg.candidates[0] && bSeg.candidates[0].content && bSeg.candidates[0].content.parts[0].text) || '';
+                if (resposta) break;
+            } catch (eSeg) { }
+        }
+        const digFim = document.getElementById('ia-digitando');
+        if (digFim) digFim.remove();
+        if (!resposta) { cont.innerHTML += bolhaRespostaIA('Não consegui responder agora — a IA está fora do ar ou sem cota. Tenta de novo em instantes.'); return; }
+
+        cont.innerHTML += bolhaRespostaIA(resposta);
+        const fim = cont.lastElementChild; if (fim) fim.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+        // Guarda a conversa junto do parecer do dia (sobrevive a fechar e reabrir o modal)
+        conversa.push({ p: pergunta, r: resposta });
+        cacheIa.conversa = conversa.slice(-12);
+        try { localStorage.setItem('novera_parecer_ia', JSON.stringify(cacheIa)); } catch (eG) { }
+    } finally { iaPerguntando = false; const d2 = document.getElementById('ia-digitando'); if (d2) d2.remove(); }
+}
+
+// 📌 Salva as instruções permanentes da diretoria (vão em toda análise, valem pra todos os admins)
+function salvarInstrucoesIA() {
+    const txt = (document.getElementById('ia-instrucoes') || {}).value || '';
+    mostrarLoading('Salvando instruções...');
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { ia_instrucoes: txt } }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                configuracoesGlobais.ia_instrucoes = txt;
+                mostrarAlerta('Salvo! 📌', 'O consultor vai obedecer essas instruções em toda análise e conversa. Pro parecer de HOJE reconsiderar, toque em 🔄 Gerar novo.', 'success');
+            } else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+        })
+        .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+        .finally(() => ocultarLoading());
 }
 
 function renderizarDashboard() {
