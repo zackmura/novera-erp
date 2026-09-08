@@ -5944,42 +5944,86 @@ function atualizarDicaGerente() {
 // ==========================================
 const NOTIFS_TG = [
     { grupo: '🛒 Vendas' },
-    { id: 'venda', emoji: '🟢', nome: 'Nova venda', desc: 'Cada venda avulsa registrada', tpl: true },
-    { id: 'carrinho', emoji: '🛒', nome: 'Carrinho fechado', desc: 'Pedido com vários itens', tpl: true },
-    { id: 'venda_editada', emoji: '✏️', nome: 'Venda atualizada', desc: 'Alguém editou uma venda', tpl: true },
-    { id: 'fiado_pago', emoji: '💲', nome: 'Fiado pago', desc: 'Baixa de pagamento + comissão liberada', tpl: true },
+    { id: 'venda', emoji: '🟢', nome: 'Nova venda', desc: 'Cada venda avulsa registrada', tpls: [{ id: 'venda' }] },
+    { id: 'carrinho', emoji: '🛒', nome: 'Carrinho fechado', desc: 'Pedido com vários itens', tpls: [{ id: 'carrinho' }] },
+    { id: 'venda_editada', emoji: '✏️', nome: 'Venda atualizada', desc: 'Alguém editou uma venda', tpls: [{ id: 'venda_editada' }] },
+    { id: 'fiado_pago', emoji: '💲', nome: 'Fiado pago', desc: 'Baixa de pagamento + comissão liberada', tpls: [{ id: 'fiado_pago' }] },
     { grupo: '📦 Estoque & Fábrica' },
-    { id: 'estoque_baixo', emoji: '🚨', nome: 'Estoque baixo / zerado', desc: 'Produto atingiu o mínimo ou acabou' },
-    { id: 'maceracao', emoji: '🧪', nome: 'Nova maceração', desc: 'Lote novo entrou na fila' },
-    { id: 'fabrica_pronta', emoji: '☀️', nome: 'Lotes prontos pra envasar', desc: 'Terminou a maceração (avisa 1x por lote)', hora: 'fabrica_pronta', horaPadrao: '08:00' },
-    { id: 'ruptura', emoji: '⏳', nome: 'Alerta de ruptura', desc: 'O que vai faltar no ritmo de vendas atual', hora: 'ruptura', horaPadrao: '08:10' },
-    { id: 'conferencia', emoji: '📋', nome: 'Conferência de estoque', desc: 'Ajustes feitos numa conferência' },
+    { id: 'estoque_baixo', emoji: '🚨', nome: 'Estoque baixo / zerado', desc: 'Produto atingiu o mínimo ou acabou', tpls: [{ id: 'estoque_baixo', rotulo: 'Estoque acabando' }, { id: 'estoque_zerado', rotulo: 'Estoque zerado' }] },
+    { id: 'maceracao', emoji: '🧪', nome: 'Nova maceração', desc: 'Lote novo entrou na fila', tpls: [{ id: 'maceracao' }] },
+    { id: 'fabrica_pronta', emoji: '☀️', nome: 'Lotes prontos pra envasar', desc: 'Terminou a maceração (avisa 1x por lote)', hora: 'fabrica_pronta', horaPadrao: '08:00', tpls: [{ id: 'fabrica_pronta' }] },
+    { id: 'ruptura', emoji: '⏳', nome: 'Alerta de ruptura', desc: 'O que vai faltar no ritmo de vendas atual', hora: 'ruptura', horaPadrao: '08:10', tpls: [{ id: 'ruptura' }] },
+    { id: 'conferencia', emoji: '📋', nome: 'Conferência de estoque', desc: 'Ajustes feitos numa conferência', tpls: [{ id: 'conferencia' }] },
     { grupo: '💰 Financeiro' },
-    { id: 'fechamento_dia', emoji: '📉', nome: 'Fechamento do dia', desc: 'Resumo do caixa do dia', hora: 'fechamento_dia', horaPadrao: '19:00' },
-    { id: 'acertos', emoji: '🤝', nome: 'Acertos de comissão', desc: 'Repasse confirmado a um vendedor' },
-    { id: 'aceleradores', emoji: '💰', nome: 'Aceleradores a pagar', desc: 'Fechamento do mês (dia 1º)' },
-    { id: 'bonus_equipe', emoji: '👥', nome: 'Bônus de equipe a pagar', desc: 'Fechamento do mês (dia 1º)' },
+    { id: 'fechamento_dia', emoji: '📉', nome: 'Fechamento do dia', desc: 'Resumo do caixa do dia', hora: 'fechamento_dia', horaPadrao: '19:00', tpls: [{ id: 'fechamento_dia' }] },
+    { id: 'acertos', emoji: '🤝', nome: 'Acertos de comissão', desc: 'Repasse confirmado a um vendedor', tpls: [{ id: 'acerto_unico', rotulo: 'Acerto de uma venda' }, { id: 'acerto_lote', rotulo: 'Acerto em lote' }] },
+    { id: 'aceleradores', emoji: '💰', nome: 'Aceleradores a pagar', desc: 'Fechamento do mês (dia 1º)', tpls: [{ id: 'aceleradores' }] },
+    { id: 'bonus_equipe', emoji: '👥', nome: 'Bônus de equipe a pagar', desc: 'Fechamento do mês (dia 1º)', tpls: [{ id: 'bonus_equipe' }] },
     { grupo: '👥 Equipe & Clientes' },
-    { id: 'conquistas', emoji: '🏆', nome: 'Troféus e conquistas', desc: 'Alguém da equipe desbloqueou troféu' },
-    { id: 'coroacao', emoji: '👑', nome: 'Pódio do mês', desc: 'Coroação dos campeões (dia 1º)' },
-    { id: 'encomendas', emoji: '🎁', nome: 'Encomendas', desc: 'Nova encomenda / encomenda que virou venda' },
-    { id: 'clube', emoji: '📇', nome: 'Clube de Selos', desc: 'Cartela completa e brinde entregue' },
-    { id: 'aniversarios', emoji: '🎂', nome: 'Aniversariantes', desc: 'Clientes fazendo aniversário hoje', hora: 'aniversarios', horaPadrao: '08:30' },
-    { id: 'bonus_produto', emoji: '🔥', nome: 'Bônus de produto', desc: 'Bônus de comissão ativado/encerrado' },
-    { id: 'sugestoes', emoji: '💡', nome: 'Sugestões de produção', desc: 'Vendedor sugeriu produzir algo' }
+    { id: 'conquistas', emoji: '🏆', nome: 'Troféus e conquistas', desc: 'Alguém da equipe desbloqueou troféu', tpls: [{ id: 'conquista', rotulo: 'Troféu desbloqueado' }, { id: 'mentora', rotulo: 'Troféu de mentora' }, { id: 'formatura', rotulo: 'Formatura do Guia' }] },
+    { id: 'coroacao', emoji: '👑', nome: 'Pódio do mês', desc: 'Coroação dos campeões (dia 1º)', tpls: [{ id: 'coroacao' }] },
+    { id: 'encomendas', emoji: '🎁', nome: 'Encomendas', desc: 'Nova encomenda / encomenda que virou venda', tpls: [{ id: 'encomenda_nova', rotulo: 'Nova encomenda' }, { id: 'encomenda_virou_venda', rotulo: 'Encomenda virou venda' }] },
+    { id: 'clube', emoji: '📇', nome: 'Clube de Selos', desc: 'Cartela completa e brinde entregue', tpls: [{ id: 'clube' }] },
+    { id: 'aniversarios', emoji: '🎂', nome: 'Aniversariantes', desc: 'Clientes fazendo aniversário hoje', hora: 'aniversarios', horaPadrao: '08:30', tpls: [{ id: 'aniversarios' }] },
+    { id: 'bonus_produto', emoji: '🔥', nome: 'Bônus de produto', desc: 'Bônus de comissão ativado/encerrado', tpls: [{ id: 'bonus_on', rotulo: 'Bônus ativado' }, { id: 'bonus_off', rotulo: 'Bônus encerrado' }] },
+    { id: 'sugestoes', emoji: '💡', nome: 'Sugestões de produção', desc: 'Vendedor sugeriu produzir algo', tpls: [{ id: 'sugestao' }] }
 ];
 // Cópia dos textos de fábrica (iguais aos do servidor) — pro editor, o preview e o "restaurar padrão"
 const TEMPLATES_TG_CLIENTE = {
     venda: '🟢 <b>NOVA VENDA</b> 🟢\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Valor:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
     carrinho: '🛒 <b>CARRINHO FECHADO</b> 🛒\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Itens:</b>{itens}\n\n💰 <b>Total:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
     venda_editada: '✏️ <b>VENDA ATUALIZADA</b> ✏️\n🕒 <b>Hora:</b> {hora}\n👤 <b>Modificado por:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Novo Valor:</b> {total}\n📊 <b>Novo Status:</b> {status}{obs}',
-    fiado_pago: '💲 <b>FIADO PAGO!</b> 💲\n🕒 <b>Hora:</b> {hora}\n👤 <b>Baixa por:</b> {vendedor}\n🛍️ <b>Cliente(s):</b> {cliente}\n📦 <b>Itens Pagos:</b>{itens}\n\n💰 <b>Total Recebido:</b> {total}{obs}'
+    fiado_pago: '💲 <b>FIADO PAGO!</b> 💲\n🕒 <b>Hora:</b> {hora}\n👤 <b>Baixa por:</b> {vendedor}\n🛍️ <b>Cliente(s):</b> {cliente}\n📦 <b>Itens Pagos:</b>{itens}\n\n💰 <b>Total Recebido:</b> {total}{obs}',
+    estoque_baixo: '🚨 <b>ALERTA DE ESTOQUE</b> 🚨\n\nO produto <b>{produto}</b> está acabando na <b>{local}</b>!\n📦 Restam apenas: <b>{restam} unidades</b>.\n\n<i>Hora de planejar uma nova maceração!</i> 🧪',
+    estoque_zerado: '❌ <b>ESTOQUE ZERADO</b> ❌\n\nO produto <b>{produto}</b> ACABOU na <b>{local}</b>!\n\n<i>Urgente: Reposição necessária!</i> 🧪',
+    maceracao: '🧪 <b>NOVA MACERAÇÃO NA FILA</b> 🧪\n\n💧 <b>{produto}</b>\n📦 Rendimento: <b>{qtd} un</b>\n⏳ Pronto em: <b>{pronto_em}</b>\n👤 Lançado por: {usuario}',
+    fabrica_pronta: '☀️ <b>BOM DIA! ALERTA DA FÁBRICA</b> 🧪\n\nEstes lotes terminaram a maceração e já podem ir para os frascos:\n\n{lotes}{antigos}\n<i>Cada lote é anunciado uma vez só — envase quando der. 😉</i>',
+    ruptura: '{lista_risco}{lista_fabrica}',
+    conferencia: '📋 <b>CONFERÊNCIA DE ESTOQUE</b>\n\n{qtd} ajuste(s) feitos por <b>{usuario}</b>:\n{lista}',
+    fechamento_dia: '📉 <b>FECHAMENTO DO DIA</b> 📈\n📅 <b>Data:</b> {data}\n\n🛍️ <b>Total Vendido:</b> {vendido}\n💵 <b>Recebido (Entrou na Conta):</b> {recebido}\n💸 <b>Saídas (Gastos):</b> {gastos}\n\n💰 <b>SALDO NO CAIXA HOJE:</b> {saldo}\n\n<i>Bom descanso, equipe Novera!</i> ✨',
+    acerto_lote: '🤝 <b>ACERTO DE COMISSÃO (EM LOTE)</b>\n\n👤 <b>Vendedor(a):</b> {vendedores}\n🧾 <b>Vendas acertadas:</b> {qtd}\n💰 <b>Comissão repassada:</b> {comissao}\n✍️ <b>Acertado por:</b> {usuario}',
+    acerto_unico: '🤝 <b>ACERTO DE COMISSÃO</b>\n\n👤 <b>Vendedor(a):</b> {vendedor}\n🛍️ <b>Venda:</b> {venda}\n💰 <b>Comissão repassada:</b> {comissao}\n✍️ <b>Acertado por:</b> {usuario}',
+    aceleradores: '💰 <b>ACELERADORES DE {mes} — A PAGAR</b>\n\n{lista}\n\n<i>Acerte no Painel Admin com o botão ✔️ (igual às comissões). Só vendas pagas contaram!</i>',
+    bonus_equipe: '👥 <b>BÔNUS DE EQUIPE DE {mes} — A PAGAR</b>\n\n{lista}\n\n<i>Acerte no Painel Admin com o ✔️. Só vendas pagas dos indicados contaram!</i>',
+    conquista: '🏆 <b>CONQUISTA DESBLOQUEADA!</b>\n\n👤 <b>{vendedor}</b> acabou de ganhar:\n{lista}\n\n<i>Manda os parabéns pra ela no grupo! 👏</i>',
+    mentora: '🌱 <b>TROFÉU DE MENTORA!</b>\n\n<b>{gerente}</b> ganhou o troféu 🌱 — <b>{vendedor}</b>, que ela indicou, acabou de fazer a primeira venda!\n\n<i>Indicou, ensinou, colheu. É assim que se cresce! 👏</i>',
+    formatura: '🎓 <b>FORMATURA!</b>\n\n👤 <b>{vendedor}</b> leu o Guia do Vendedor até a última página e ganhou o troféu 🎓 <b>Formado(a) pelo Guia Novera</b>!\n\n<i>Preparadíssima(o) pra vender — manda os parabéns! 👏</i>',
+    coroacao: '👑 <b>PÓDIO DE {mes} FECHADO!</b>\n\n{podio}\n<i>Troféus gravados na Sala de Troféus de cada uma. Parabéns, equipe! 🎉</i>',
+    encomenda_nova: '🎁 <b>NOVA ENCOMENDA REGISTRADA!</b>\n🕒 <b>Hora:</b> {hora}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Pedido:</b> {itens}\n👤 <b>Anotada por:</b> {vendedor}{obs}\n\n<i>Quando o estoque cobrir, ela vira venda sozinha — mas fica de olho na fila de produção! 🧪</i>',
+    encomenda_virou_venda: '🎁➡️🛒 <b>ENCOMENDA VIROU VENDA!</b>\n\nO estoque agora cobre o pedido e o sistema lançou a venda sozinho:\n\n📦 <b>{itens}</b>\n🛍️ <b>Cliente:</b> {cliente}\n👤 <b>Vendedor:</b> {vendedor}\n📍 <b>Separar de:</b> {local}\n📊 <b>Status:</b> Pendente (a cobrar)\n\n<i>Já está no Mapa de Separação! (Gatilho: {origem})</i>',
+    clube: '🎁 <b>CLUBE DE SELOS — CARTELA COMPLETA!</b>\n\n👤 Cliente: <b>{cliente}</b>\n🎀 Brinde: <b>{brinde}</b>\n💁 Entregue por: {vendedor}\n\n<i>Cliente fiel é cliente que volta! 💛</i>',
+    aniversarios: '🎂 <b>ANIVERSARIANTE{plural} DE HOJE!</b>\n\n{lista}\n<i>Que tal um parabéns com cheirinho de venda? 😉✨</i>',
+    bonus_on: '🔥 <b>BÔNUS DE COMISSÃO ATIVADO</b> 🔥\n\n🧴 <b>{produto}</b>\n💰 Bônus: <b>+{pct}%</b> na comissão de quem vender\n👤 Definido por: {usuario}\n\n<i>Bora girar esse estoque, equipe! 🚀</i>',
+    bonus_off: '🔕 <b>Bônus de comissão encerrado</b> em <b>{produto}</b>.\n👤 Por: {usuario}',
+    sugestao: '💡 <b>SUGESTÃO DE PRODUÇÃO</b>\n\n🧴 <b>{produto}</b>{obs}\n👤 Sugerido por: {usuario}'
 };
 const VARS_EXEMPLO_TG = {
     venda: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '2x [N007] Perfume 212 Vip Black 40ml', total: 'R$ 100,00', status: 'Pago', obs: '\n📝 Obs: Entregar sábado' },
     carrinho: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)\n▫️ 1x [N039] Creme My Way 110ml (R$ 25,00)', total: 'R$ 125,00', status: 'Pendente', obs: '' },
     venda_editada: { hora: '15:10', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '1x [N039] Creme My Way 110ml', total: 'R$ 25,00', status: 'Pago', obs: '' },
-    fiado_pago: { hora: '18:05', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)', total: 'R$ 100,00', status: 'Pago', obs: '\n\n🤝 Comissão liberada p/ repassar: R$ 10,00' }
+    fiado_pago: { hora: '18:05', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)', total: 'R$ 100,00', status: 'Pago', obs: '\n\n🤝 Comissão liberada p/ repassar: R$ 10,00' },
+    estoque_baixo: { produto: 'Perfume 212 Vip Black 40ml', local: 'Sede', restam: 3 },
+    estoque_zerado: { produto: 'Perfume 212 Vip Black 40ml', local: 'Sede' },
+    maceracao: { produto: 'Perfume Scandal 40ml', qtd: 5, pronto_em: '28/09/2026', usuario: 'Natália' },
+    fabrica_pronta: { lotes: '💧 [N001] Perfume Scandal 40ml\n💧 [N007] Perfume 212 Vip Black 40ml', antigos: '\n\n⏳ Além destes, 2 lote(s) de dias anteriores seguem prontos aguardando envase (veja na Fila de Maceração).\n', qtd: 2 },
+    ruptura: { lista_risco: '⏳ ALERTA DE RUPTURA!\nNo ritmo atual de vendas, vai faltar E NÃO TEM NADA MACERANDO:\n\n🚨 Perfume Chloé 40ml — acaba em ~6 dias (4 un)', lista_fabrica: '\n\n✅ Vão acabar, MAS a fábrica já cobre (sem pânico):\n🧪 Perfume Scandal 40ml — acaba em ~8d, mas tem 5 un macerando (pronto ~28/09)' },
+    conferencia: { qtd: 2, usuario: 'Fernando', lista: '🔧 Perfume Chloé 40ml [Sede]: 5 → 4\n🔧 Creme My Way 110ml [Kamila/Pancho]: 2 → 3' },
+    fechamento_dia: { data: '08/09/2026', vendido: 'R$ 450,00', recebido: 'R$ 375,00', gastos: 'R$ 120,00', saldo: 'R$ 255,00' },
+    acerto_lote: { vendedores: 'Kamila', qtd: 4, comissao: 'R$ 42,50', usuario: 'Fernando' },
+    acerto_unico: { vendedor: 'Kamila', venda: '2x Perfume 212 Vip Black 40ml', comissao: 'R$ 10,00', usuario: 'Fernando' },
+    aceleradores: { mes: '09/2026', lista: '💰 Kamila: +R$ 38,00 (vendeu pago R$ 3.900,00 · meta R$ 2.000,00)' },
+    bonus_equipe: { mes: '09/2026', lista: '👥 Kamila: +R$ 24,00 (a equipe dela vendeu pago R$ 1.200,00)' },
+    conquista: { vendedor: 'Kamila', lista: '🎉 <b>Vendeu 20 ou mais itens no mês</b>' },
+    mentora: { gerente: 'Kamila', vendedor: 'Bruna' },
+    formatura: { vendedor: 'Cleo' },
+    coroacao: { mes: '09/2026', podio: '👑 Kamila — R$ 5.650,00\n🥈 Cleo — R$ 1.500,00\n🥉 Higor — R$ 450,00' },
+    encomenda_nova: { hora: '10:15', cliente: 'Ana Paula', itens: '1x Perfume Chloé 40ml', vendedor: 'Kamila', obs: '\n📝 Obs: Pra sexta-feira' },
+    encomenda_virou_venda: { itens: '1x Perfume Chloé 40ml', cliente: 'Ana Paula', vendedor: 'Kamila', local: 'Sede', origem: 'envase de lote' },
+    clube: { cliente: 'Ana Paula', brinde: 'Creme My Way 110ml', vendedor: 'Kamila' },
+    aniversarios: { plural: 'S', lista: '🎉 <b>Ana Paula</b> — 📱 (35) 99999-9999\n🎉 <b>Marli Sandri</b>', qtd: 2 },
+    bonus_on: { produto: 'Perfume Árabe Asad Bourbon 40ml', pct: 5, usuario: 'Fernando' },
+    bonus_off: { produto: 'Perfume Árabe Asad Bourbon 40ml', usuario: 'Fernando' },
+    sugestao: { produto: 'Perfume Good Girl 40ml', obs: '\n📝 Cliente pediu 3', usuario: 'Cleo' }
 };
 function tgPrefsCliente() {
     try { return JSON.parse(configuracoesGlobais.tg_prefs || '{}') || {}; } catch (e) { return {}; }
@@ -6001,22 +6045,24 @@ function abrirCentralNotificacoes() {
         const ligada = !off.has(n.id);
         const horaAtual = (prefs.horarios && prefs.horarios[n.hora]) || n.horaPadrao || '';
 
-        // 📝 Editor do texto DENTRO do cartão do próprio aviso (só nos que têm texto editável)
+        // 📝 Editor do texto DENTRO do cartão do próprio aviso — todos os avisos são editáveis;
+        // avisos com mais de uma mensagem (ex: estoque acabando E zerado) ganham um editor pra cada
         let editorHtml = '';
-        if (n.tpl) {
-            const tplAtual = (prefs.templates && prefs.templates[n.id]) || TEMPLATES_TG_CLIENTE[n.id];
-            const personalizado = !!(prefs.templates && prefs.templates[n.id]);
-            editorHtml = `
+        (n.tpls || []).forEach(t => {
+            const tplAtual = (prefs.templates && prefs.templates[t.id]) || TEMPLATES_TG_CLIENTE[t.id];
+            const personalizado = !!(prefs.templates && prefs.templates[t.id]);
+            const varsDesteTpl = Object.keys(VARS_EXEMPLO_TG[t.id] || {});
+            editorHtml += `
             <details style="margin-top:8px; border-top:1px dashed #e8dde1; padding-top:8px;">
-                <summary style="font-size:0.66rem; font-weight:800; color:#0369a1; cursor:pointer;">📝 Editar texto da mensagem${personalizado ? ' <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; padding:0 6px; font-size:0.56rem;">personalizado</span>' : ''}</summary>
+                <summary style="font-size:0.66rem; font-weight:800; color:#0369a1; cursor:pointer;">📝 Editar texto${t.rotulo ? `: ${t.rotulo}` : ' da mensagem'}${personalizado ? ' <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; padding:0 6px; font-size:0.56rem;">personalizado</span>' : ''}</summary>
                 <p style="margin:8px 0 4px; font-size:0.6rem; color:#999;">Monte como quiser usando as variáveis (a ordem é você quem manda). Formatação do Telegram: &lt;b&gt;negrito&lt;/b&gt; e &lt;i&gt;itálico&lt;/i&gt;.</p>
-                <p style="margin:0 0 6px;">${['hora', 'vendedor', 'cliente', 'itens', 'total', 'status', 'obs'].map(v => `<code style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:6px; padding:1px 6px; font-size:0.62rem; margin-right:3px;">{${v}}</code>`).join('')}</p>
-                <textarea id="tgtpl-${n.id}" rows="6" oninput="atualizarPreviewTg('${n.id}')" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border-color); border-radius:8px; font-size:0.7rem; font-family:monospace; margin:0 0 6px;">${escTa(tplAtual)}</textarea>
+                <p style="margin:0 0 6px;">${varsDesteTpl.map(v => `<code style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:6px; padding:1px 6px; font-size:0.62rem; margin-right:3px;">{${v}}</code>`).join('')}</p>
+                <textarea id="tgtpl-${t.id}" rows="6" oninput="atualizarPreviewTg('${t.id}')" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border-color); border-radius:8px; font-size:0.7rem; font-family:monospace; margin:0 0 6px;">${escTa(tplAtual)}</textarea>
                 <p style="margin:0 0 4px; font-size:0.6rem; font-weight:800; color:#0369a1;">👀 Prévia (com dados de exemplo):</p>
-                <div id="tgprev-${n.id}" style="background:#1e2a38; color:#e8eef4; border-radius:10px; padding:10px 12px; font-size:0.7rem; line-height:1.5; white-space:pre-line; margin-bottom:6px;"></div>
-                <button onclick="document.getElementById('tgtpl-${n.id}').value = TEMPLATES_TG_CLIENTE['${n.id}']; atualizarPreviewTg('${n.id}');" style="background:#fff; color:#b91c1c; border:1px dashed #fca5a5; border-radius:8px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">↩️ Restaurar padrão</button>
+                <div id="tgprev-${t.id}" style="background:#1e2a38; color:#e8eef4; border-radius:10px; padding:10px 12px; font-size:0.7rem; line-height:1.5; white-space:pre-line; margin-bottom:6px;"></div>
+                <button onclick="document.getElementById('tgtpl-${t.id}').value = TEMPLATES_TG_CLIENTE['${t.id}']; atualizarPreviewTg('${t.id}');" style="background:#fff; color:#b91c1c; border:1px dashed #fca5a5; border-radius:8px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">↩️ Restaurar padrão</button>
             </details>`;
-        }
+        });
 
         linhas += `
         <div style="background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px;">
@@ -6051,7 +6097,7 @@ function abrirCentralNotificacoes() {
         </div>
     </div>`;
     document.body.appendChild(overlay);
-    NOTIFS_TG.filter(n => n.tpl).forEach(n => atualizarPreviewTg(n.id));
+    NOTIFS_TG.forEach(n => (n.tpls || []).forEach(t => atualizarPreviewTg(t.id)));
 }
 
 function atualizarPreviewTg(tipo) {
@@ -6073,10 +6119,10 @@ function salvarCentralNotificacoes() {
             const hv = (document.getElementById('tgh-' + n.id) || {}).value || '';
             if (/^\d{2}:\d{2}$/.test(hv) && hv !== n.horaPadrao) horarios[n.hora] = hv;
         }
-        if (n.tpl) {
-            const tv = ((document.getElementById('tgtpl-' + n.id) || {}).value || '').trim();
-            if (tv && tv !== TEMPLATES_TG_CLIENTE[n.id]) templates[n.id] = tv;
-        }
+        (n.tpls || []).forEach(t => {
+            const tv = ((document.getElementById('tgtpl-' + t.id) || {}).value || '').trim();
+            if (tv && tv !== TEMPLATES_TG_CLIENTE[t.id]) templates[t.id] = tv;
+        });
     });
     salvandoNotifs = true;
     mostrarLoading('Salvando notificações...');
