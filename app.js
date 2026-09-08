@@ -567,7 +567,7 @@ function renderizarNavPorPerfil() {
     html += `<a class="nav-item" id="nav-mais" onclick="toggleMaisMenu()"><span class="icon">⋯</span><span>Mais</span></a>`;
     html += `<div class="nav-more-panel" id="nav-more-panel">` + itensMais.map(([id, ic, lb]) =>
         `<a class="nav-item-more" id="nav-${id}" onclick="switchTab('${id}'); fecharMaisMenu()"><span class="icon">${ic}</span><span>${lb}</span></a>`
-    ).join('') + (isAdmin ? `<a class="nav-item-more" id="nav-notificacoes" onclick="abrirCentralNotificacoes(); fecharMaisMenu()"><span class="icon">🔔</span><span>Avisos</span></a>` : '') + `</div>`;
+    ).join('') + (isAdmin ? `<a class="nav-item-more" id="nav-notificacoes" onclick="abrirCentralNotificacoes(); fecharMaisMenu()"><span class="icon">🔔</span><span>Avisos</span></a><a class="nav-item-more" id="nav-mensagens" onclick="abrirCentralMensagens(); fecharMaisMenu()"><span class="icon">💬</span><span>Mensagens</span></a>` : '') + `</div>`;
     nav.innerHTML = html;
 
     // Reacende o destaque da aba que já estava aberta
@@ -2755,10 +2755,11 @@ function enviarRomaneioMala(origem, destino, itens) {
     const dataHoje = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
     const totalUn = itens.reduce((s, x) => s + (x.qtd || 0), 0);
 
-    const msg = `🧳 *ROMANEIO DE TRANSFERÊNCIA — ${marca.toUpperCase()}*\n\n` +
-        `🚪 Saiu de: *${origem}*\n🎯 Chegando em: *${destino}*\n📅 ${dataHoje}\n\n` +
-        itens.map(x => `▪️ ${x.qtd}x ${x.codigo ? `*${x.codigo}* · ` : ''}${x.nome}`).join('\n') +
-        `\n\n📦 *Total: ${totalUn} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa! 😉`;
+    const msg = templateZap('zap_romaneio', {
+        marca: marca.toUpperCase(), origem, destino, data: dataHoje,
+        itens: itens.map(x => `▪️ ${x.qtd}x ${x.codigo ? `*${x.codigo}* · ` : ''}${x.nome}`).join('\n'),
+        total_un: totalUn
+    });
 
     window.open(fone ? `https://wa.me/${fone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -3508,7 +3509,7 @@ async function gerarLinkCatalogoOnline() {
     };
 
     overlay.querySelector('#btn-link-zap').onclick = () => {
-        const msg = `✨ Dá uma olhada no nosso catálogo! Perfumes e cosméticos com preços e disponibilidade atualizados:\n\n${link}`;
+        const msg = templateZap('zap_link_catalogo', { link });
         window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
     };
     overlay.querySelector('#btn-link-copiar').onclick = async (ev) => {
@@ -5585,7 +5586,7 @@ async function cobrarVendaNoWhatsApp(linha) {
     if (!p) return;
     const nomeTxt = formatarNomeProdutoTexto(p.produto);
     const val = parseDinheiro(p.valor_venda);
-    const txt = `Olá ${p.cliente}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um lembrete carinhoso do seu pedido em aberto:\n\n📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n\nQualquer dúvida, é só chamar!`;
+    const txt = templateZap('zap_cobranca_unica', { cliente: p.cliente, itens: `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}` });
 
     let cad = clientesGlobal.find(c => normalizarNomeBusca(c.nome) === normalizarNomeBusca(p.cliente));
     let digitos = cad && cad.telefone ? String(cad.telefone).replace(/\D/g, '') : '';
@@ -5638,10 +5639,9 @@ function montarTextoPendencias() {
     const cliDisplay = document.getElementById('cobranca-nome-exibicao').value.trim() || cliReal;
     const checkboxes = document.querySelectorAll('.chk-item-cobranca:checked');
     if (checkboxes.length === 0) { mostrarAlerta("Aviso", "Selecione pelo menos um pedido.", "warning"); return null; }
-    let txt = `Olá ${cliDisplay}, tudo bem com você? Passando aqui pela Novera Scent ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n`;
-    let tot = 0;
-    checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); txt += `📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}\n`; tot += val; } });
-    txt += `\n*Total em aberto: ${fmt(tot)}*\n\nQualquer dúvida, é só chamar!`;
+    let tot = 0; const linhasItens = [];
+    checkboxes.forEach(chk => { const p = vendasGlobal.find(v => v.linha == chk.value); if (p) { const val = parseDinheiro(p.valor_venda); const nomeTxt = formatarNomeProdutoTexto(p.produto); linhasItens.push(`📅 ${p.dataVendaDisplay} | 📦 ${p.qtd}x ${nomeTxt} | 💰 ${fmt(val)}`); tot += val; } });
+    const txt = templateZap('zap_cobranca_lote', { cliente: cliDisplay, itens: linhasItens.join('\n'), total: fmt(tot) });
     return { txt, cliReal };
 }
 
@@ -6140,6 +6140,234 @@ function salvarCentralNotificacoes() {
         .finally(() => { salvandoNotifs = false; ocultarLoading(); });
 }
 
+// ==========================================
+// 💬 CENTRAL DE MENSAGENS DO WHATSAPP (só Admin edita; todos usam)
+// O tom de voz da marca com o CLIENTE — cada mensagem pronta do sistema é editável com variáveis.
+// ==========================================
+const ZAPS_CATALOGO = [
+    { id: 'zap_cobranca_unica', emoji: '💲', nome: 'Cobrança de um pedido', desc: 'Botão 📲 no cartão da venda fiada' },
+    { id: 'zap_cobranca_lote', emoji: '🧾', nome: 'Cobrança completa (lote)', desc: 'Docs & Lotes → resumo de tudo que o cliente deve' },
+    { id: 'zap_recompra', emoji: '🔁', nome: 'Convite de recompra', desc: 'Radar do painel: cliente que comprou há 45-120 dias' },
+    { id: 'zap_cartela_cheia', emoji: '🎁', nome: 'Cartela do Clube CHEIA', desc: 'Junto com a foto da cartela completa' },
+    { id: 'zap_cartela_parcial', emoji: '🌸', nome: 'Cartela do Clube (andamento)', desc: 'Junto com a foto da cartela em progresso' },
+    { id: 'zap_romaneio', emoji: '🧳', nome: 'Romaneio de transferência', desc: 'Depois da Mala, pra quem recebe conferir' },
+    { id: 'zap_link_catalogo', emoji: '🔗', nome: 'Compartilhar catálogo', desc: 'Botão de enviar o link do catálogo online' }
+];
+const TEMPLATES_ZAP_CLIENTE = {
+    zap_cobranca_unica: 'Olá {cliente}, tudo bem com você? Passando aqui pela {marca} ✨\n\nEsse é um lembrete carinhoso do seu pedido em aberto:\n\n{itens}\n\nQualquer dúvida, é só chamar!',
+    zap_cobranca_lote: 'Olá {cliente}, tudo bem com você? Passando aqui pela {marca} ✨\n\nEsse é um resuminho dos seus pedidos em aberto com a gente:\n\n{itens}\n\n*Total em aberto: {total}*\n\nQualquer dúvida, é só chamar!',
+    zap_recompra: 'Olá {cliente}, tudo bem? Aqui é da {marca}! ✨\n\nVi que faz uns {dias} dias que você levou o {produto}. Ele já deve estar no finalzinho, né?\n\nQuer aproveitar para repor ou provar uma novidade? Chegou muita coisa boa!',
+    zap_cartela_cheia: '🎁 {cliente}, sua cartela do Clube ENCHEU! Você ganhou um PRESENTE — me fala qual produto você quer escolher! 🥳',
+    zap_cartela_parcial: '🌸 Oi, {cliente}! Olha sua cartela do Clube: já são {selos} selo(s) — faltam só {faltam} pro seu PRESENTE! 🎁',
+    zap_romaneio: '🧳 *ROMANEIO DE TRANSFERÊNCIA — {marca}*\n\n🚪 Saiu de: *{origem}*\n🎯 Chegando em: *{destino}*\n📅 {data}\n\n{itens}\n\n📦 *Total: {total_un} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa! 😉',
+    zap_link_catalogo: '✨ Dá uma olhada no nosso catálogo! Perfumes e cosméticos com preços e disponibilidade atualizados:\n\n{link}'
+};
+const VARS_EXEMPLO_ZAP = {
+    zap_cobranca_unica: { cliente: 'Ana Paula', marca: 'Novera Scent', itens: '📅 02/09/2026 | 📦 2x Perfume 212 Vip Black 40ml | 💰 R$ 100,00' },
+    zap_cobranca_lote: { cliente: 'Ana Paula', marca: 'Novera Scent', itens: '📅 02/09/2026 | 📦 2x Perfume 212 Vip Black 40ml | 💰 R$ 100,00\n📅 05/09/2026 | 📦 1x Creme My Way 110ml | 💰 R$ 25,00', total: 'R$ 125,00' },
+    zap_recompra: { cliente: 'Ana Paula', marca: 'Novera Scent', dias: 60, produto: 'Perfume Chloé 40ml' },
+    zap_cartela_cheia: { cliente: 'Ana Paula' },
+    zap_cartela_parcial: { cliente: 'Ana Paula', selos: 5, faltam: 3 },
+    zap_romaneio: { marca: 'NOVERA SCENT', origem: 'Sede', destino: 'Kamila/Pancho', data: '08/09/2026', itens: '▪️ 2x *N007* · Perfume 212 Vip Black 40ml\n▪️ 1x *N039* · Creme My Way 110ml', total_un: 3 },
+    zap_link_catalogo: { link: 'https://novera.vivainteligente.net/catalogo.html?k=abc123', marca: 'Novera Scent' }
+};
+function templateZap(id, vars) {
+    let tpl = TEMPLATES_ZAP_CLIENTE[id] || '';
+    try {
+        const p = JSON.parse(configuracoesGlobais.zap_prefs || '{}') || {};
+        if (p.templates && typeof p.templates[id] === 'string' && p.templates[id].trim()) tpl = p.templates[id];
+    } catch (e) { }
+    const varsCompletas = { marca: configuracoesGlobais.marca_nome || 'Novera Scent', ...vars };
+    return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (varsCompletas[k] !== undefined && varsCompletas[k] !== null) ? String(varsCompletas[k]) : '');
+}
+
+function abrirCentralMensagens() {
+    const antigo = document.getElementById('modal-central-zap');
+    if (antigo) antigo.remove();
+    let prefs = {}; try { prefs = JSON.parse(configuracoesGlobais.zap_prefs || '{}') || {}; } catch (e) { }
+    const escTa = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+    const cartoes = ZAPS_CATALOGO.map(z => {
+        const tplAtual = (prefs.templates && prefs.templates[z.id]) || TEMPLATES_ZAP_CLIENTE[z.id];
+        const personalizado = !!(prefs.templates && prefs.templates[z.id]);
+        const varsZ = Object.keys(VARS_EXEMPLO_ZAP[z.id] || {});
+        return `
+        <div style="background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px;">
+            <p style="margin:0; font-size:0.78rem; font-weight:800; color:var(--brand-dark);">${z.emoji} ${z.nome}${personalizado ? ' <span style="background:#dcfce7; border:1px solid #bbf7d0; color:#166534; border-radius:8px; padding:0 6px; font-size:0.56rem;">personalizado</span>' : ''}</p>
+            <p style="margin:1px 0 0; font-size:0.62rem; color:#999;">${z.desc}</p>
+            <details style="margin-top:8px; border-top:1px dashed #e8dde1; padding-top:8px;">
+                <summary style="font-size:0.66rem; font-weight:800; color:#15803d; cursor:pointer;">📝 Editar texto da mensagem</summary>
+                <p style="margin:8px 0 4px; font-size:0.6rem; color:#999;">No WhatsApp, *texto entre asteriscos* fica em negrito. Variáveis desta mensagem:</p>
+                <p style="margin:0 0 6px;">${varsZ.map(v => `<code style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:1px 6px; font-size:0.62rem; margin-right:3px;">{${v}}</code>`).join('')}</p>
+                <textarea id="zaptpl-${z.id}" rows="6" oninput="atualizarPreviewZap('${z.id}')" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border-color); border-radius:8px; font-size:0.7rem; font-family:inherit; margin:0 0 6px;">${escTa(tplAtual)}</textarea>
+                <p style="margin:0 0 4px; font-size:0.6rem; font-weight:800; color:#15803d;">👀 Prévia (como o cliente recebe):</p>
+                <div id="zapprev-${z.id}" style="background:#e7ffdb; color:#1f2c34; border:1px solid #c5e8b5; border-radius:10px 10px 10px 2px; padding:10px 12px; font-size:0.7rem; line-height:1.5; white-space:pre-line; margin-bottom:6px;"></div>
+                <button onclick="document.getElementById('zaptpl-${z.id}').value = TEMPLATES_ZAP_CLIENTE['${z.id}']; atualizarPreviewZap('${z.id}');" style="background:#fff; color:#b91c1c; border:1px dashed #fca5a5; border-radius:8px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">↩️ Restaurar padrão</button>
+            </details>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-central-zap';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:520px; width:100%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #128c7e, #25d366); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-central-zap').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">💬 Mensagens do WhatsApp</h3>
+            <p style="margin:3px 0 0; color:#d8f5dc; font-size:0.64rem;">O tom de voz da sua marca com o cliente — edite cada mensagem pronta do sistema.</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:12px 16px 16px;">${cartoes}</div>
+        <div style="padding:12px 16px; border-top:1px solid var(--border-color); background:#fff; flex-shrink:0;">
+            <button class="btn-salvar" style="margin:0; background:#128c7e; box-shadow:0 4px 0 #0b5f55;" onclick="salvarCentralMensagens()">💾 SALVAR MENSAGENS</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    ZAPS_CATALOGO.forEach(z => atualizarPreviewZap(z.id));
+}
+
+function atualizarPreviewZap(id) {
+    const ta = document.getElementById('zaptpl-' + id);
+    const prev = document.getElementById('zapprev-' + id);
+    if (!ta || !prev) return;
+    const vars = { marca: configuracoesGlobais.marca_nome || 'Novera Scent', ...(VARS_EXEMPLO_ZAP[id] || {}) };
+    const texto = String(ta.value || TEMPLATES_ZAP_CLIENTE[id]).replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined) ? String(vars[k]) : '');
+    // No preview, *asteriscos* viram negrito como no WhatsApp de verdade
+    prev.innerHTML = texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+}
+
+let salvandoZaps = false;
+function salvarCentralMensagens() {
+    if (salvandoZaps) return;
+    const templates = {};
+    ZAPS_CATALOGO.forEach(z => {
+        const tv = ((document.getElementById('zaptpl-' + z.id) || {}).value || '').trim();
+        if (tv && tv !== TEMPLATES_ZAP_CLIENTE[z.id]) templates[z.id] = tv;
+    });
+    salvandoZaps = true;
+    mostrarLoading('Salvando mensagens...');
+    const prefsNovas = JSON.stringify({ templates });
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { zap_prefs: prefsNovas } }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                configuracoesGlobais.zap_prefs = prefsNovas;
+                const mZ = document.getElementById('modal-central-zap'); if (mZ) mZ.remove();
+                mostrarAlerta('Salvo! 💬', `${Object.keys(templates).length ? Object.keys(templates).length + ' mensagem(ns) personalizada(s)' : 'Todas as mensagens no padrão'}. Vale pra equipe toda, já no próximo envio.`, 'success');
+            } else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+        })
+        .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+        .finally(() => { salvandoZaps = false; ocultarLoading(); });
+}
+
+// ==========================================
+// 🏆 TROFÉUS PERSONALIZADOS (Desafios da Casa) — o Admin cria, o servidor premia todo mês
+// ==========================================
+function trofeusCustomLista() {
+    try { const l = JSON.parse(configuracoesGlobais.trofeus_custom || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function descreverCriterioTrofeu(d) {
+    if (d.tipo === 'itens_mes') return `vender ${d.valor}+ itens no mês`;
+    if (d.tipo === 'valor_mes') return `vender ${fmt(parseFloat(d.valor) || 0)}+ no mês`;
+    return `vender ${d.valor}+ itens com "${d.palavra}" no nome, dentro do mês`;
+}
+
+function abrirTrofeusCustom() {
+    const antigo = document.getElementById('modal-trofeus-custom');
+    if (antigo) antigo.remove();
+    const defs = trofeusCustomLista();
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+    const linhas = defs.length ? defs.map(d => `
+        <div style="display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px;">
+            <span style="font-size:1.6rem; flex-shrink:0;">${esc(d.emoji || '🏆')}</span>
+            <div style="flex:1; min-width:0;">
+                <p style="margin:0; font-size:0.78rem; font-weight:800; color:var(--brand-dark);">${esc(d.nome)}</p>
+                <p style="margin:1px 0 0; font-size:0.62rem; color:#999;">Critério: ${esc(descreverCriterioTrofeu(d))}</p>
+            </div>
+            <button onclick="excluirTrofeuCustom('${d.id}')" class="btn-acao" style="width:34px; height:34px; background:#fee2e2; color:#991b1b; border-color:#fecaca;">🗑️</button>
+        </div>`).join('') : '<p style="text-align:center; color:#999; font-size:0.75rem; padding:10px 0;">Nenhum desafio criado ainda — solta a criatividade! 👇</p>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-trofeus-custom';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:460px; width:100%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #b45309, #f59e0b); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-trofeus-custom').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">🏆 Desafios da Casa</h3>
+            <p style="margin:3px 0 0; color:#fef3c7; font-size:0.64rem;">Crie troféus com a sua cara — quem cumprir no mês ganha a medalha na Sala (repetível todo mês).</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:12px 16px;">
+            ${linhas}
+            <div style="background:#fff; border:2px dashed #f59e0b; border-radius:12px; padding:12px; margin-top:12px;">
+                <p style="margin:0 0 8px; font-size:0.72rem; font-weight:900; color:#b45309;">➕ NOVO DESAFIO</p>
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                    <div style="width:74px;"><label style="font-size:0.6rem; font-weight:800; color:#666;">Emoji</label><input type="text" id="tc-emoji" placeholder="🧴" maxlength="4" style="width:100%; box-sizing:border-box; padding:9px; text-align:center; margin:0;"></div>
+                    <div style="flex:1;"><label style="font-size:0.6rem; font-weight:800; color:#666;">Nome do troféu</label><input type="text" id="tc-nome" placeholder="Ex: Cremeira do Mês" maxlength="60" style="width:100%; box-sizing:border-box; padding:9px; margin:0;"></div>
+                </div>
+                <label style="font-size:0.6rem; font-weight:800; color:#666;">O que precisa fazer?</label>
+                <select id="tc-tipo" onchange="document.getElementById('tc-palavra-box').style.display = this.value === 'itens_palavra_mes' ? 'block' : 'none';" style="width:100%; box-sizing:border-box; padding:9px; margin:0 0 8px;">
+                    <option value="itens_mes">Vender X itens no mês (qualquer produto)</option>
+                    <option value="valor_mes">Vender R$ X no mês</option>
+                    <option value="itens_palavra_mes">Vender X itens de um TIPO (palavra no nome)</option>
+                </select>
+                <div id="tc-palavra-box" style="display:none;">
+                    <label style="font-size:0.6rem; font-weight:800; color:#666;">Palavra no nome do produto</label>
+                    <input type="text" id="tc-palavra" placeholder="Ex: creme (pega Creme My Way, Creme Idole...)" style="width:100%; box-sizing:border-box; padding:9px; margin:0 0 8px;">
+                </div>
+                <label style="font-size:0.6rem; font-weight:800; color:#666;">Quantidade / Valor (X)</label>
+                <input type="number" id="tc-valor" placeholder="Ex: 10" min="1" style="width:100%; box-sizing:border-box; padding:9px; margin:0 0 10px;">
+                <button class="btn-salvar" style="margin:0; background:#b45309; box-shadow:0 4px 0 #92400e;" onclick="adicionarTrofeuCustom()">🏆 Criar Desafio</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+let salvandoTrofeus = false;
+function salvarTrofeusCustom(defs, msgOk) {
+    if (salvandoTrofeus) return;
+    salvandoTrofeus = true;
+    mostrarLoading('Salvando desafios...');
+    const json = JSON.stringify(defs);
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { trofeus_custom: json } }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                configuracoesGlobais.trofeus_custom = json;
+                mostrarAlerta('Salvo! 🏆', msgOk, 'success');
+                abrirTrofeusCustom(); // redesenha a lista
+            } else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+        })
+        .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+        .finally(() => { salvandoTrofeus = false; ocultarLoading(); });
+}
+
+function adicionarTrofeuCustom() {
+    const emoji = (document.getElementById('tc-emoji').value || '🏆').trim();
+    const nome = (document.getElementById('tc-nome').value || '').trim();
+    const tipo = document.getElementById('tc-tipo').value;
+    const valor = parseFloat(document.getElementById('tc-valor').value) || 0;
+    const palavra = (document.getElementById('tc-palavra').value || '').trim();
+    if (!nome) return mostrarAlerta('Falta o nome', 'Dá um nome pro troféu — é ele que aparece na festa! 🎉', 'warning');
+    if (valor <= 0) return mostrarAlerta('Falta o alvo', 'Informe a quantidade ou o valor a atingir.', 'warning');
+    if (tipo === 'itens_palavra_mes' && !palavra) return mostrarAlerta('Falta a palavra', 'Ex: "creme" pra contar só os cremes.', 'warning');
+    const defs = trofeusCustomLista();
+    defs.push({ id: Date.now().toString(36), emoji, nome, tipo, valor, palavra: tipo === 'itens_palavra_mes' ? palavra : '' });
+    salvarTrofeusCustom(defs, `"${nome}" criado! Quem cumprir o critério ganha a medalha na próxima venda registrada.`);
+}
+
+function excluirTrofeuCustom(id) {
+    const defs = trofeusCustomLista();
+    const d = defs.find(x => x.id === id);
+    abrirConfirmacao('Excluir desafio?', `"${d ? d.nome : ''}" deixa de premiar daqui pra frente. Medalhas já ganhas continuam na Sala de cada um.`, '🗑️', '#A05252', '#803f3f', '🗑️ Excluir', () => {
+        salvarTrofeusCustom(defs.filter(x => x.id !== id), 'Desafio excluído.');
+    });
+}
+
 // 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
 function estatisticasVisitasCatalogo(nomeVendedor) {
     const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
@@ -6158,15 +6386,98 @@ function estatisticasVisitasCatalogo(nomeVendedor) {
 
 // 🗂️ Seção sanfona do Painel: título clicável, conteúdo dobrável e o aparelho LEMBRA
 // o que ficou aberto. Menos rolagem, mais organização — cada assunto na sua gaveta.
+// 🧩 Layout do painel POR USUÁRIO E POR APARELHO: ordem das seções e quais ficam ocultas
+function layoutDash() {
+    try {
+        const l = JSON.parse(localStorage.getItem('novera_dash_layout_' + String(usuarioLogado).toLowerCase().trim()) || '{}') || {};
+        return { ordem: Array.isArray(l.ordem) ? l.ordem : [], ocultas: Array.isArray(l.ocultas) ? l.ocultas : [] };
+    } catch (e) { return { ordem: [], ocultas: [] }; }
+}
+function salvarLayoutDash(lay) {
+    try { localStorage.setItem('novera_dash_layout_' + String(usuarioLogado).toLowerCase().trim(), JSON.stringify(lay)); } catch (e) { }
+}
+
+let _dashSecoesAtuais = []; // registro das seções desta renderização (alimenta o "Organizar painel")
 function secaoDash(idSec, titulo, conteudoHtml, abertaPadrao) {
+    // registra pro organizador (com o título limpo, sem os contadores dinâmicos)
+    if (!_dashSecoesAtuais.some(s => s.id === idSec)) _dashSecoesAtuais.push({ id: idSec, titulo: String(titulo).replace(/<[^>]*>/g, '').trim() });
+
+    const lay = layoutDash();
+    if (lay.ocultas.includes(idSec)) return ''; // seção escondida pelo dono do painel
+    const posLay = lay.ordem.indexOf(idSec);
+    const estiloOrdem = posLay >= 0 ? ` style="order:${100 + posLay};"` : '';
+
     const chaveSec = 'novera_dash_sec_' + idSec;
     const salvo = localStorage.getItem(chaveSec);
     const aberta = salvo === null ? !!abertaPadrao : salvo === '1';
     return `
-    <details class="secao-dash" ${aberta ? 'open' : ''} ontoggle="toggleSecaoDash(this, '${chaveSec}')">
+    <details class="secao-dash" ${aberta ? 'open' : ''}${estiloOrdem} ontoggle="toggleSecaoDash(this, '${chaveSec}')">
         <summary>${titulo}<span class="sd-seta">▾</span></summary>
         <div class="sd-corpo"><div class="dash-grid">${conteudoHtml}</div></div>
     </details>`;
+}
+
+// ⚙️ ORGANIZAR PAINEL: sobe/desce e mostra/esconde as seções — cada pessoa monta o seu
+function abrirOrganizarPainel() {
+    const antigo = document.getElementById('modal-organizar-painel');
+    if (antigo) antigo.remove();
+    const lay = layoutDash();
+    // Ordena o registro pela ordem salva (não salvos ficam na ordem original, antes dos movidos)
+    const secoes = [..._dashSecoesAtuais].sort((a, b) => {
+        const pa = lay.ordem.indexOf(a.id), pb = lay.ordem.indexOf(b.id);
+        return (pa < 0 ? -1 : pa) - (pb < 0 ? -1 : pb);
+    });
+
+    const linhas = secoes.map((s, i) => `
+        <div style="display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px; ${lay.ocultas.includes(s.id) ? 'opacity:0.5;' : ''}">
+            <input type="checkbox" ${lay.ocultas.includes(s.id) ? '' : 'checked'} onchange="alternarSecaoPainel('${s.id}')" title="Mostrar/esconder esta seção" style="width:20px; height:20px; accent-color:#22c55e; flex-shrink:0; cursor:pointer;">
+            <span style="flex:1; font-size:0.78rem; font-weight:800; color:var(--brand-dark);">${s.titulo}</span>
+            <button onclick="moverSecaoPainel('${s.id}', -1)" ${i === 0 ? 'disabled style="opacity:0.25;"' : ''} class="btn-acao" style="width:32px; height:32px; font-weight:900;">⬆️</button>
+            <button onclick="moverSecaoPainel('${s.id}', 1)" ${i === secoes.length - 1 ? 'disabled style="opacity:0.25;"' : ''} class="btn-acao" style="width:32px; height:32px; font-weight:900;">⬇️</button>
+        </div>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-organizar-painel';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:420px; width:100%; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, var(--primary-dark), var(--primary)); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-organizar-painel').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">⚙️ Organizar Meu Painel</h3>
+            <p style="margin:3px 0 0; color:rgba(255,255,255,0.85); font-size:0.64rem;">Suba, desça ou esconda as seções — vale só pra você, neste aparelho. Muda na hora.</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:12px 16px;">${linhas}</div>
+        <div style="padding:10px 16px; border-top:1px solid var(--border-color); background:#fff; flex-shrink:0; display:flex; gap:8px;">
+            <button class="btn-salvar" style="margin:0; flex:1; background:#fff; color:#b91c1c; border:1px dashed #fca5a5; box-shadow:none;" onclick="salvarLayoutDash({ ordem: [], ocultas: [] }); renderizarDashboard(); abrirOrganizarPainel();">↩️ Padrão</button>
+            <button class="btn-salvar" style="margin:0; flex:1;" onclick="document.getElementById('modal-organizar-painel').remove()">✅ Pronto</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+function moverSecaoPainel(idSec, delta) {
+    const lay = layoutDash();
+    // materializa a ordem completa atual antes de mover
+    const ordemAtual = [..._dashSecoesAtuais].sort((a, b) => {
+        const pa = lay.ordem.indexOf(a.id), pb = lay.ordem.indexOf(b.id);
+        return (pa < 0 ? -1 : pa) - (pb < 0 ? -1 : pb);
+    }).map(s => s.id);
+    const i = ordemAtual.indexOf(idSec);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= ordemAtual.length) return;
+    [ordemAtual[i], ordemAtual[j]] = [ordemAtual[j], ordemAtual[i]];
+    salvarLayoutDash({ ordem: ordemAtual, ocultas: lay.ocultas });
+    renderizarDashboard();
+    abrirOrganizarPainel(); // redesenha a lista com a nova ordem
+}
+
+function alternarSecaoPainel(idSec) {
+    const lay = layoutDash();
+    lay.ocultas = lay.ocultas.includes(idSec) ? lay.ocultas.filter(x => x !== idSec) : [...lay.ocultas, idSec];
+    salvarLayoutDash(lay);
+    renderizarDashboard();
+    abrirOrganizarPainel();
 }
 
 function toggleSecaoDash(el, chave) {
@@ -6537,6 +6848,7 @@ function renderizarDashboard() {
     const isAdmin = (usuarioCargo === 'Admin');
     const container = document.getElementById('dash-dinamico-container');
     if (!container) return;
+    _dashSecoesAtuais = []; // recomeça o registro das seções (alimenta o ⚙️ Organizar Painel)
 
     // 1. CARREGA OS FILTROS DE TEMPO (∞ = sem filtro nenhum: a vida inteira da empresa)
     const dMes = document.getElementById('d-filtro-mes');
@@ -6749,7 +7061,7 @@ function renderizarDashboard() {
         let htmlCrm = "";
         if(listaCrm.length > 0) {
             let itensCrmHtml = listaCrm.slice(0, 5).map(c => {
-                let msgZap = encodeURIComponent(`Olá ${c.cliente}, tudo bem? Aqui é da Novera Scent! ✨\n\nVi que faz uns ${c.dias} dias que você levou o perfume ${c.produto}. Ele já deve estar no finalzinho, né?\n\nQuer aproveitar para repor ou provar uma novidade? Chegou muita coisa boa!`);
+                let msgZap = encodeURIComponent(templateZap('zap_recompra', { cliente: c.cliente, dias: c.dias, produto: c.produto }));
                 return `
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #bae6fd; padding:10px 0;">
                     <div style="flex:1; min-width:0; margin-right:10px;">
@@ -8233,6 +8545,12 @@ function mostrarFestaConquista(novas) {
 
 // 📖 O "porquê" de cada troféu — o critério que a vendedora cumpriu pra ganhar
 function descricaoConquista(badgeId) {
+    // 🏆 Desafios da Casa (criados pela diretoria): descreve o critério que a pessoa cumpriu
+    if (String(badgeId).startsWith('cst_')) {
+        const dCst = trofeusCustomLista().find(x => 'cst_' + x.id === badgeId);
+        if (dCst) return `Desafio da Casa criado pela diretoria: ${descreverCriterioTrofeu(dCst)}. Cumprido — parabéns! 🏆`;
+        return 'Desafio especial criado pela diretoria. 🏆';
+    }
     const mapa = {
         guia_completo: 'Leu o Guia do Vendedor da primeira à última página. Formação completa — agora é vender com conhecimento! 🎓',
         semana_meta: 'Bateu a meta da semana (a meta do mês dividida em pedacinhos semanais). Constância que enche o bolso!',
@@ -10190,8 +10508,8 @@ async function enviarCartelaCompleta(linhaCli) {
     const digitos = String(c.telefone || '').replace(/\D/g, '');
     const fone = digitos ? (digitos.length <= 11 ? '55' + digitos : digitos) : '';
     const msg = cart.cheia
-        ? `🎁 ${nomeClienteMsg(c)}, sua cartela do Clube ENCHEU! Você ganhou um PRESENTE — me fala qual produto você quer escolher! 🥳`
-        : `🌸 Oi, ${nomeClienteMsg(c)}! Olha sua cartela do Clube: já são ${cart.selos} selo${cart.selos !== 1 ? 's' : ''} — falta${cart.faltam > 1 ? 'm' : ''} só ${cart.faltam} pro seu PRESENTE! 🎁`;
+        ? templateZap('zap_cartela_cheia', { cliente: nomeClienteMsg(c) })
+        : templateZap('zap_cartela_parcial', { cliente: nomeClienteMsg(c), selos: cart.selos, faltam: cart.faltam });
     await enviarImagemCartela(); // primeiro a foto (compartilhar direto no zap do cliente)
     window.open(fone ? `https://wa.me/${fone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -10539,6 +10857,19 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-clube-teto')) document.getElementById('cfg-clube-teto').value = configuracoesGlobais.clube_teto_premio || 50;
     if(document.getElementById('cfg-acelerador-pct')) document.getElementById('cfg-acelerador-pct').value = configuracoesGlobais.acelerador_pct || 2;
     if(document.getElementById('cfg-bonus-gerente')) document.getElementById('cfg-bonus-gerente').value = configuracoesGlobais.pct_bonus_gerente || 2;
+    if(document.getElementById('cfg-doc-agradecimento')) document.getElementById('cfg-doc-agradecimento').value = configuracoesGlobais.doc_agradecimento || '';
+    if(document.getElementById('cfg-doc-politica')) document.getElementById('cfg-doc-politica').value = configuracoesGlobais.doc_politica || '';
+    if(document.getElementById('cfg-doc-pix')) document.getElementById('cfg-doc-pix').value = configuracoesGlobais.doc_pix || '';
+
+    // 🧾 Rodapé personalizado dos recibos e cobranças (o PIX ganha caixinha verde de destaque)
+    const escRod = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const marcaRod = configuracoesGlobais.marca_nome || 'Novera Scent';
+    const agradec = String(configuracoesGlobais.doc_agradecimento || '').trim();
+    const politica = String(configuracoesGlobais.doc_politica || '').trim();
+    const pixRod = String(configuracoesGlobais.doc_pix || '').trim();
+    const htmlRodape = `<p style="margin:0;">${escRod(agradec || 'Obrigado pela preferência!')}</p>${politica ? `<p style="margin:2px 0 0;">${escRod(politica)}</p>` : ''}<p style="margin:2px 0 0;">${escRod(marcaRod)}</p>`;
+    ['rec-rodape', 'cob-rodape'].forEach(idR => { const el = document.getElementById(idR); if (el) el.innerHTML = htmlRodape; });
+    ['rec-rodape-pix', 'cob-rodape-pix'].forEach(idR => { const el = document.getElementById(idR); if (el) { el.style.display = pixRod ? 'block' : 'none'; el.innerHTML = pixRod ? `💚 ${escRod(pixRod)}` : ''; } });
     if(document.getElementById('cfg-acelerador-inicio')) document.getElementById('cfg-acelerador-inicio').value = configuracoesGlobais.acelerador_inicio || '2026-09-01';
 
     // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
@@ -10589,6 +10920,9 @@ function salvarParametrosSistema() {
                 clube_teto_premio: (document.getElementById('cfg-clube-teto') ? document.getElementById('cfg-clube-teto').value : '50'),
                 acelerador_pct: (document.getElementById('cfg-acelerador-pct') ? document.getElementById('cfg-acelerador-pct').value : '2'),
                 pct_bonus_gerente: (document.getElementById('cfg-bonus-gerente') ? document.getElementById('cfg-bonus-gerente').value : '2'),
+                doc_agradecimento: (document.getElementById('cfg-doc-agradecimento') ? document.getElementById('cfg-doc-agradecimento').value.trim() : ''),
+                doc_politica: (document.getElementById('cfg-doc-politica') ? document.getElementById('cfg-doc-politica').value.trim() : ''),
+                doc_pix: (document.getElementById('cfg-doc-pix') ? document.getElementById('cfg-doc-pix').value.trim() : ''),
                 acelerador_inicio: (document.getElementById('cfg-acelerador-inicio') ? document.getElementById('cfg-acelerador-inicio').value : '2026-09-01'),
                 ...lerIdentidadeDosInputs() // 🎨 nome, logo e paleta viajam junto
             }

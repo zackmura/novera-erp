@@ -612,6 +612,7 @@
                         <span id="d-label-mes" onclick="voltarMesAtualDash()" title="Toque para voltar ao mês atual" style="min-width:110px; text-align:center; font-weight:900; font-size:0.82rem; color:var(--brand-dark); cursor:pointer;">—</span>
                         <button onclick="navegarMesDash(1)" style="background:#fdf5f7; color:var(--primary-dark); border:none; width:34px; height:34px; border-radius:50%; font-weight:900; font-size:0.9rem; cursor:pointer;">▶</button>
                         <button onclick="verTudoDash()" title="Ver todo o período da empresa" style="background:#2C2A2B; color:#fff; border:none; width:34px; height:34px; border-radius:50%; font-weight:900; font-size:0.85rem; cursor:pointer;">∞</button>
+                        <button onclick="abrirOrganizarPainel()" title="Organizar meu painel: ordem e visibilidade das seções" style="background:#fdf5f7; color:var(--primary-dark); border:1px dashed var(--primary); width:34px; height:34px; border-radius:50%; font-weight:900; font-size:0.85rem; cursor:pointer;">⚙️</button>
                     </div>
                     <select id="d-filtro-mes" style="display:none;" onchange="renderizarDashboard()">
                         <option value="">Todos</option>
@@ -1432,7 +1433,8 @@
         <span style="font-weight: 700; font-size: 1rem; color: #4A4A4A;">TOTAL PAGO:</span>
         <span id="rec-total" style="font-weight: 800; font-size: 1.4rem; color: #966178;">R$ 0,00</span>
     </div>
-    <div style="text-align: center; margin-top: 30px; font-size: 0.7rem; color: #888;">
+    <div id="rec-rodape-pix" style="display:none; background:#f0fdf4; border:1px dashed #86efac; border-radius:8px; padding:10px 12px; margin-top:18px; text-align:center; font-size:0.75rem; color:#166534; font-weight:700;"></div>
+    <div id="rec-rodape" style="text-align: center; margin-top: 18px; font-size: 0.7rem; color: #888;">
         <p style="margin:0;">Obrigado pela preferência!</p><p style="margin:0;">Novera Scent - Aromas que marcam.</p>
     </div>
 </div>
@@ -1451,7 +1453,8 @@
         <span style="font-weight: 700; font-size: 0.9rem; color: #b45309;">TOTAL EM ABERTO:</span>
         <span id="cob-total" style="font-weight: 800; font-size: 1.5rem; color: #b45309;">R$ 0,00</span>
     </div>
-    <div style="text-align: center; margin-top: 30px; font-size: 0.75rem; color: #888;">
+    <div id="cob-rodape-pix" style="display:none; background:#f0fdf4; border:1px dashed #86efac; border-radius:8px; padding:10px 12px; margin-top:18px; text-align:center; font-size:0.75rem; color:#166534; font-weight:700;"></div>
+    <div id="cob-rodape" style="text-align: center; margin-top: 18px; font-size: 0.75rem; color: #888;">
         <p style="margin:0;">Qualquer dúvida, é só nos chamar.</p>
     </div>
 </div>
@@ -1704,9 +1707,23 @@
             </div>
 
             <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">🧾 Rodapé dos Recibos e Cobranças</label>
+                <input type="text" id="cfg-doc-agradecimento" placeholder="Mensagem de agradecimento (ex: Obrigado pela preferência!)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 6px;">
+                <input type="text" id="cfg-doc-politica" placeholder="Política (ex: Trocas em até 7 dias com a embalagem)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 6px;">
+                <input type="text" id="cfg-doc-pix" placeholder="PIX / dados de pagamento (ex: PIX: 35 99999-9999 — Fernando)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
+                <small style="font-size:0.65rem; color:#999;">Aparecem no rodapé de todo recibo e cobrança gerados. O PIX ganha uma caixinha verde de destaque. Deixe em branco o que não usar.</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
                 <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">👥 Bônus de Equipe (% p/ quem indicou, s/ vendas pagas do indicado)</label>
                 <input type="number" id="cfg-bonus-gerente" placeholder="Ex: 2" min="0" step="0.5" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;">
                 <small style="font-size:0.65rem; color:#999;">Programa de indicação: 1 nível só, fecha dia 1º junto com o acelerador. Defina quem indicou quem no cadastro da Equipe.</small>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">🏆 Desafios da Casa (troféus personalizados)</label>
+                <button class="btn-salvar" style="margin-top:0; background:#b45309; box-shadow: 0 4px 10px rgba(180,83,9,0.3);" onclick="abrirTrofeusCustom()">🏆 Criar / Gerenciar Desafios</button>
+                <small style="font-size:0.65rem; color:#999;">Crie seus próprios troféus (ex: "🧴 Cremeira do Mês — 10 cremes vendidos"). Quem cumprir ganha a medalha na Sala de Troféus, todo mês de novo.</small>
             </div>
 
             <div style="margin-bottom: 20px;">
