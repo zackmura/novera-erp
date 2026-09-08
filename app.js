@@ -426,7 +426,9 @@ function mostrarAlerta(titulo, texto, tipo) {
 }
 
 function abrirConfirmacao(titulo, texto, icone, corHex, sombraHex, textoBtn, callback) {
-    document.getElementById('modal-conf-title').innerText = titulo; document.getElementById('modal-conf-title').style.color = corHex; document.getElementById('modal-conf-icon').innerText = icone; document.getElementById('texto-confirmar').innerText = texto;
+    document.getElementById('modal-conf-title').innerText = titulo; document.getElementById('modal-conf-title').style.color = corHex; document.getElementById('modal-conf-icon').innerText = icone;
+    const elTxtConf = document.getElementById('texto-confirmar'); elTxtConf.innerText = texto;
+    elTxtConf.style.textAlign = texto.includes('\n') ? 'left' : 'center'; // lista alinha à esquerda, frase continua centralizada
     const btn = document.getElementById('btn-confirmar-acao'); btn.innerText = textoBtn; btn.style.background = corHex; btn.style.boxShadow = `0 4px 0 ${sombraHex}`;
     btn.onclick = function () { if (callback) callback(); document.getElementById('modal-confirmar').style.display = 'none'; };
     document.getElementById('modal-confirmar').style.display = 'flex';
@@ -2672,7 +2674,9 @@ function atualizarResumoMala() {
 }
 
 let malaEmEnvio = false; // trava contra clique duplo
-async function confirmarTransferenciaLote() {
+
+// 🧳 Passo de conferência: mostra a listinha completa ANTES de enviar — última chance de pescar um erro
+function confirmarTransferenciaLote() {
     if (malaEmEnvio) return;
     const origem = document.getElementById('tl-origem').value;
     const destino = document.getElementById('tl-destino').value;
@@ -2680,6 +2684,20 @@ async function confirmarTransferenciaLote() {
     if (chaves.length === 0) return mostrarAlerta("Mala vazia", "Toque no + dos produtos que você quer transferir.", "warning");
     if (normalizarNomeBusca(origem) === normalizarNomeBusca(destino)) return mostrarAlerta("Atenção", "Origem e destino são o mesmo local. Escolha destinos diferentes.", "warning");
 
+    const LIMITE_LINHAS = 14;
+    const linhas = chaves.map(ch => { const e = estoqueAgrupado[ch]; return `• ${malaTransferencia[ch]}x ${e && e.codigo ? e.codigo + ' · ' : ''}${e ? e.nome : ch}`; });
+    const totalUnConf = chaves.reduce((s, c) => s + malaTransferencia[c], 0);
+    const textoLista = linhas.slice(0, LIMITE_LINHAS).join('\n') + (linhas.length > LIMITE_LINHAS ? `\n… e mais ${linhas.length - LIMITE_LINHAS} produto(s)` : '');
+    abrirConfirmacao(
+        "Confere a mala? 🧳",
+        `${origem} ➜ ${destino}\n\n${textoLista}\n\n📦 Total: ${totalUnConf} un em ${chaves.length} produto(s). Está tudo certo?`,
+        "🧳", "#2e7d32", "#1b5e20", "🚚 Sim, transferir!",
+        () => executarTransferenciaLote(origem, destino, chaves)
+    );
+}
+
+async function executarTransferenciaLote(origem, destino, chaves) {
+    if (malaEmEnvio) return;
     malaEmEnvio = true;
     const btn = document.getElementById('btn-confirmar-mala');
     if (btn) btn.disabled = true;
@@ -7978,23 +7996,35 @@ function verificarNovasConquistasUI() {
 function mostrarFestaConquista(novas) {
     const antigo = document.getElementById('modal-festa-conquista');
     if (antigo) antigo.remove();
-    const chips = novas.map(c => `
+    // 🛗 Muitos troféus de uma vez? Mostra os primeiros e resume o resto — o modal NUNCA maior que a tela
+    const LIMITE_FESTA = 6;
+    const exibidas = novas.slice(0, LIMITE_FESTA);
+    const extras = novas.length - exibidas.length;
+    const chips = exibidas.map(c => `
         <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 14px; margin:6px 0; display:flex; align-items:center; gap:12px;">
             <span style="font-size:1.9rem; flex-shrink:0;">${c.emoji || '🏆'}</span>
             <span style="font-weight:800; color:#92400e; font-size:0.85rem; text-align:left;">${c.titulo}</span>
-        </div>`).join('');
+        </div>`).join('') + (extras > 0 ? `<p style="margin:8px 0 0; font-size:0.72rem; font-weight:800; color:#b45309;">…e mais ${extras} troféu(s) te esperando na Sala! 🏛️</p>` : '');
     const overlay = document.createElement('div');
     overlay.id = 'modal-festa-conquista';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.3s ease;';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.82); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px); animation:fadeIn 0.3s ease;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); }; // tocar fora fecha — nunca mais preso
     overlay.innerHTML = `
-        <div style="background:linear-gradient(160deg, #ffffff, #fdf5f7); border-radius:24px; max-width:360px; width:100%; padding:28px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #fde68a;">
-            <div style="font-size:1.4rem; letter-spacing:6px;">🎊 ✨ 🎊</div>
-            <div class="fogo-pulso" style="font-size:4rem; display:inline-block; margin:4px 0;">🏆</div>
-            <h3 style="margin:6px 0 2px 0; color:#b45309; font-size:1.2rem; font-weight:900; text-transform:uppercase; letter-spacing:1px;">Conquista Desbloqueada!</h3>
-            <p style="margin:0 0 14px 0; color:#966178; font-size:0.8rem; font-weight:700;">Parabéns, ${usuarioLogado}! 👏</p>
-            ${chips}
-            <p style="margin:12px 0 16px 0; color:#999; font-size:0.7rem; font-style:italic;">Guardado pra sempre na sua 🏛️ Sala de Troféus.</p>
-            <button style="width:100%; background:linear-gradient(90deg,#f59e0b,#b45309); color:#fff; border:none; padding:14px; border-radius:12px; font-weight:900; font-size:0.9rem; cursor:pointer; font-family:'Montserrat', sans-serif; text-transform:uppercase; letter-spacing:1px; box-shadow:0 6px 18px rgba(245,158,11,0.4);" onclick="document.getElementById('modal-festa-conquista').remove()">Bora vender mais! 🚀</button>
+        <div style="background:linear-gradient(160deg, #ffffff, #fdf5f7); border-radius:24px; max-width:360px; width:100%; max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #fde68a; position:relative;">
+            <button onclick="document.getElementById('modal-festa-conquista').remove()" style="position:absolute; top:10px; right:10px; background:rgba(180,83,9,0.12); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#b45309; cursor:pointer; font-size:1rem; z-index:2;">×</button>
+            <div style="padding:22px 22px 0; text-align:center; flex-shrink:0;">
+                <div style="font-size:1.2rem; letter-spacing:6px;">🎊 ✨ 🎊</div>
+                <div class="fogo-pulso" style="font-size:3.2rem; display:inline-block; margin:2px 0;">🏆</div>
+                <h3 style="margin:4px 0 2px 0; color:#b45309; font-size:1.1rem; font-weight:900; text-transform:uppercase; letter-spacing:1px;">Conquista Desbloqueada!</h3>
+                <p style="margin:0 0 8px 0; color:#966178; font-size:0.8rem; font-weight:700;">Parabéns, ${usuarioLogado}! 👏</p>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding:0 22px; text-align:center;">
+                ${chips}
+                <p style="margin:12px 0 6px 0; color:#999; font-size:0.7rem; font-style:italic;">Guardado pra sempre na sua 🏛️ Sala de Troféus.</p>
+            </div>
+            <div style="padding:12px 22px 20px; flex-shrink:0;">
+                <button style="width:100%; background:linear-gradient(90deg,#f59e0b,#b45309); color:#fff; border:none; padding:14px; border-radius:12px; font-weight:900; font-size:0.9rem; cursor:pointer; font-family:'Montserrat', sans-serif; text-transform:uppercase; letter-spacing:1px; box-shadow:0 6px 18px rgba(245,158,11,0.4);" onclick="document.getElementById('modal-festa-conquista').remove()">Bora vender mais! 🚀</button>
+            </div>
         </div>`;
     document.body.appendChild(overlay);
 }
