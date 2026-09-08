@@ -1,3 +1,79 @@
+/* ============================================================================
+   📚 NOVERA ERP — ÍNDICE DO ARQUIVO (app.js)
+   ----------------------------------------------------------------------------
+   Este arquivo é propositalmente ÚNICO (sem separação em módulos): o app roda
+   direto do GitHub Pages sem empacotador, e um arquivo só carrega mais rápido
+   e elimina erros de ordem de carregamento. A organização é feita por SEÇÕES.
+
+   COMO NAVEGAR: use Ctrl+F com o título da seção abaixo (o texto é idêntico
+   ao da faixa de comentário no corpo do arquivo). Não use número de linha —
+   ele muda a cada edição; o título da faixa não.
+
+   ── FUNDAÇÃO ────────────────────────────────────────────────────────────────
+   🎨 IDENTIDADE VISUAL ............... marca, logo e paleta (white-label)
+   🔄 PWA: ATUALIZAÇÃO AUTOMÁTICA ..... service worker e recarga de versão
+   FUNÇÃO DO CRACHÁ ................... segurança JWT, login e papéis
+   MÓDULO: SINCRONIZAÇÃO FANTASMA ..... auto-sync 60s (pula se a pessoa está ocupada)
+
+   ── FÁBRICA E PRODUÇÃO ──────────────────────────────────────────────────────
+   📖 LIVRO DE RECEITAS DA FÁBRICA .... receitas, custos por insumo, precificar
+   FUNÇÃO QUE DESENHA A FÁBRICA ....... fila de maceração + selo de estoque
+   ⏳ CONSULTA DE MACERAÇÃO PARA VENDEDORES
+   💡 SUGESTÃO DE PRODUÇÃO ............ vendedor sugere, Admin decide
+   CONTROLE DAS SUB-ABAS DA FÁBRICA
+
+   ── ESTOQUE ─────────────────────────────────────────────────────────────────
+   🐌 ESTOQUE PARADO + BÔNUS DE COMISSÃO
+   🔄 TRANSFERIR ESTOQUE ENTRE LOCAIS . transferência unitária (🔄 do cartão)
+   🧳 MALA DE TRANSFERÊNCIA ........... vários produtos de uma vez + romaneio
+   📜 EXTRATO DO PRODUTO .............. linha do tempo de um item
+   📜 DIÁRIO DO ESTOQUE ............... todas as movimentações, com filtros
+   📈 LINHA DO TEMPO DO ESTOQUE ....... gráfico com botão deslizante
+   📋 MÓDULO: CONFERÊNCIA DE ESTOQUE (ADMIN)
+
+   ── CATÁLOGO ONLINE ─────────────────────────────────────────────────────────
+   🎯 CATÁLOGO SOB MEDIDA ............. produtos a dedo + preços próprios
+   🗂️ MEUS LINKS DE CATÁLOGO .......... histórico, liga/desliga, QR
+
+   ── COMPRAS E GASTOS ────────────────────────────────────────────────────────
+   🤖 SUGESTÃO INTELIGENTE DE COMPRAS . radar de essências abaixo do mínimo
+   🧠 MEMÓRIA DE COMPRAS .............. digite 2 letras e o sistema completa
+   📋 COPIAR PEDIDO PARA A ÁREA DE TRANSFERÊNCIA
+
+   ── VENDAS ──────────────────────────────────────────────────────────────────
+   MÓDULO: CARRINHO DE COMPRAS E PDV .. registro, histórico, chips de consulta
+   FUNÇÃO DO BOTÃO "APERTO DE MÃOS" ... acertos de caixa e comissão
+   MÓDULO: MAPA DE SEPARAÇÃO EM NUVEM . logística de pedidos
+   MÓDULO: LEITOR DE QR CODE / MÓDULO: DEEP LINKING / GERADOR DE QR CODES
+
+   ── COMUNICAÇÃO (SÓ ADMIN CONFIGURA) ────────────────────────────────────────
+   🔔 CENTRAL DE NOTIFICAÇÕES DO TELEGRAM ... liga/desliga, horários, textos
+   💬 CENTRAL DE MENSAGENS DO WHATSAPP ...... textos que vão pro CLIENTE
+
+   ── EQUIPE E GAMIFICAÇÃO ────────────────────────────────────────────────────
+   🏆 TROFÉUS PERSONALIZADOS .......... Desafios da Casa (Admin cria)
+   VISÃO DO VENDEDOR .................. painel gamificado (metas, equipe, patente)
+   VISÃO DO ADMIN ..................... mesa de diretoria (+ ⚙️ Organizar Painel)
+   MÓDULO: GESTÃO DE EQUIPE ........... usuários, comissões, gerente/indicação
+   MÓDULO: ONBOARDING / 📖 GUIA DO VENDEDOR PAGINADO
+
+   ── CLIENTES E CLUBE ────────────────────────────────────────────────────────
+   👥 MÓDULO: CADASTRO DE CLIENTES (ADMIN)
+   📇 CLUBE DE SELOS .................. cartela, adesão, WhatsApp e resgate
+
+   ── INTELIGÊNCIA ARTIFICIAL ─────────────────────────────────────────────────
+   🤖 ANALISTA NOVERA — CAMADA PROFUNDA (IA) ... parecer + conversa + instruções
+   ✨ FICHA OLFATIVA COM IA (Gemini)
+
+   ── CONFIGURAÇÃO ────────────────────────────────────────────────────────────
+   🎛️ MÓDULO: PARÂMETROS GLOBAIS (ADMIN)
+
+   REGRAS DA CASA (não esquecer): tema claro é a identidade (PDFs/imagens SEMPRE
+   claros); masculino = cinza, feminino = rosé; custos são segredo de fábrica
+   (só Admin); comissão/acelerador/selos só contam venda PAGA; todo deploy de
+   frontend exige subir a versão do CACHE_NAME no sw.js.
+   ============================================================================ */
+
 const VERSAO_ATUAL_SISTEMA = "8.9.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 

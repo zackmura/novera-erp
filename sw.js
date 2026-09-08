@@ -1,4 +1,4 @@
-const CACHE_NAME = 'novera-erp-v10.7.0';
+const CACHE_NAME = 'novera-erp-v10.7.1';
 const urlsToCache = [
 
   './index.html',
