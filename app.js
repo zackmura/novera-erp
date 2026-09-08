@@ -567,7 +567,7 @@ function renderizarNavPorPerfil() {
     html += `<a class="nav-item" id="nav-mais" onclick="toggleMaisMenu()"><span class="icon">⋯</span><span>Mais</span></a>`;
     html += `<div class="nav-more-panel" id="nav-more-panel">` + itensMais.map(([id, ic, lb]) =>
         `<a class="nav-item-more" id="nav-${id}" onclick="switchTab('${id}'); fecharMaisMenu()"><span class="icon">${ic}</span><span>${lb}</span></a>`
-    ).join('') + `</div>`;
+    ).join('') + (isAdmin ? `<a class="nav-item-more" id="nav-notificacoes" onclick="abrirCentralNotificacoes(); fecharMaisMenu()"><span class="icon">🔔</span><span>Avisos</span></a>` : '') + `</div>`;
     nav.innerHTML = html;
 
     // Reacende o destaque da aba que já estava aberta
@@ -5936,6 +5936,162 @@ function atualizarDicaGerente() {
     const sugestao = Math.max(0, comGer - pctBonusGerente());
     dica.innerHTML = `💡 ${gNome} tem <b>${comGer}%</b> de comissão — para o custo ficar neutro pra você, sugerimos <b>${sugestao}%</b> para esta pessoa (${gNome} ganha os <b>${pctBonusGerente()}%</b> do Bônus de Equipe por fora).`;
     dica.style.display = 'block';
+}
+
+// ==========================================
+// 🔔 CENTRAL DE NOTIFICAÇÕES DO TELEGRAM (só Admin)
+// Liga/desliga cada aviso, escolhe horário dos agendados e edita o texto das mensagens de venda.
+// ==========================================
+const NOTIFS_TG = [
+    { grupo: '🛒 Vendas' },
+    { id: 'venda', emoji: '🟢', nome: 'Nova venda', desc: 'Cada venda avulsa registrada', tpl: true },
+    { id: 'carrinho', emoji: '🛒', nome: 'Carrinho fechado', desc: 'Pedido com vários itens', tpl: true },
+    { id: 'venda_editada', emoji: '✏️', nome: 'Venda atualizada', desc: 'Alguém editou uma venda', tpl: true },
+    { id: 'fiado_pago', emoji: '💲', nome: 'Fiado pago', desc: 'Baixa de pagamento + comissão liberada', tpl: true },
+    { grupo: '📦 Estoque & Fábrica' },
+    { id: 'estoque_baixo', emoji: '🚨', nome: 'Estoque baixo / zerado', desc: 'Produto atingiu o mínimo ou acabou' },
+    { id: 'maceracao', emoji: '🧪', nome: 'Nova maceração', desc: 'Lote novo entrou na fila' },
+    { id: 'fabrica_pronta', emoji: '☀️', nome: 'Lotes prontos pra envasar', desc: 'Terminou a maceração (avisa 1x por lote)', hora: 'fabrica_pronta', horaPadrao: '08:00' },
+    { id: 'ruptura', emoji: '⏳', nome: 'Alerta de ruptura', desc: 'O que vai faltar no ritmo de vendas atual', hora: 'ruptura', horaPadrao: '08:10' },
+    { id: 'conferencia', emoji: '📋', nome: 'Conferência de estoque', desc: 'Ajustes feitos numa conferência' },
+    { grupo: '💰 Financeiro' },
+    { id: 'fechamento_dia', emoji: '📉', nome: 'Fechamento do dia', desc: 'Resumo do caixa do dia', hora: 'fechamento_dia', horaPadrao: '19:00' },
+    { id: 'acertos', emoji: '🤝', nome: 'Acertos de comissão', desc: 'Repasse confirmado a um vendedor' },
+    { id: 'aceleradores', emoji: '💰', nome: 'Aceleradores a pagar', desc: 'Fechamento do mês (dia 1º)' },
+    { id: 'bonus_equipe', emoji: '👥', nome: 'Bônus de equipe a pagar', desc: 'Fechamento do mês (dia 1º)' },
+    { grupo: '👥 Equipe & Clientes' },
+    { id: 'conquistas', emoji: '🏆', nome: 'Troféus e conquistas', desc: 'Alguém da equipe desbloqueou troféu' },
+    { id: 'coroacao', emoji: '👑', nome: 'Pódio do mês', desc: 'Coroação dos campeões (dia 1º)' },
+    { id: 'encomendas', emoji: '🎁', nome: 'Encomendas', desc: 'Nova encomenda / encomenda que virou venda' },
+    { id: 'clube', emoji: '📇', nome: 'Clube de Selos', desc: 'Cartela completa e brinde entregue' },
+    { id: 'aniversarios', emoji: '🎂', nome: 'Aniversariantes', desc: 'Clientes fazendo aniversário hoje', hora: 'aniversarios', horaPadrao: '08:30' },
+    { id: 'bonus_produto', emoji: '🔥', nome: 'Bônus de produto', desc: 'Bônus de comissão ativado/encerrado' },
+    { id: 'sugestoes', emoji: '💡', nome: 'Sugestões de produção', desc: 'Vendedor sugeriu produzir algo' }
+];
+// Cópia dos textos de fábrica (iguais aos do servidor) — pro editor, o preview e o "restaurar padrão"
+const TEMPLATES_TG_CLIENTE = {
+    venda: '🟢 <b>NOVA VENDA</b> 🟢\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Valor:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
+    carrinho: '🛒 <b>CARRINHO FECHADO</b> 🛒\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Itens:</b>{itens}\n\n💰 <b>Total:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
+    venda_editada: '✏️ <b>VENDA ATUALIZADA</b> ✏️\n🕒 <b>Hora:</b> {hora}\n👤 <b>Modificado por:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Novo Valor:</b> {total}\n📊 <b>Novo Status:</b> {status}{obs}',
+    fiado_pago: '💲 <b>FIADO PAGO!</b> 💲\n🕒 <b>Hora:</b> {hora}\n👤 <b>Baixa por:</b> {vendedor}\n🛍️ <b>Cliente(s):</b> {cliente}\n📦 <b>Itens Pagos:</b>{itens}\n\n💰 <b>Total Recebido:</b> {total}{obs}'
+};
+const VARS_EXEMPLO_TG = {
+    venda: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '2x [N007] Perfume 212 Vip Black 40ml', total: 'R$ 100,00', status: 'Pago', obs: '\n📝 Obs: Entregar sábado' },
+    carrinho: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)\n▫️ 1x [N039] Creme My Way 110ml (R$ 25,00)', total: 'R$ 125,00', status: 'Pendente', obs: '' },
+    venda_editada: { hora: '15:10', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '1x [N039] Creme My Way 110ml', total: 'R$ 25,00', status: 'Pago', obs: '' },
+    fiado_pago: { hora: '18:05', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)', total: 'R$ 100,00', status: 'Pago', obs: '\n\n🤝 Comissão liberada p/ repassar: R$ 10,00' }
+};
+function tgPrefsCliente() {
+    try { return JSON.parse(configuracoesGlobais.tg_prefs || '{}') || {}; } catch (e) { return {}; }
+}
+function aplicarTemplateTgCliente(tpl, vars) {
+    return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined && vars[k] !== null) ? String(vars[k]) : '');
+}
+
+function abrirCentralNotificacoes() {
+    const antigo = document.getElementById('modal-central-notif');
+    if (antigo) antigo.remove();
+    const prefs = tgPrefsCliente();
+    const off = new Set(Array.isArray(prefs.off) ? prefs.off : []);
+    const escTa = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+    let linhas = '';
+    NOTIFS_TG.forEach(n => {
+        if (n.grupo) { linhas += `<p style="margin:16px 0 6px; font-size:0.64rem; font-weight:900; letter-spacing:1.5px; color:#966178;">${n.grupo}</p>`; return; }
+        const ligada = !off.has(n.id);
+        const horaAtual = (prefs.horarios && prefs.horarios[n.hora]) || n.horaPadrao || '';
+
+        // 📝 Editor do texto DENTRO do cartão do próprio aviso (só nos que têm texto editável)
+        let editorHtml = '';
+        if (n.tpl) {
+            const tplAtual = (prefs.templates && prefs.templates[n.id]) || TEMPLATES_TG_CLIENTE[n.id];
+            const personalizado = !!(prefs.templates && prefs.templates[n.id]);
+            editorHtml = `
+            <details style="margin-top:8px; border-top:1px dashed #e8dde1; padding-top:8px;">
+                <summary style="font-size:0.66rem; font-weight:800; color:#0369a1; cursor:pointer;">📝 Editar texto da mensagem${personalizado ? ' <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; padding:0 6px; font-size:0.56rem;">personalizado</span>' : ''}</summary>
+                <p style="margin:8px 0 4px; font-size:0.6rem; color:#999;">Monte como quiser usando as variáveis (a ordem é você quem manda). Formatação do Telegram: &lt;b&gt;negrito&lt;/b&gt; e &lt;i&gt;itálico&lt;/i&gt;.</p>
+                <p style="margin:0 0 6px;">${['hora', 'vendedor', 'cliente', 'itens', 'total', 'status', 'obs'].map(v => `<code style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:6px; padding:1px 6px; font-size:0.62rem; margin-right:3px;">{${v}}</code>`).join('')}</p>
+                <textarea id="tgtpl-${n.id}" rows="6" oninput="atualizarPreviewTg('${n.id}')" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--border-color); border-radius:8px; font-size:0.7rem; font-family:monospace; margin:0 0 6px;">${escTa(tplAtual)}</textarea>
+                <p style="margin:0 0 4px; font-size:0.6rem; font-weight:800; color:#0369a1;">👀 Prévia (com dados de exemplo):</p>
+                <div id="tgprev-${n.id}" style="background:#1e2a38; color:#e8eef4; border-radius:10px; padding:10px 12px; font-size:0.7rem; line-height:1.5; white-space:pre-line; margin-bottom:6px;"></div>
+                <button onclick="document.getElementById('tgtpl-${n.id}').value = TEMPLATES_TG_CLIENTE['${n.id}']; atualizarPreviewTg('${n.id}');" style="background:#fff; color:#b91c1c; border:1px dashed #fca5a5; border-radius:8px; padding:6px 10px; font-size:0.62rem; font-weight:800; cursor:pointer;">↩️ Restaurar padrão</button>
+            </details>`;
+        }
+
+        linhas += `
+        <div style="background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:9px 12px; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="tgn-${n.id}" ${ligada ? 'checked' : ''} style="width:20px; height:20px; accent-color:#22c55e; flex-shrink:0; cursor:pointer;">
+                <div style="flex:1; min-width:0;">
+                    <p style="margin:0; font-size:0.78rem; font-weight:800; color:var(--brand-dark);">${n.emoji} ${n.nome}</p>
+                    <p style="margin:1px 0 0; font-size:0.62rem; color:#999;">${n.desc}</p>
+                </div>
+                ${n.hora ? `<input type="time" id="tgh-${n.id}" value="${horaAtual}" title="Horário do aviso" style="width:88px; padding:6px; margin:0; border:1px solid var(--border-color); border-radius:8px; font-size:0.72rem; flex-shrink:0;">` : ''}
+            </div>
+            ${editorHtml}
+        </div>`;
+    });
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-central-notif';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:520px; width:100%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #2C2A2B, #4a4547); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-central-notif').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.15); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">🔔 Central de Notificações</h3>
+            <p style="margin:3px 0 0; color:#c9c2c5; font-size:0.64rem;">Você decide o que o Telegram avisa, a que horas e com qual texto.</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:6px 16px 16px;">
+            ${linhas}
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid var(--border-color); background:#fff; flex-shrink:0;">
+            <button class="btn-salvar" style="margin:0; background:#2e7d32; box-shadow:0 4px 0 #1b5e20;" onclick="salvarCentralNotificacoes()">💾 SALVAR NOTIFICAÇÕES</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    NOTIFS_TG.filter(n => n.tpl).forEach(n => atualizarPreviewTg(n.id));
+}
+
+function atualizarPreviewTg(tipo) {
+    const ta = document.getElementById('tgtpl-' + tipo);
+    const prev = document.getElementById('tgprev-' + tipo);
+    if (!ta || !prev) return;
+    prev.innerHTML = aplicarTemplateTgCliente(ta.value || TEMPLATES_TG_CLIENTE[tipo], VARS_EXEMPLO_TG[tipo] || {});
+}
+
+let salvandoNotifs = false;
+function salvarCentralNotificacoes() {
+    if (salvandoNotifs) return;
+    const off = [], horarios = {}, templates = {};
+    NOTIFS_TG.forEach(n => {
+        if (!n.id) return;
+        const chk = document.getElementById('tgn-' + n.id);
+        if (chk && !chk.checked) off.push(n.id);
+        if (n.hora) {
+            const hv = (document.getElementById('tgh-' + n.id) || {}).value || '';
+            if (/^\d{2}:\d{2}$/.test(hv) && hv !== n.horaPadrao) horarios[n.hora] = hv;
+        }
+        if (n.tpl) {
+            const tv = ((document.getElementById('tgtpl-' + n.id) || {}).value || '').trim();
+            if (tv && tv !== TEMPLATES_TG_CLIENTE[n.id]) templates[n.id] = tv;
+        }
+    });
+    salvandoNotifs = true;
+    mostrarLoading('Salvando notificações...');
+    const prefsNovas = JSON.stringify({ off, horarios, templates });
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { tg_prefs: prefsNovas } }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                configuracoesGlobais.tg_prefs = prefsNovas;
+                const mCn = document.getElementById('modal-central-notif'); if (mCn) mCn.remove();
+                mostrarAlerta('Salvo! 🔔', `Central atualizada: ${off.length ? off.length + ' aviso(s) desligado(s)' : 'todos os avisos ligados'}${Object.keys(templates).length ? `, ${Object.keys(templates).length} texto(s) personalizado(s)` : ''}. Vale já pra próxima mensagem.`, 'success');
+            } else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+        })
+        .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+        .finally(() => { salvandoNotifs = false; ocultarLoading(); });
 }
 
 // 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
