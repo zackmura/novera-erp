@@ -564,13 +564,12 @@ function switchTab(tabId) {
 }
 
 function toggleVendasTab(tab) {
-    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view'), vHist = document.getElementById('vendas-historico-view');
-    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes'), btnHist = document.getElementById('btn-sub-historico');
+    // PDV e Histórico vivem na MESMA tela (separados pela faixa escura); o botão "📊 Histórico ⬇️" só rola até lá
+    const vReg = document.getElementById('vendas-registro-view'), vLot = document.getElementById('vendas-lotes-view');
+    const btnReg = document.getElementById('btn-sub-registro'), btnLot = document.getElementById('btn-sub-lotes');
     document.querySelectorAll('.sub-nav-btn', document.getElementById('tab-vendas')).forEach(b => { b.classList.remove('active'); });
-    vReg.style.display = 'none'; vLot.style.display = 'none'; if (vHist) vHist.style.display = 'none';
-    if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); }
-    else if (tab === 'historico' && vHist) { vHist.style.display = 'block'; if (btnHist) btnHist.classList.add('active'); }
-    else { vReg.style.display = 'block'; btnReg.classList.add('active'); }
+    vReg.style.display = 'none'; vLot.style.display = 'none';
+    if (tab === 'lotes') { vLot.style.display = 'block'; btnLot.classList.add('active'); } else { vReg.style.display = 'block'; btnReg.classList.add('active'); }
 }
 
 function toggleGastosTab(tab) {
@@ -2645,11 +2644,80 @@ function abrirModalTransferenciaLote() {
     if (todos.length > 1 && selD.value === document.getElementById('tl-origem').value) selD.selectedIndex = (selD.selectedIndex + 1) % todos.length;
 
     document.getElementById('tl-busca').value = '';
+    montarSugestaoMalaTipos();
+    carregarSugestaoMalaPrefs();
     renderizarMalaTransferencia();
     document.getElementById('modal-transfer-lote').style.display = 'flex';
 }
 
 function fecharModalTransferenciaLote() { document.getElementById('modal-transfer-lote').style.display = 'none'; }
+
+// 🪄 SUGESTÃO DE REPOSIÇÃO: "todo perfume da Kamila deve ter 3 un" → o sistema completa o que falta.
+// A preferência (tipos + níveis) fica salva POR DESTINO neste aparelho — configura uma vez, usa sempre.
+function montarSugestaoMalaTipos() {
+    const box = document.getElementById('tl-sugestao-tipos');
+    if (!box) return;
+    const tipos = {};
+    Object.values(estoqueAgrupado).forEach(e => { const k = normalizarNomeBusca(e.tipo || 'outros'); if (!tipos[k]) tipos[k] = String(e.tipo || 'Outros').trim(); });
+    box.innerHTML = Object.keys(tipos).sort().map(k => `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+            <input type="checkbox" id="tgs-chk-${k}" style="width:18px; height:18px; accent-color:#0369a1; flex-shrink:0; cursor:pointer;">
+            <span style="flex:1; font-size:0.72rem; font-weight:800; color:var(--brand-dark);">${tipos[k]}</span>
+            <span style="font-size:0.6rem; color:#0369a1;">nível ideal:</span>
+            <input type="number" id="tgs-qtd-${k}" min="1" placeholder="3" style="width:56px; padding:6px; margin:0; text-align:center; border:1px solid #7dd3fc; border-radius:8px;">
+        </div>`).join('');
+}
+
+function chavePrefsSugestaoMala() {
+    const destino = document.getElementById('tl-destino') ? document.getElementById('tl-destino').value : '';
+    return 'novera_mala_sugestao_' + normalizarNomeBusca(destino).replace(/\s+/g, '_');
+}
+
+function carregarSugestaoMalaPrefs() {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem(chavePrefsSugestaoMala()) || '{}') || {}; } catch (e) { }
+    document.querySelectorAll('#tl-sugestao-tipos input[type="checkbox"]').forEach(chk => {
+        const k = chk.id.replace('tgs-chk-', '');
+        chk.checked = k in prefs;
+        const inp = document.getElementById('tgs-qtd-' + k);
+        if (inp) inp.value = prefs[k] || '';
+    });
+}
+
+function aplicarSugestaoMala() {
+    const origem = document.getElementById('tl-origem').value;
+    const destino = document.getElementById('tl-destino').value;
+    if (normalizarNomeBusca(origem) === normalizarNomeBusca(destino)) return mostrarAlerta("Atenção", "Origem e destino são o mesmo local.", "warning");
+
+    // lê os tipos marcados e seus níveis ideais
+    const niveis = {};
+    document.querySelectorAll('#tl-sugestao-tipos input[type="checkbox"]').forEach(chk => {
+        if (!chk.checked) return;
+        const k = chk.id.replace('tgs-chk-', '');
+        const base = parseInt((document.getElementById('tgs-qtd-' + k) || {}).value) || 0;
+        if (base > 0) niveis[k] = base;
+    });
+    if (!Object.keys(niveis).length) return mostrarAlerta("Aviso", "Marque pelo menos um tipo e informe o nível ideal (ex: Perfume = 3).", "warning");
+
+    // completa cada produto até o nível: manda (nível − o que o destino já tem), limitado ao que a origem tem
+    malaTransferencia = {};
+    let produtosSug = 0, unSug = 0;
+    Object.keys(estoqueAgrupado).forEach(chave => {
+        const e = estoqueAgrupado[chave];
+        const base = niveis[normalizarNomeBusca(e.tipo || 'outros')];
+        if (!base) return;
+        const temOrigem = (e.locais && e.locais[origem]) || 0;
+        const temDestino = (e.locais && e.locais[destino]) || 0;
+        const qtd = Math.min(Math.max(0, base - temDestino), temOrigem);
+        if (qtd > 0) { malaTransferencia[chave] = qtd; produtosSug++; unSug += qtd; }
+    });
+
+    try { localStorage.setItem(chavePrefsSugestaoMala(), JSON.stringify(niveis)); } catch (e) { } // lembra a receita deste destino
+    document.getElementById('tl-busca').value = '';
+    renderizarMalaTransferencia();
+    if (!produtosSug) return mostrarAlerta("Tudo abastecido! ✅", `${destino} já está no nível ideal em todos os tipos marcados (ou ${origem} não tem sobrando).`, "success");
+    mostrarAlerta("Mala sugerida! 🪄", `${unSug} un em ${produtosSug} produto(s) pra deixar ${destino} no nível ideal. Revise as quantidades e toque no botão verde.`, "success");
+}
 
 function trocarOrigemMala() {
     // Origem nova = mala nova (as quantidades eram do saldo do local antigo)
@@ -2659,16 +2727,23 @@ function trocarOrigemMala() {
     if (tinhaItens) mostrarAlerta("Mala esvaziada", "Você trocou o local de origem, então tirei tudo da mala pra não misturar saldos.", "warning");
 }
 
+// Ordena pelo NÚMERO do código Novera (N003 antes de N038) — a ordem que a casa usa nas caixas
+function numeroCodigoNovera(e) {
+    const d = String(e && e.codigo || '').replace(/\D/g, '');
+    return d ? parseInt(d) : 99999;
+}
+
 function renderizarMalaTransferencia() {
     const lista = document.getElementById('tl-lista');
     const origem = document.getElementById('tl-origem').value;
+    const destino = document.getElementById('tl-destino').value;
     const t = normalizarNomeBusca(document.getElementById('tl-busca').value);
 
     const itens = Object.keys(estoqueAgrupado)
         .map(chave => ({ chave, e: estoqueAgrupado[chave], saldo: (estoqueAgrupado[chave].locais && estoqueAgrupado[chave].locais[origem]) || 0 }))
         .filter(x => x.saldo > 0)
         .filter(x => !t || normalizarNomeBusca(x.e.nome + ' ' + (x.e.codigo || '') + ' ' + (x.e.tipo || '')).includes(t))
-        .sort((a, b) => String(a.e.tipo).localeCompare(String(b.e.tipo)) || String(a.e.nome).localeCompare(String(b.e.nome)));
+        .sort((a, b) => String(a.e.tipo).localeCompare(String(b.e.tipo)) || numeroCodigoNovera(a.e) - numeroCodigoNovera(b.e) || String(a.e.nome).localeCompare(String(b.e.nome)));
 
     if (itens.length === 0) {
         lista.innerHTML = `<p style="text-align:center; color:#999; font-size:0.8rem; padding:20px 0;">${t ? 'Nada encontrado com essa busca…' : `Nenhum produto com estoque em ${origem}.`}</p>`;
@@ -2686,7 +2761,7 @@ function renderizarMalaTransferencia() {
         <div data-chave="${chaveEnc}" style="background:${qtdMala > 0 ? '#f0fdf4' : '#fff'}; border:1px solid ${qtdMala > 0 ? '#86efac' : 'var(--border-color)'}; border-radius:10px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px;">
             <div style="flex:1; min-width:0;">
                 <p style="margin:0; font-size:0.8rem; font-weight:800; color:var(--brand-dark); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><span style="background:var(--primary-dark); color:#fff; padding:1px 5px; border-radius:4px; font-size:0.6rem; margin-right:4px;">${x.e.codigo || '—'}</span>${x.e.nome}</p>
-                <p style="margin:2px 0 0; font-size:0.66rem; color:#888;">tem <b>${x.saldo} un</b> em ${origem}</p>
+                <p style="margin:2px 0 0; font-size:0.66rem; color:#888;">${origem} tem <b>${x.saldo}</b> · ${destino} tem <b style="color:${((x.e.locais && x.e.locais[destino]) || 0) > 0 ? '#15803d' : '#b91c1c'};">${(x.e.locais && x.e.locais[destino]) || 0}</b></p>
             </div>
             <div style="display:flex; gap:5px; align-items:center; flex-shrink:0;">
                 <button class="btn-acao" style="width:32px; height:32px; font-weight:900;" onclick="ajustarItemMala('${chaveEnc}', -1)">−</button>
@@ -2760,10 +2835,23 @@ function confirmarTransferenciaLote() {
     if (chaves.length === 0) return mostrarAlerta("Mala vazia", "Toque no + dos produtos que você quer transferir.", "warning");
     if (normalizarNomeBusca(origem) === normalizarNomeBusca(destino)) return mostrarAlerta("Atenção", "Origem e destino são o mesmo local. Escolha destinos diferentes.", "warning");
 
-    const LIMITE_LINHAS = 14;
-    const linhas = chaves.map(ch => { const e = estoqueAgrupado[ch]; return `• ${malaTransferencia[ch]}x ${e && e.codigo ? e.codigo + ' · ' : ''}${e ? e.nome : ch}`; });
+    // Lista separada por gênero e em ordem de código — a mesma ordem das caixas da casa
+    const ehFem = (e) => normalizarNomeBusca(e && e.genero || '').includes('fem');
+    const chavesOrdenadas = [...chaves].sort((a, b) => {
+        const ea = estoqueAgrupado[a] || {}, eb = estoqueAgrupado[b] || {};
+        return (ehFem(ea) ? 0 : 1) - (ehFem(eb) ? 0 : 1) || numeroCodigoNovera(ea) - numeroCodigoNovera(eb);
+    });
+    const LIMITE_LINHAS = 16;
+    let generoAnt = null;
+    const linhas = [];
+    chavesOrdenadas.forEach(ch => {
+        const e = estoqueAgrupado[ch] || {};
+        const g = ehFem(e) ? '🌸 FEMININOS' : '🔷 MASCULINOS / OUTROS';
+        if (g !== generoAnt) { generoAnt = g; linhas.push(g); }
+        linhas.push(`• ${malaTransferencia[ch]}x ${e.codigo ? e.codigo + ' · ' : ''}${e.nome || ch}`);
+    });
     const totalUnConf = chaves.reduce((s, c) => s + malaTransferencia[c], 0);
-    const textoLista = linhas.slice(0, LIMITE_LINHAS).join('\n') + (linhas.length > LIMITE_LINHAS ? `\n… e mais ${linhas.length - LIMITE_LINHAS} produto(s)` : '');
+    const textoLista = linhas.slice(0, LIMITE_LINHAS).join('\n') + (linhas.length > LIMITE_LINHAS ? `\n… e mais ${linhas.length - LIMITE_LINHAS} linha(s)` : '');
     abrirConfirmacao(
         "Confere a mala? 🧳",
         `${origem} ➜ ${destino}\n\n${textoLista}\n\n📦 Total: ${totalUnConf} un em ${chaves.length} produto(s). Está tudo certo?`,
@@ -2791,7 +2879,7 @@ async function executarTransferenciaLote(origem, destino, chaves) {
             try {
                 const r = await fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "transferir_estoque", nome: e.nome, qtd: qtd, local_origem: origem, local_destino: destino, log_detalhe: `🧳 Mala de transferência: ${qtd}x [${e.nome}] ${origem} → ${destino}` }) });
                 const res = await r.json();
-                if (res.sucesso) ok.push({ qtd, nome: e.nome, codigo: e.codigo || '' }); else falhas.push(e.nome);
+                if (res.sucesso) ok.push({ qtd, nome: e.nome, codigo: e.codigo || '', genero: e.genero || '' }); else falhas.push(e.nome);
             } catch (err) { falhas.push(e.nome); }
         }
     } finally {
@@ -2831,9 +2919,20 @@ function enviarRomaneioMala(origem, destino, itens) {
     const dataHoje = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
     const totalUn = itens.reduce((s, x) => s + (x.qtd || 0), 0);
 
+    // Itens separados por gênero e em ordem de código — e SEM emojis decorativos,
+    // que em alguns aparelhos viram "�" no WhatsApp (informação não pode virar interrogação)
+    const ehFemRom = (x) => normalizarNomeBusca(x.genero || '').includes('fem');
+    const ordenados = [...itens].sort((a, b) => (ehFemRom(a) ? 0 : 1) - (ehFemRom(b) ? 0 : 1) || (parseInt(String(a.codigo).replace(/\D/g, '')) || 99999) - (parseInt(String(b.codigo).replace(/\D/g, '')) || 99999));
+    let genAntRom = null;
+    const linhasRom = [];
+    ordenados.forEach(x => {
+        const g = ehFemRom(x) ? '*FEMININOS*' : '*MASCULINOS / OUTROS*';
+        if (g !== genAntRom) { genAntRom = g; if (linhasRom.length) linhasRom.push(''); linhasRom.push(g); }
+        linhasRom.push(`- ${x.qtd}x ${x.codigo ? `*${x.codigo}* ` : ''}${x.nome}`);
+    });
     const msg = templateZap('zap_romaneio', {
         marca: marca.toUpperCase(), origem, destino, data: dataHoje,
-        itens: itens.map(x => `▪️ ${x.qtd}x ${x.codigo ? `*${x.codigo}* · ` : ''}${x.nome}`).join('\n'),
+        itens: linhasRom.join('\n'),
         total_un: totalUn
     });
 
@@ -4952,8 +5051,7 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
         const substituirTipoDoNome = new RegExp('^' + tipoEscapado + '\\s+', 'i');
         const tipoAbreviado = abreviarTipo(tipoKey);
 
-        html += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">`;
-        grupos[tipoKey].forEach(e => {
+        const linhaOption = (e) => {
             const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
             const bonusItem = comBonus ? mapaBonus[e.nome] : null;
             const descItem = descontosProdutoGlobal.find(dd => dd.nomeProduto === e.nome);
@@ -4963,9 +5061,22 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
             const sufixoDesc = descItem ? ` PROMO -${descItem.percentual}%` : '';
             const sufixoQtd = comQtd ? ` (${e.totalQtd}un)` : '';
             const estiloBonus = bonusItem ? ' style="background:#fef3c7; color:#b45309; font-weight:800;"' : (descItem ? ' style="background:#e8f5e9; color:#166534; font-weight:800;"' : '');
-            html += `<option value="${e.nome}"${estiloBonus}>${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}${sufixoDesc}</option>`;
-        });
-        html += `</optgroup>`;
+            return `<option value="${e.nome}"${estiloBonus}>${iconeLinha} ${exibeCodigo}${nomeAbreviado}${sufixoQtd}${sufixoBonus}${sufixoDesc}</option>`;
+        };
+
+        // 🌸/🔷 Dentro do tipo, FEMININOS e MASCULINOS/OUTROS ficam em grupos separados
+        // (pedido da casa: lançar venda sem garimpar a lista misturada)
+        const generoDe = (e) => { const r = rotulosGlobal.find(x => x.codigo === e.codigo); return String(r && r.genero || '').toLowerCase().trim(); };
+        const femininos = grupos[tipoKey].filter(e => generoDe(e) === 'feminino');
+        const masculinos = grupos[tipoKey].filter(e => generoDe(e) !== 'feminino');
+
+        if (femininos.length && masculinos.length) {
+            html += `<optgroup label="🌸 ${tipoKey.toUpperCase()} — FEMININOS">` + femininos.map(linhaOption).join('') + `</optgroup>`;
+            html += `<optgroup label="🔷 ${tipoKey.toUpperCase()} — MASCULINOS / OUTROS">` + masculinos.map(linhaOption).join('') + `</optgroup>`;
+        } else {
+            // tipo com um gênero só: mantém o grupo simples de sempre
+            html += `<optgroup label="${iconeGrupo} ${tipoKey.toUpperCase()}">` + grupos[tipoKey].map(linhaOption).join('') + `</optgroup>`;
+        }
     });
     return html;
 }
@@ -6235,7 +6346,7 @@ const TEMPLATES_ZAP_CLIENTE = {
     zap_recompra: 'Olá {cliente}, tudo bem? Aqui é da {marca}! ✨\n\nVi que faz uns {dias} dias que você levou o {produto}. Ele já deve estar no finalzinho, né?\n\nQuer aproveitar para repor ou provar uma novidade? Chegou muita coisa boa!',
     zap_cartela_cheia: '🎁 {cliente}, sua cartela do Clube ENCHEU! Você ganhou um PRESENTE — me fala qual produto você quer escolher! 🥳',
     zap_cartela_parcial: '🌸 Oi, {cliente}! Olha sua cartela do Clube: já são {selos} selo(s) — faltam só {faltam} pro seu PRESENTE! 🎁',
-    zap_romaneio: '🧳 *ROMANEIO DE TRANSFERÊNCIA — {marca}*\n\n🚪 Saiu de: *{origem}*\n🎯 Chegando em: *{destino}*\n📅 {data}\n\n{itens}\n\n📦 *Total: {total_un} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa! 😉',
+    zap_romaneio: '*ROMANEIO DE TRANSFERÊNCIA — {marca}*\n\nSaiu de: *{origem}*\nChegando em: *{destino}*\nData: {data}\n\n{itens}\n\n*Total: {total_un} unidade(s)*\n\nConfere aí se chegou tudo certinho? Qualquer diferença me avisa!',
     zap_link_catalogo: '✨ Dá uma olhada no nosso catálogo! Perfumes e cosméticos com preços e disponibilidade atualizados:\n\n{link}'
 };
 const VARS_EXEMPLO_ZAP = {
@@ -6244,7 +6355,7 @@ const VARS_EXEMPLO_ZAP = {
     zap_recompra: { cliente: 'Ana Paula', marca: 'Novera Scent', dias: 60, produto: 'Perfume Chloé 40ml' },
     zap_cartela_cheia: { cliente: 'Ana Paula' },
     zap_cartela_parcial: { cliente: 'Ana Paula', selos: 5, faltam: 3 },
-    zap_romaneio: { marca: 'NOVERA SCENT', origem: 'Sede', destino: 'Kamila/Pancho', data: '08/09/2026', itens: '▪️ 2x *N007* · Perfume 212 Vip Black 40ml\n▪️ 1x *N039* · Creme My Way 110ml', total_un: 3 },
+    zap_romaneio: { marca: 'NOVERA SCENT', origem: 'Sede', destino: 'Kamila/Pancho', data: '21/09/2026', itens: '*FEMININOS*\n- 1x *N039* Creme My Way 110ml\n\n*MASCULINOS / OUTROS*\n- 2x *N007* Perfume 212 Vip Black 40ml', total_un: 3 },
     zap_link_catalogo: { link: 'https://novera.vivainteligente.net/catalogo.html?k=abc123', marca: 'Novera Scent' }
 };
 function templateZap(id, vars) {
@@ -9009,7 +9120,7 @@ const PAGINAS_GUIA = [
 <p style="margin:0;">📌 Regra de ouro: <b>nunca responda "não tenho"</b>. Olhe o Estoque — se existe em QUALQUER local, você pode vender.</p>` },
 
 { id: 'filtros', emoji: '🔍', titulo: 'Consultando suas Vendas (Histórico)', html: `
-<p style="margin-bottom:8px;">Na aba Vendas, toque na sub-aba <b>📊 Histórico</b> — é a tela de consulta, separada da tela de vender. Lá você acha qualquer venda em segundos, de 3 jeitos:</p>
+<p style="margin-bottom:8px;">Na aba Vendas, depois do PDV vem a <b>faixa escura 📊 HISTÓRICO & CONSULTA</b> (o botão <b>📊 Histórico ⬇️</b> no topo te leva direto pra lá). Ali você acha qualquer venda em segundos, de 3 jeitos:</p>
 <p style="margin-bottom:6px;">1️⃣ <b>🔍 BUSCA RÁPIDA</b> (o campo no topo): digite qualquer coisa — nome do cliente ("mari" acha Mariana e Marília), produto ou até um pedaço da observação.</p>
 <p style="margin-bottom:8px;">2️⃣ <b>OS CHIPS DE 1 TOQUE</b> (as bolinhas abaixo da busca):</p>
 <p style="margin-bottom:6px;">• <b>📅 Hoje / 7 dias / 🗓️ Este mês</b>: suas vendas do período, num toque.</p>
