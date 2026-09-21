@@ -226,6 +226,7 @@
                     <button class="btn-salvar" id="btn-conferencia-estoque" style="margin-top:0; background: #0369a1; display:none;" onclick="abrirModalConferencia()">📋 Conferência de Estoque</button>
                     <button class="btn-salvar" id="btn-transfer-lote" style="margin-top:0; background: #8d6e63; box-shadow: 0 4px 10px rgba(141,110,99,0.35); display:none;" onclick="abrirModalTransferenciaLote()">🧳 Mala de Transferência (vários de uma vez)</button>
                     <button class="btn-salvar" id="btn-extrato-geral" style="margin-top:0; background: #966178; box-shadow: 0 4px 10px rgba(150,97,120,0.35); display:none;" onclick="abrirExtratoGeral()">📜 Diário do Estoque (todas as movimentações)</button>
+                    <button class="btn-salvar" id="btn-ajuste-precos" style="margin-top:0; background: #15803d; box-shadow: 0 4px 10px rgba(21,128,61,0.35); display:none;" onclick="abrirAjustePrecos()">💰 Ajustar Preços (por categoria e ml)</button>
                 </div>
             </div>
             
@@ -1741,6 +1742,7 @@
                     <div style="flex:1;"><small style="font-size:0.6rem; color:#999; display:block;">Teto do prêmio R$</small><input type="number" id="cfg-clube-teto" placeholder="50" min="1" style="width:100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;"></div>
                 </div>
                 <small style="font-size:0.65rem; color:#b45309;">💡 Subiu o preço do perfume? Suba SÓ o "teto do prêmio" junto. ⚠️ "R$ por selo" e "selos p/ cartela" recalculam TODAS as cartelas na hora — mudar pode tirar selos de clientes!</small>
+                <div id="aviso-clube-preco" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:8px 10px; margin-top:6px; font-size:0.68rem; font-weight:800; color:#b91c1c;"></div>
             </div>
 
             <div style="margin-bottom: 20px;">

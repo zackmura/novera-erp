@@ -710,6 +710,8 @@ function aplicarPermissoes() {
         if (btnMalaV) btnMalaV.style.display = 'none';
         const btnExgV = document.getElementById('btn-extrato-geral');
         if (btnExgV) btnExgV.style.display = 'none';
+        const btnPrecoV = document.getElementById('btn-ajuste-precos');
+        if (btnPrecoV) btnPrecoV.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -733,6 +735,8 @@ function aplicarPermissoes() {
         if (btnMalaA) btnMalaA.style.display = 'block';
         const btnExgA = document.getElementById('btn-extrato-geral');
         if (btnExgA) btnExgA.style.display = 'block';
+        const btnPrecoA = document.getElementById('btn-ajuste-precos');
+        if (btnPrecoA) btnPrecoA.style.display = 'block';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -6555,6 +6559,159 @@ function excluirTrofeuCustom(id) {
     });
 }
 
+// ==========================================
+// 💰 AJUSTE DE PREÇOS EM LOTE (só Admin): reprecifica por CATEGORIA + VOLUME (ml)
+// "Perfume 40ml → R$ 55" muda todos os perfumes 40ml de uma vez — os 100ml ficam quietos.
+// ==========================================
+let _gruposAjustePreco = [];
+
+function abrirAjustePrecos() {
+    const antigo = document.getElementById('modal-ajuste-precos');
+    if (antigo) antigo.remove();
+
+    // Agrupa por tipo + volume extraído do nome ("Perfume Chloé 40ml" → Perfume · 40ml)
+    const grupos = {};
+    Object.values(estoqueAgrupado).forEach(e => {
+        const mMl = String(e.nome).match(/(\d+)\s*ml\b/i);
+        const ml = mMl ? mMl[1] + 'ml' : 'sem ml no nome';
+        const k = normalizarNomeBusca(e.tipo || 'Outros') + '|' + ml;
+        if (!grupos[k]) grupos[k] = { tipo: String(e.tipo || 'Outros').trim(), ml, mlNum: mMl ? parseInt(mMl[1]) : 99999, produtos: [], precos: [] };
+        grupos[k].produtos.push(e.nome);
+        grupos[k].precos.push(parseDinheiro(e.preco));
+    });
+    _gruposAjustePreco = Object.values(grupos).sort((a, b) => a.tipo.localeCompare(b.tipo) || a.mlNum - b.mlNum);
+
+    const linhas = _gruposAjustePreco.map((g, i) => {
+        const min = Math.min(...g.precos), max = Math.max(...g.precos);
+        const precoAtualTxt = min === max ? `hoje: <b>${fmt(min)}</b>` : `hoje: <b style="color:#b45309;">de ${fmt(min)} a ${fmt(max)}</b> (misturado)`;
+        return `
+        <div style="background:#fff; border:1px solid var(--border-color); border-radius:10px; padding:10px 12px; margin-bottom:6px; display:flex; align-items:center; gap:10px;">
+            <div style="flex:1; min-width:0;">
+                <p style="margin:0; font-size:0.8rem; font-weight:800; color:var(--brand-dark);">🧴 ${g.tipo} · ${g.ml}</p>
+                <p style="margin:2px 0 0; font-size:0.64rem; color:#888;">${g.produtos.length} produto(s) — ${precoAtualTxt}</p>
+            </div>
+            <div style="flex-shrink:0; width:110px;">
+                <label style="font-size:0.56rem; font-weight:800; color:#15803d;">NOVO PREÇO</label>
+                <input type="text" id="ap-preco-${i}" inputmode="decimal" placeholder="não mudar" style="width:100%; box-sizing:border-box; padding:8px; margin:0; text-align:center; font-weight:800; border:1px solid #86efac; border-radius:8px;">
+            </div>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-ajuste-precos';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:480px; width:100%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #15803d, #22c55e); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-ajuste-precos').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">💰 Ajuste de Preços em Lote</h3>
+            <p style="margin:3px 0 0; color:#dcfce7; font-size:0.64rem;">Preencha só os grupos que vão mudar — os em branco ficam como estão.</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:12px 16px;">
+            ${linhas}
+            <p style="font-size:0.6rem; color:#999; margin:10px 0 0; line-height:1.5;">ℹ️ Vale pro estoque, PDV e catálogo online na hora. Links de catálogo com <b>preços próprios</b> (R$ fixo por link) não mudam — esses são ajustados no próprio link. Vendas já feitas não são tocadas.</p>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid var(--border-color); background:#fff; flex-shrink:0;">
+            <button class="btn-salvar" style="margin:0; background:#15803d; box-shadow:0 4px 0 #14532d;" onclick="confirmarAjustePrecos()">👀 CONFERIR E APLICAR</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+function confirmarAjustePrecos() {
+    const mudancas = [];
+    _gruposAjustePreco.forEach((g, i) => {
+        const bruto = (document.getElementById('ap-preco-' + i) || {}).value || '';
+        if (!bruto.trim()) return;
+        const novo = parseDinheiro(bruto);
+        if (!(novo > 0)) return;
+        mudancas.push({ g, novo });
+    });
+    if (!mudancas.length) return mostrarAlerta("Nada preenchido", "Digite o novo preço em pelo menos um grupo — os em branco não mudam.", "warning");
+
+    const totalProds = mudancas.reduce((s, m) => s + m.g.produtos.length, 0);
+    const linhasConf = mudancas.map(m => {
+        const min = Math.min(...m.g.precos), max = Math.max(...m.g.precos);
+        const de = min === max ? fmt(min) : `${fmt(min)}–${fmt(max)}`;
+        return `• ${m.g.tipo} ${m.g.ml}: ${de} ➜ ${fmt(m.novo)} (${m.g.produtos.length} produto${m.g.produtos.length > 1 ? 's' : ''})`;
+    });
+    abrirConfirmacao(
+        "Confirmar novos preços? 💰",
+        `${linhasConf.join('\n')}\n\n📦 Total: ${totalProds} produto(s) reprecificado(s). Essa mudança vale na hora pra loja inteira — confere com calma!`,
+        "💰", "#15803d", "#14532d", "✅ Sim, aplicar",
+        () => executarAjustePrecos(mudancas, totalProds)
+    );
+}
+
+// 📇 VIGIA DO CLUBE: o preço padrão do perfume (o mais comum no estoque) precisa conversar
+// com o "teto do prêmio" do Clube — senão cliente com cartela cheia não consegue escolher um perfume
+function precoPadraoPerfume() {
+    const contagem = {};
+    Object.values(estoqueAgrupado).forEach(e => {
+        if (!String(e.tipo || '').toLowerCase().includes('perfume')) return;
+        const p = parseDinheiro(e.preco);
+        if (p > 0) contagem[p] = (contagem[p] || 0) + 1;
+    });
+    let melhor = 0, n = 0;
+    Object.keys(contagem).forEach(p => { if (contagem[p] > n) { n = contagem[p]; melhor = parseFloat(p); } });
+    return melhor;
+}
+
+// Depois de um reajuste que mexeu em PERFUMES, confere o Clube e oferece a ação SEGURA (subir o teto).
+// O "R$ por selo" nunca muda sozinho: recalcularia todas as cartelas e poderia tirar selos de clientes.
+function verificarClubeAposReajuste(mudancas) {
+    const perf = (mudancas || []).filter(m => normalizarNomeBusca(m.g.tipo).includes('perfume'));
+    if (!perf.length) return;
+    perf.sort((a, b) => b.g.produtos.length - a.g.produtos.length);
+    const padraoNovo = perf[0].novo; // o grupo de perfume com MAIS produtos = o padrão da casa
+    const cfg = configClube();
+    if (cfg.tetoPremio >= padraoNovo && cfg.valorSelo >= padraoNovo) return; // Clube já cobre o preço novo
+
+    const avisoSelo = cfg.valorSelo < padraoNovo
+        ? `\n\n⚠️ O "R$ por selo" (${fmt(cfg.valorSelo)}) ficou abaixo do perfume padrão — cada compra passa a render selo mais rápido (custo seu). Esse eu NÃO mudo automático: aumentar recalcula TODAS as cartelas e pode tirar selos já ganhos. Se quiser mexer, é nos Parâmetros, de olho no aviso.`
+        : '';
+    abrirConfirmacao(
+        'Ajustar o Clube junto? 📇',
+        `O perfume padrão agora custa ${fmt(padraoNovo)}, mas o Clube está com teto de prêmio de ${fmt(cfg.tetoPremio)}${cfg.tetoPremio < padraoNovo ? ' — cliente com cartela cheia não conseguiria escolher um perfume' : ''}.\n\n✅ AÇÃO SEGURA: subir o teto do prêmio para ${fmt(padraoNovo)}. Não mexe em nenhuma cartela — só garante que o brinde continua valendo um perfume.${avisoSelo}`,
+        '📇', '#15803d', '#14532d', '✅ Subir teto p/ ' + fmt(padraoNovo),
+        () => {
+            mostrarLoading('Ajustando o Clube...');
+            fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { clube_teto_premio: String(padraoNovo) } }) })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.sucesso) { configuracoesGlobais.clube_teto_premio = String(padraoNovo); mostrarAlerta('Clube alinhado! 📇', `Teto do prêmio agora é ${fmt(padraoNovo)} — a cartela cheia continua valendo um perfume.`, 'success'); }
+                    else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+                })
+                .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+                .finally(() => ocultarLoading());
+        }
+    );
+}
+
+let ajustePrecoEmEnvio = false;
+function executarAjustePrecos(mudancas, totalProds) {
+    if (ajustePrecoEmEnvio) return;
+    ajustePrecoEmEnvio = true;
+    mostrarLoading("Reprecificando...");
+    const itens = [];
+    mudancas.forEach(m => m.g.produtos.forEach(nome => itens.push({ nome, preco: m.novo })));
+    const resumoLog = mudancas.map(m => `${m.g.tipo} ${m.g.ml} → ${fmt(m.novo)}`).join(' | ');
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'ajustar_precos_lote', itens, log_detalhe: `💰 Ajuste de preços em lote (${totalProds} produtos): ${resumoLog}` }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                const mAp = document.getElementById('modal-ajuste-precos'); if (mAp) mAp.remove();
+                mostrarAlerta("Preços atualizados! 💰", `${res.alterados || totalProds} produto(s) reprecificado(s). Estoque, PDV e catálogo online já estão com os valores novos.`, "success");
+                sincronizarDadosUnico();
+                // 📇 O vigia do Clube entra em cena: reajustou perfume? Oferece alinhar o teto do prêmio
+                setTimeout(() => verificarClubeAposReajuste(mudancas), 900);
+            } else mostrarAlerta("Erro", res.erro || "Falha ao ajustar os preços.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão — nenhum preço foi alterado.", "error"))
+        .finally(() => { ajustePrecoEmEnvio = false; ocultarLoading(); });
+}
+
 // 🔗 Soma visitas E pedidos do catálogo online: total, últimos 7 dias e hoje (null = equipe toda)
 function estatisticasVisitasCatalogo(nomeVendedor) {
     const corte7 = new Date(); corte7.setDate(corte7.getDate() - 6);
@@ -11047,6 +11204,22 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-doc-agradecimento')) document.getElementById('cfg-doc-agradecimento').value = configuracoesGlobais.doc_agradecimento || '';
     if(document.getElementById('cfg-doc-politica')) document.getElementById('cfg-doc-politica').value = configuracoesGlobais.doc_politica || '';
     if(document.getElementById('cfg-doc-pix')) document.getElementById('cfg-doc-pix').value = configuracoesGlobais.doc_pix || '';
+
+    // 📇 Vigia permanente do Clube: se o perfume padrão ficou mais caro que o teto/selo, o aviso acende
+    const avisoClubeEl = document.getElementById('aviso-clube-preco');
+    if (avisoClubeEl && typeof precoPadraoPerfume === 'function') {
+        const padraoPerf = precoPadraoPerfume();
+        const cfgCl = configClube();
+        if (padraoPerf > 0 && (cfgCl.tetoPremio < padraoPerf || cfgCl.valorSelo < padraoPerf)) {
+            const partesAv = [];
+            if (cfgCl.tetoPremio < padraoPerf) partesAv.push(`o teto do prêmio (${fmt(cfgCl.tetoPremio)}) não paga um perfume — cliente com cartela cheia fica na mão`);
+            if (cfgCl.valorSelo < padraoPerf) partesAv.push(`o "R$ por selo" (${fmt(cfgCl.valorSelo)}) está abaixo do perfume — cada compra rende selo mais rápido (custo seu)`);
+            avisoClubeEl.innerHTML = `🚨 Perfume padrão custa ${fmt(padraoPerf)}, mas: ${partesAv.join('; ')}.`;
+            avisoClubeEl.style.display = 'block';
+        } else {
+            avisoClubeEl.style.display = 'none';
+        }
+    }
 
     // 🧾 Rodapé personalizado dos recibos e cobranças (o PIX ganha caixinha verde de destaque)
     const escRod = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
