@@ -4843,7 +4843,7 @@ function salvarVendaCarrinho() {
     .then(r => r.json())
     .then(resultado => {
         if (resultado.sucesso) {
-            mostrarAlerta("Sucesso", "Pedido finalizado!", "success");
+            mostrarAlerta("Sucesso", resultado.pedido ? `Pedido #${resultado.pedido} finalizado! Esse é o número de referência dele.` : "Pedido finalizado!", "success");
             document.getElementById('v-cliente').value = "";
             document.getElementById('v-observacao').value = "";
             carrinhoPDV = []; // Limpa o carrinho
@@ -5255,8 +5255,8 @@ function filtrarVendas() {
             if (!(v.status === 'Pago' && !v.repasse_feito && !nomesAdmins.includes(String(v.socio || '').toLowerCase().trim()))) return false;
         }
 
-        // 🔎 Busca rápida: um campo só, acha em cliente, produto, vendedor e observação
-        if (fBusca && !normalizarNomeBusca(`${v.cliente || ''} ${v.produto || ''} ${v.socio || ''} ${v.observacao || ''}`).includes(fBusca)) return false;
+        // 🔎 Busca rápida: um campo só, acha em cliente, produto, vendedor, observação e nº do pedido (com ou sem #)
+        if (fBusca && !normalizarNomeBusca(`${v.cliente || ''} ${v.produto || ''} ${v.socio || ''} ${v.observacao || ''} ${v.numeroPedido ? '#' + v.numeroPedido + ' ' + v.numeroPedido : ''}`).includes(fBusca)) return false;
 
         // Filtro exclusivo de Admin: quem já pagou mas ainda falta (ou já teve) o acerto de comissão com o vendedor
         if (fComissao && isAdmin) {
@@ -5417,7 +5417,7 @@ function filtrarVendas() {
                 <div class="prod-info-main" style="flex:1;">
                     <div class="v-cli-block">
                         <h4 style="margin: 0 0 3px 0; font-size: 0.9rem; color: var(--brand-dark);">
-                            ${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span> ${chipClube}
+                            ${v.numeroPedido ? `<span style="background:#2C2A2B; color:#fff; padding:2px 7px; border-radius:6px; font-size:0.62rem; font-weight:900; margin-right:5px; vertical-align:middle;">#${v.numeroPedido}</span>` : ''}${v.cliente} <span class="status-badge ${badgeClass}">${v.status}</span> ${chipClube}
                         </h4>
                         ${txtLocal}
                         <p style="font-size:0.65rem; color:#a1a1aa; margin:2px 0 0 0;">Vendedor: ${v.socio}</p>
@@ -5661,7 +5661,7 @@ async function gerarReciboDeLinhas(linhas, clienteSugerido) {
             const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso;
             const txtPago = `Pago: ${pedido.dataPgtoDisplay || new Date().toLocaleDateString('pt-BR')}`;
             const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo');
-            htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`;
+            htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`;
         }
     });
     document.getElementById('rec-itens-lista').innerHTML = htmlItens;
@@ -5681,7 +5681,7 @@ async function montarRecibo() {
     const clienteReal = document.getElementById('recibo-cliente').value, clienteNomeExibicao = document.getElementById('recibo-nome-exibicao').value.trim() || clienteReal, checkboxes = document.querySelectorAll('.chk-item-recibo:checked');
     if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Deixe pelo menos um pedido marcado para o recibo.", "warning");
     mostrarLoading("Gerando Recibo..."); document.getElementById('rec-cli-nome').innerText = clienteNomeExibicao; document.getElementById('rec-data-emissao').innerText = new Date().toLocaleDateString('pt-BR'); let htmlItens = "", somaTotal = 0;
-    checkboxes.forEach(chk => { const pedido = vendasGlobal.find(v => v.linha == chk.value); if (pedido) { const valor = parseDinheiro(pedido.valor_venda); somaTotal += valor; const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso, txtPago = pedido.status === 'Pago' ? `Pago: ${pedido.dataPgtoDisplay || '?'}` : 'Pendente'; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; } });
+    checkboxes.forEach(chk => { const pedido = vendasGlobal.find(v => v.linha == chk.value); if (pedido) { const valor = parseDinheiro(pedido.valor_venda); somaTotal += valor; const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso, txtPago = pedido.status === 'Pago' ? `Pago: ${pedido.dataPgtoDisplay || '?'}` : 'Pendente'; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; } });
     document.getElementById('rec-itens-lista').innerHTML = htmlItens; document.getElementById('rec-total').innerText = fmt(somaTotal);
     try {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
@@ -5694,7 +5694,7 @@ async function montarRecibo() {
 async function gerarReciboUnico(linha) {
     const pedido = vendasGlobal.find(v => v.linha == linha); if (!pedido) return; let nomeExibicao = await pedirNomeDocumento(pedido.cliente, "Nome no Recibo"); if (nomeExibicao === null) return;
     mostrarLoading("Gerando Recibo..."); document.getElementById('rec-cli-nome').innerText = nomeExibicao; document.getElementById('rec-data-emissao').innerText = new Date().toLocaleDateString('pt-BR');
-    const valor = parseDinheiro(pedido.valor_venda); const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso; const txtPago = `Pago em: ${pedido.dataPgtoDisplay || '?'}`; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); const htmlItem = `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; document.getElementById('rec-itens-lista').innerHTML = htmlItem; document.getElementById('rec-total').innerText = fmt(valor);
+    const valor = parseDinheiro(pedido.valor_venda); const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso; const txtPago = `Pago em: ${pedido.dataPgtoDisplay || '?'}`; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); const htmlItem = `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; document.getElementById('rec-itens-lista').innerHTML = htmlItem; document.getElementById('rec-total').innerText = fmt(valor);
     try {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
@@ -5913,12 +5913,81 @@ function darBaixaVendaLote() {
 function darBaixaVenda(linha) {
     const v = vendasGlobal.find(x => x.linha == linha);
     if (!v) return;
+    const qtdV = parseFloat(v.qtd) || 1;
 
+    // 1 unidade só: fluxo direto de sempre
+    if (qtdV <= 1) return confirmarBaixaTotal(linha);
+
+    // ➗ Várias unidades: pergunta se pagou TUDO ou só uma PARTE (ex: levou 2, pagou 1)
+    const antigo = document.getElementById('modal-baixa-parcial');
+    if (antigo) antigo.remove();
+    const valorTotalV = parseDinheiro(v.valor_venda);
+    const vUnit = valorTotalV / qtdV;
+    const nomeProdTxt = formatarNomeProdutoTexto(v.produto);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-baixa-parcial';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#fff; border-radius:20px; max-width:380px; width:100%; padding:22px; text-align:center; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="font-size:2.4rem;">💲</div>
+        <h3 style="margin:6px 0 2px; color:#15803d; font-size:1.05rem; font-weight:900;">Receber de ${v.cliente}</h3>
+        <p style="margin:0 0 14px; font-size:0.78rem; color:#666;">${qtdV}x ${nomeProdTxt} — total <b>${fmt(valorTotalV)}</b></p>
+        <button class="btn-salvar" style="margin:0 0 8px; background:#2e7d32; box-shadow:0 4px 0 #1b5e20;" onclick="document.getElementById('modal-baixa-parcial').remove(); confirmarBaixaTotal(${linha});">✅ Pagou TUDO (${fmt(valorTotalV)})</button>
+        <button class="btn-salvar" style="margin:0; background:#fff; color:#b45309; border:2px dashed #f59e0b; box-shadow:none;" onclick="document.getElementById('bp-area-parcial').style.display='block'; this.style.display='none';">➗ Pagou só uma PARTE...</button>
+        <div id="bp-area-parcial" style="display:none; background:#fffbeb; border:1px dashed #fcd34d; border-radius:12px; padding:12px; margin-top:10px;">
+            <p style="margin:0 0 8px; font-size:0.7rem; font-weight:800; color:#92400e;">Quantas unidades ele(a) pagou?</p>
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                <button class="btn-acao" style="width:38px; height:38px; font-weight:900;" onclick="ajustarQtdBaixaParcial(-1, ${qtdV}, ${vUnit})">−</button>
+                <span id="bp-qtd" style="font-size:1.5rem; font-weight:900; color:#92400e; min-width:36px;">1</span>
+                <button class="btn-acao" style="width:38px; height:38px; font-weight:900; background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9;" onclick="ajustarQtdBaixaParcial(1, ${qtdV}, ${vUnit})">+</button>
+            </div>
+            <p id="bp-resumo" style="margin:8px 0 10px; font-size:0.7rem; color:#92400e;">Recebe <b>${fmt(vUnit)}</b> agora · ficam <b>${qtdV - 1}x (${fmt(valorTotalV - vUnit)})</b> pendentes</p>
+            <button class="btn-salvar" style="margin:0; background:#b45309; box-shadow:0 4px 0 #92400e;" onclick="confirmarBaixaParcial(${linha})">💲 Receber essa parte</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    window._bpQtdPaga = 1;
+}
+
+function confirmarBaixaTotal(linha) {
+    const v = vendasGlobal.find(x => x.linha == linha);
+    if (!v) return;
     abrirConfirmacao("Confirmar Pagamento?", `Marcar a venda de ${v.cliente} como RECEBIDA hoje?`, "💰", "#2e7d32", "#1b5e20", "💲 Receber", () => {
         mostrarLoading("Salvando...");
         const msgLog = `💲 Recebeu pagamento de ${v.cliente} no valor de ${safeFmt(v.valor_venda)}`;
         fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_venda_lote", linhas: [linha], status: "Pago", log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Recebido!", "Baixa ok.", "success"); sincronizarDadosUnico(); });
     });
+}
+
+function ajustarQtdBaixaParcial(delta, qtdTotal, vUnit) {
+    window._bpQtdPaga = Math.max(1, Math.min(qtdTotal - 1, (window._bpQtdPaga || 1) + delta));
+    const q = window._bpQtdPaga;
+    const el = document.getElementById('bp-qtd'); if (el) el.innerText = q;
+    const res = document.getElementById('bp-resumo');
+    if (res) res.innerHTML = `Recebe <b>${fmt(vUnit * q)}</b> agora · ficam <b>${qtdTotal - q}x (${fmt(vUnit * (qtdTotal - q))})</b> pendentes`;
+}
+
+let baixaParcialEmEnvio = false;
+function confirmarBaixaParcial(linha) {
+    if (baixaParcialEmEnvio) return;
+    const v = vendasGlobal.find(x => x.linha == linha);
+    const qtdPaga = window._bpQtdPaga || 1;
+    if (!v) return;
+    baixaParcialEmEnvio = true;
+    mostrarLoading("Registrando a parte paga...");
+    fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "baixa_parcial_venda", linha: linha, qtd_paga: qtdPaga }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) {
+                const mBp = document.getElementById('modal-baixa-parcial'); if (mBp) mBp.remove();
+                mostrarAlerta("Parte recebida! ➗", `${qtdPaga} unidade(s) viraram uma venda PAGA de hoje; o restante segue pendente com a mesma data combinada — a cobrança continua viva.`, "success");
+                sincronizarDadosUnico();
+            } else mostrarAlerta("Erro", res.erro || "Falha ao registrar a baixa parcial.", "error");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão — nada foi alterado.", "error"))
+        .finally(() => { baixaParcialEmEnvio = false; ocultarLoading(); });
 }
 
 function prepararExclusaoRegistro(aba, linha, desc) { 
@@ -6161,9 +6230,9 @@ const NOTIFS_TG = [
 ];
 // Cópia dos textos de fábrica (iguais aos do servidor) — pro editor, o preview e o "restaurar padrão"
 const TEMPLATES_TG_CLIENTE = {
-    venda: '🟢 <b>NOVA VENDA</b> 🟢\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Valor:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
-    carrinho: '🛒 <b>CARRINHO FECHADO</b> 🛒\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Itens:</b>{itens}\n\n💰 <b>Total:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
-    venda_editada: '✏️ <b>VENDA ATUALIZADA</b> ✏️\n🕒 <b>Hora:</b> {hora}\n👤 <b>Modificado por:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Novo Valor:</b> {total}\n📊 <b>Novo Status:</b> {status}{obs}',
+    venda: '🟢 <b>NOVA VENDA</b> 🟢 {pedido}\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Valor:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
+    carrinho: '🛒 <b>CARRINHO FECHADO</b> 🛒 {pedido}\n🕒 <b>Hora:</b> {hora}\n👤 <b>Vendedor:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Itens:</b>{itens}\n\n💰 <b>Total:</b> {total}\n📊 <b>Status:</b> {status}{obs}',
+    venda_editada: '✏️ <b>VENDA ATUALIZADA</b> ✏️ {pedido}\n🕒 <b>Hora:</b> {hora}\n👤 <b>Modificado por:</b> {vendedor}\n🛍️ <b>Cliente:</b> {cliente}\n📦 <b>Item:</b> {itens}\n💰 <b>Novo Valor:</b> {total}\n📊 <b>Novo Status:</b> {status}{obs}',
     fiado_pago: '💲 <b>FIADO PAGO!</b> 💲\n🕒 <b>Hora:</b> {hora}\n👤 <b>Baixa por:</b> {vendedor}\n🛍️ <b>Cliente(s):</b> {cliente}\n📦 <b>Itens Pagos:</b>{itens}\n\n💰 <b>Total Recebido:</b> {total}{obs}',
     estoque_baixo: '🚨 <b>ALERTA DE ESTOQUE</b> 🚨\n\nO produto <b>{produto}</b> está acabando na <b>{local}</b>!\n📦 Restam apenas: <b>{restam} unidades</b>.\n\n<i>Hora de planejar uma nova maceração!</i> 🧪',
     estoque_zerado: '❌ <b>ESTOQUE ZERADO</b> ❌\n\nO produto <b>{produto}</b> ACABOU na <b>{local}</b>!\n\n<i>Urgente: Reposição necessária!</i> 🧪',
@@ -6189,9 +6258,9 @@ const TEMPLATES_TG_CLIENTE = {
     sugestao: '💡 <b>SUGESTÃO DE PRODUÇÃO</b>\n\n🧴 <b>{produto}</b>{obs}\n👤 Sugerido por: {usuario}'
 };
 const VARS_EXEMPLO_TG = {
-    venda: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '2x [N007] Perfume 212 Vip Black 40ml', total: 'R$ 100,00', status: 'Pago', obs: '\n📝 Obs: Entregar sábado' },
-    carrinho: { hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)\n▫️ 1x [N039] Creme My Way 110ml (R$ 25,00)', total: 'R$ 125,00', status: 'Pendente', obs: '' },
-    venda_editada: { hora: '15:10', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '1x [N039] Creme My Way 110ml', total: 'R$ 25,00', status: 'Pago', obs: '' },
+    venda: { pedido: '#1042', hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '2x [N007] Perfume 212 Vip Black 40ml', total: 'R$ 100,00', status: 'Pago', obs: '\n📝 Obs: Entregar sábado' },
+    carrinho: { pedido: '#1042', hora: '14:32', vendedor: 'Kamila', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)\n▫️ 1x [N039] Creme My Way 110ml (R$ 25,00)', total: 'R$ 125,00', status: 'Pendente', obs: '' },
+    venda_editada: { pedido: '#1042', hora: '15:10', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '1x [N039] Creme My Way 110ml', total: 'R$ 25,00', status: 'Pago', obs: '' },
     fiado_pago: { hora: '18:05', vendedor: 'Fernando', cliente: 'Ana Paula', itens: '\n▫️ 2x [N007] Perfume 212 Vip Black 40ml (R$ 100,00)', total: 'R$ 100,00', status: 'Pago', obs: '\n\n🤝 Comissão liberada p/ repassar: R$ 10,00' },
     estoque_baixo: { produto: 'Perfume 212 Vip Black 40ml', local: 'Sede', restam: 3 },
     estoque_zerado: { produto: 'Perfume 212 Vip Black 40ml', local: 'Sede' },
@@ -9652,7 +9721,7 @@ function abrirMapaSeparacao(modo = 'pendentes') {
                         ">
                         <div style="font-size: 0.95rem; color: var(--brand-dark); line-height: 1.3;">
                             <b style="color:#b45309; font-size:1.1rem;">${v.qtd}x</b> ${codigoBadgeSep}${v.produto} ${badgeData}
-                            <br><span style="font-size:0.75rem; color:#64748b;">(Cli: ${v.cliente})</span>
+                            <br><span style="font-size:0.75rem; color:#64748b;">${v.numeroPedido ? `<b style="background:#2C2A2B; color:#fff; padding:1px 6px; border-radius:5px; font-size:0.65rem; margin-right:4px;">#${v.numeroPedido}</b>` : ''}(Cli: ${v.cliente})</span>
                             ${localRetiradaAviso}
                             ${obsHtml}
                         </div>
@@ -11229,7 +11298,9 @@ function aplicarConfiguracoesDinamicas() {
     const pixRod = String(configuracoesGlobais.doc_pix || '').trim();
     const htmlRodape = `<p style="margin:0;">${escRod(agradec || 'Obrigado pela preferência!')}</p>${politica ? `<p style="margin:2px 0 0;">${escRod(politica)}</p>` : ''}<p style="margin:2px 0 0;">${escRod(marcaRod)}</p>`;
     ['rec-rodape', 'cob-rodape'].forEach(idR => { const el = document.getElementById(idR); if (el) el.innerHTML = htmlRodape; });
-    ['rec-rodape-pix', 'cob-rodape-pix'].forEach(idR => { const el = document.getElementById(idR); if (el) { el.style.display = pixRod ? 'block' : 'none'; el.innerHTML = pixRod ? `💚 ${escRod(pixRod)}` : ''; } });
+    // PIX só na COBRANÇA — recibo é de conta já paga, mostrar dados de pagamento lá não faz sentido
+    const elPixCob = document.getElementById('cob-rodape-pix');
+    if (elPixCob) { elPixCob.style.display = pixRod ? 'block' : 'none'; elPixCob.innerHTML = pixRod ? `💚 ${escRod(pixRod)}` : ''; }
     if(document.getElementById('cfg-acelerador-inicio')) document.getElementById('cfg-acelerador-inicio').value = configuracoesGlobais.acelerador_inicio || '2026-09-01';
 
     // 🎨 Identidade Visual: preenche o painel e aplica a paleta/nome/logo salvos
