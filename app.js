@@ -290,38 +290,56 @@ let bonusEquipeGlobal = []; // 👥 bônus de equipe fechados (X% sobre vendas p
 let clubeResgatesGlobal = []; // 📇 resgates do Clube de Selos (pra calcular o saldo das cartelas)
 
 // 📇 Regras do Clube de Selos (configuráveis por chaves nos Parâmetros; padrão da casa abaixo)
+// 📇 Histórico do valor do selo: [{desde:'AAAA-MM-DD', valor}]. Mudar o valor só vale daqui pra frente.
+function histSeloClube() {
+    let hist = [];
+    try { hist = JSON.parse(configuracoesGlobais.clube_selo_hist || '[]') || []; } catch (e) { hist = []; }
+    hist = hist.filter(h => h && h.desde && parseFloat(h.valor) > 0).sort((a, b) => String(a.desde).localeCompare(String(b.desde)));
+    if (!hist.length) hist = [{ desde: '0000-01-01', valor: parseFloat(configuracoesGlobais.clube_valor_selo) || 50 }];
+    return hist;
+}
+function valorSeloNaData(iso) {
+    const hist = histSeloClube();
+    const d = String(iso || '').substring(0, 10);
+    let v = parseFloat(hist[0].valor);
+    for (const h of hist) { if (h.desde <= d) v = parseFloat(h.valor); else break; }
+    return v;
+}
+
 function configClube() {
+    const hist = histSeloClube();
     return {
-        valorSelo: parseFloat(configuracoesGlobais.clube_valor_selo) || 50,
+        valorSelo: parseFloat(hist[hist.length - 1].valor) || parseFloat(configuracoesGlobais.clube_valor_selo) || 50, // o que vale HOJE
         selosCartela: parseInt(configuracoesGlobais.clube_selos_cartela) || 8,
         tetoPremio: parseFloat(configuracoesGlobais.clube_teto_premio) || 50
     };
 }
 
 // 🧮 A cartela de um cliente: compras PAGAS desde a adesão + selos de boas-vindas − resgates.
-// O cliente NUNCA vê valores em R$ — só selos e quanto falta (queremos "preciso da Novera",
-// nunca "nossa, já gastei muito" rsrs)
+// Cada compra vira selo pelo valor que o selo tinha NA DATA DELA — por isso um reajuste
+// nunca tira selo de ninguém. O cliente NUNCA vê valores em R$ — só selos e quanto falta.
 function calcularCartelaCliente(cli) {
     if (!cli || !cli.clubeDesde) return null;
     const cc = configClube();
+    const EPS = 1e-6; // 3 x 64,90 ÷ 64,90 dá 2,9999999 no computador — a folguinha garante o 3
 
     // Vendas pagas desde a adesão, em ordem — pra saber TAMBÉM o dia em que cada selo nasceu
     const pagas = vendasGlobal
         .filter(v => v.status === 'Pago' && normalizarNomeBusca(v.cliente) === normalizarNomeBusca(cli.nome) && v.dataVendaIso && v.dataVendaIso >= cli.clubeDesde)
         .sort((a, b) => String(a.dataVendaIso).localeCompare(String(b.dataVendaIso)));
 
-    let resgatado = 0;
-    clubeResgatesGlobal.forEach(rr => { if (normalizarNomeBusca(rr.cliente) === normalizarNomeBusca(cli.nome)) resgatado += rr.valorDescontado; });
+    // Saldo em SELOS: bônus entra; cada resgate sai convertido pelo valor do selo do dia dele
+    let saldo = (cli.clubeBonus || 0);
+    clubeResgatesGlobal.forEach(rr => { if (normalizarNomeBusca(rr.cliente) === normalizarNomeBusca(cli.nome)) saldo -= (rr.valorDescontado || 0) / valorSeloNaData(rr.data); });
 
     const dataBRcurta = (iso) => iso ? iso.split('-').reverse().slice(0, 2).join('/') : '';
-    let acumulado = (cli.clubeBonus || 0) * cc.valorSelo - resgatado; // bônus entra, resgates saem
     const datasSelos = [];
     // Selos de boas-vindas (se sobraram após resgates) carimbam com a data da adesão
-    for (let s = 1; s <= Math.floor(acumulado / cc.valorSelo); s++) datasSelos.push(dataBRcurta(cli.clubeDesde));
+    for (let s = 1; s <= Math.floor(Math.max(0, saldo) + EPS); s++) datasSelos.push(dataBRcurta(cli.clubeDesde));
     pagas.forEach(v => {
-        const antes = Math.floor(Math.max(0, acumulado) / cc.valorSelo);
-        acumulado += parseDinheiro(v.valor_venda);
-        const depois = Math.floor(Math.max(0, acumulado) / cc.valorSelo);
+        const antes = Math.floor(Math.max(0, saldo) + EPS);
+        saldo += parseDinheiro(v.valor_venda) / valorSeloNaData(v.dataVendaIso);
+        const depois = Math.floor(Math.max(0, saldo) + EPS);
         for (let s = antes; s < depois; s++) datasSelos.push(dataBRcurta(v.dataVendaIso));
     });
 
@@ -6735,21 +6753,22 @@ function verificarClubeAposReajuste(mudancas) {
     perf.sort((a, b) => b.g.produtos.length - a.g.produtos.length);
     const padraoNovo = perf[0].novo; // o grupo de perfume com MAIS produtos = o padrão da casa
     const cfg = configClube();
-    if (cfg.tetoPremio >= padraoNovo && cfg.valorSelo >= padraoNovo) return; // Clube já cobre o preço novo
+    // Alinhado = selo e teto no preço do perfume padrão (8 perfumes comprados = 1 de presente)
+    if (Math.abs(cfg.tetoPremio - padraoNovo) < 0.01 && Math.abs(cfg.valorSelo - padraoNovo) < 0.01) return;
 
-    const avisoSelo = cfg.valorSelo < padraoNovo
-        ? `\n\n⚠️ O "R$ por selo" (${fmt(cfg.valorSelo)}) ficou abaixo do perfume padrão — cada compra passa a render selo mais rápido (custo seu). Esse eu NÃO mudo automático: aumentar recalcula TODAS as cartelas e pode tirar selos já ganhos. Se quiser mexer, é nos Parâmetros, de olho no aviso.`
-        : '';
     abrirConfirmacao(
         'Ajustar o Clube junto? 📇',
-        `O perfume padrão agora custa ${fmt(padraoNovo)}, mas o Clube está com teto de prêmio de ${fmt(cfg.tetoPremio)}${cfg.tetoPremio < padraoNovo ? ' — cliente com cartela cheia não conseguiria escolher um perfume' : ''}.\n\n✅ AÇÃO SEGURA: subir o teto do prêmio para ${fmt(padraoNovo)}. Não mexe em nenhuma cartela — só garante que o brinde continua valendo um perfume.${avisoSelo}`,
-        '📇', '#15803d', '#14532d', '✅ Subir teto p/ ' + fmt(padraoNovo),
+        `O perfume padrão agora custa ${fmt(padraoNovo)}. O Clube está com:\n• R$ por selo: ${fmt(cfg.valorSelo)}\n• Teto do prêmio: ${fmt(cfg.tetoPremio)}\n\n✅ Sugestão: os dois em ${fmt(padraoNovo)} — a cada ${fmt(padraoNovo)} em compras 1 selo, e a cartela cheia vale 1 perfume.\n\n🛡️ Os selos que os clientes JÁ ganharam ficam garantidos: o valor novo do selo só conta pras compras de hoje em diante.`,
+        '📇', '#15803d', '#14532d', '✅ Alinhar em ' + fmt(padraoNovo),
         () => {
             mostrarLoading('Ajustando o Clube...');
-            fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { clube_teto_premio: String(padraoNovo) } }) })
+            fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'salvar_configuracoes', configs: { clube_valor_selo: String(padraoNovo), clube_teto_premio: String(padraoNovo) } }) })
                 .then(r => r.json())
                 .then(res => {
-                    if (res.sucesso) { configuracoesGlobais.clube_teto_premio = String(padraoNovo); mostrarAlerta('Clube alinhado! 📇', `Teto do prêmio agora é ${fmt(padraoNovo)} — a cartela cheia continua valendo um perfume.`, 'success'); }
+                    if (res.sucesso) {
+                        mostrarAlerta('Clube alinhado! 📇', `Selo e teto agora valem ${fmt(padraoNovo)}. Compras antigas continuam contando pelo valor da época — ninguém perdeu selo.`, 'success');
+                        sincronizarDadosUnico(); // traz o histórico do selo atualizado do servidor
+                    }
                     else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
                 })
                 .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
@@ -10786,8 +10805,8 @@ function abrirCartelaCliente(linhaCli) {
         corpo = `
             <div style="padding:0 20px 20px;">
                 <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:12px; padding:14px; margin-bottom:14px; text-align:left;">
-                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">🌸 A cada <b>R$ ${cc.valorSelo.toFixed(0)} em compras pagas</b>, ${nomeClienteMsg(c)} ganha <b>1 selo</b>.</p>
-                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">📇 Juntou <b>${cc.selosCartela} selos</b> → ganha <b>até R$ ${cc.tetoPremio.toFixed(0)} em produtos de PRESENTE</b> (1 perfume OU 2 cremes, por exemplo — ele escolhe!).</p>
+                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">🌸 A cada <b>${fmt(cc.valorSelo)} em compras pagas</b>, ${nomeClienteMsg(c)} ganha <b>1 selo</b>.</p>
+                    <p style="margin:0 0 6px; font-size:0.78rem; color:#6d5c66;">📇 Juntou <b>${cc.selosCartela} selos</b> → ganha <b>até ${fmt(cc.tetoPremio)} em produtos de PRESENTE</b> (1 perfume OU 2 cremes, por exemplo — ele escolhe!).</p>
                     <p style="margin:0; font-size:0.78rem; color:#6d5c66;">🎉 E já entra ganhando <b>1 selo de boas-vindas</b> — clientes fiéis da casa ganham <b>2</b>!</p>
                 </div>
                 <label style="display:block; text-align:left; font-size:0.7rem; font-weight:800; color:#966178; margin-bottom:4px;">📱 WhatsApp do cliente (o "ingresso" do Clube)</label>
@@ -10821,7 +10840,7 @@ function abrirCartelaCliente(linhaCli) {
                         <p style="margin:0 0 14px; font-family:'Playfair Display', serif; font-style:italic; font-size:0.82rem; color:#a86f88;">${nomeClienteMsg(c)}</p>
                         <div style="display:flex; gap:9px; flex-wrap:wrap; justify-content:center; margin-bottom:14px;">${selosHtml}</div>
                         <p style="margin:0; font-size:0.8rem; font-weight:900; color:${cart.cheia ? '#15803d' : '#966178'};">${msgCartela}</p>
-                        <p style="margin:8px 0 0; font-size:0.56rem; color:#b8a0ab; letter-spacing:0.5px;">✦ A cada R$ ${cc.valorSelo.toFixed(0)} em compras, 1 selo · ${cc.selosCartela} selos = até R$ ${cc.tetoPremio.toFixed(0)} em presentes ✦</p>
+                        <p style="margin:8px 0 0; font-size:0.56rem; color:#b8a0ab; letter-spacing:0.5px;">✦ A cada ${fmt(cc.valorSelo)} em compras, 1 selo · ${cc.selosCartela} selos = até ${fmt(cc.tetoPremio)} em presentes ✦</p>
                     </div>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
@@ -10957,7 +10976,7 @@ function abrirResgateClube(linhaCli) {
     const elegiveis = Object.values(estoqueAgrupado)
         .filter(e => (parseFloat(e.preco) || 0) > 0 && (parseFloat(e.preco) || 0) <= cc.tetoPremio && (e.totalQtd || 0) > 0)
         .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
-    if (!elegiveis.length) return mostrarAlerta("Sem estoque", `Nenhum produto de até R$ ${cc.tetoPremio.toFixed(0)} disponível agora.`, "warning");
+    if (!elegiveis.length) return mostrarAlerta("Sem estoque", `Nenhum produto de até ${fmt(cc.tetoPremio)} disponível agora.`, "warning");
 
     window._brindeItens = [];
     const antigo = document.getElementById('modal-resgate-clube');
@@ -10969,7 +10988,7 @@ function abrirResgateClube(linhaCli) {
         <div style="background:#fff; border-radius:20px; max-width:370px; width:100%; max-height:88vh; overflow-y:auto; padding:22px 20px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
             <div style="font-size:2.4rem;">🎁</div>
             <h3 style="margin:6px 0 4px; color:#15803d; font-size:1.05rem; font-weight:900;">Montar o Brinde</h3>
-            <p style="margin:0 0 12px; color:#888; font-size:0.7rem;">${nomeClienteMsg(c)} escolhe <b>até R$ ${cc.tetoPremio.toFixed(0)} em produtos</b> — pode ser 1 perfume, 2 cremes, creme + home spray... O app soma e não deixa passar do limite.</p>
+            <p style="margin:0 0 12px; color:#888; font-size:0.7rem;">${nomeClienteMsg(c)} escolhe <b>até ${fmt(cc.tetoPremio)} em produtos</b> — pode ser 1 perfume, 2 cremes, creme + home spray... O app soma e não deixa passar do limite.</p>
             <select id="resgate-produto" onchange="atualizarLocaisResgate()" style="width:100%; padding:12px; border:1px solid #e3c6d2; border-radius:10px; margin-bottom:8px; background:#fff;">
                 ${elegiveis.map(e => `<option value="${String(e.nome).replace(/"/g, '&quot;')}">${e.codigo ? e.codigo + ' - ' : ''}${e.nome} · ${fmt(parseFloat(e.preco) || 0)}</option>`).join('')}
             </select>
@@ -11273,6 +11292,16 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-doc-agradecimento')) document.getElementById('cfg-doc-agradecimento').value = configuracoesGlobais.doc_agradecimento || '';
     if(document.getElementById('cfg-doc-politica')) document.getElementById('cfg-doc-politica').value = configuracoesGlobais.doc_politica || '';
     if(document.getElementById('cfg-doc-pix')) document.getElementById('cfg-doc-pix').value = configuracoesGlobais.doc_pix || '';
+
+    // 📇 Histórico do valor do selo nos Parâmetros (transparência: quando mudou e pra quanto)
+    const elHistSelo = document.getElementById('clube-hist-selo');
+    if (elHistSelo) {
+        const histS = histSeloClube().filter(h => h.desde !== '0000-01-01');
+        if (histS.length) {
+            elHistSelo.innerHTML = '📜 Histórico do selo: ' + histS.map(h => `${fmt(parseFloat(h.valor))} desde ${h.desde.split('-').reverse().join('/')}`).join(' · ') + ' (compras anteriores contam pelo valor da época)';
+            elHistSelo.style.display = 'block';
+        } else elHistSelo.style.display = 'none';
+    }
 
     // 📇 Vigia permanente do Clube: se o perfume padrão ficou mais caro que o teto/selo, o aviso acende
     const avisoClubeEl = document.getElementById('aviso-clube-preco');

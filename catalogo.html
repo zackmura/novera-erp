@@ -408,7 +408,7 @@
         const areaSelosSac = document.getElementById('sacola-selos');
         if (areaSelosSac) {
             const vSelo = (dados && dados.clube && dados.clube.valorSelo) || 50;
-            const selosCompra = Math.floor(total / vSelo);
+            const selosCompra = Math.floor(total / vSelo + 1e-6); // folguinha: 3 x 64,90 ÷ 64,90 tem que dar 3
             areaSelosSac.innerHTML = (total > 0)
                 ? `<p style="margin:6px 0 0; font-size:0.66rem; color:#966178; font-weight:800; text-align:center;">🌸 Essa compra ${selosCompra > 0 ? `vale <b>${selosCompra} selo${selosCompra > 1 ? 's' : ''}</b>` : `já acumula pro seu selo`} no Clube de Fidelidade! 🎁</p>`
                 : '';
@@ -500,7 +500,7 @@
             : `<div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.7); border:2px dashed #d9c2cc; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#c9b3bd; font-weight:800;">${iS + 1}º</div>`
         ).join('');
         let msg;
-        if (j.cheia) msg = `🎁 CARTELA CHEIA! Fale com sua vendedora e escolha até R$ ${j.regra.teto.toFixed(0)} em presentes!`;
+        if (j.cheia) msg = `🎁 CARTELA CHEIA! Fale com sua vendedora e escolha até ${brlClube(j.regra.teto)} em presentes!`;
         else if (j.faltam <= 2) msg = `🔥 Tá quase, ${esc(j.nome)}! Falta${j.faltam > 1 ? 'm' : ''} só ${j.faltam} selo${j.faltam > 1 ? 's' : ''} pro seu presente!`;
         else msg = `💛 ${esc(j.nome)}, cada compra te aproxima do seu presente — já são ${j.selos} selo${j.selos !== 1 ? 's' : ''}!`;
         return `
@@ -511,7 +511,7 @@
                 <p style="margin:0 0 12px; font-family:'Playfair Display', serif; font-style:italic; font-size:0.8rem; color:#a86f88;">${esc(j.nome)}</p>
                 <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px;">${selosHtml}</div>
                 <p style="margin:0; font-size:0.78rem; font-weight:900; color:${j.cheia ? '#15803d' : '#966178'};">${msg}</p>
-                <p style="margin:7px 0 0; font-size:0.54rem; color:#b8a0ab;">✦ A cada R$ ${j.regra.valorSelo.toFixed(0)} em compras, 1 selo · cartela cheia = até R$ ${j.regra.teto.toFixed(0)} em presentes ✦</p>
+                <p style="margin:7px 0 0; font-size:0.54rem; color:#b8a0ab;">✦ A cada ${brlClube(j.regra.valorSelo)} em compras, 1 selo · cartela cheia = até ${brlClube(j.regra.teto)} em presentes ✦</p>
             </div>
         </div>`;
     }
@@ -574,6 +574,11 @@
         const f = semAcento((i.ficha && i.ficha.familia) || '');
         if (!f) return [];
         return FAMILIAS_CANONICAS.filter(c => f.indexOf(semAcento(c)) !== -1);
+    }
+
+    // 💰 Valores do Clube no formato de dinheiro brasileiro (R$ 64,90 — nunca arredondado pra R$ 65)
+    function brlClube(v) {
+        return 'R$ ' + (parseFloat(v) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     }
 
     // ============ 🎨 NOTAS ILUSTRADAS (padrão da casa: notas/*.svg) ============
