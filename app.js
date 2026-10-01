@@ -2329,7 +2329,8 @@ function renderizarBonusAtivos() {
         const prazo = textoPrazoIncentivo(g.validade);
         const idG = 'grp-' + modo + '-' + Math.random().toString(36).slice(2, 8);
         window._gruposIncentivo = window._gruposIncentivo || {};
-        window._gruposIncentivo[idG] = { modo, produtos: nomes, rotulo: descreverCategoriasGrupo(nomes), motivo: g.motivo || '' };
+        window._gruposIncentivo[idG] = { modo, produtos: nomes, rotulo: descreverCategoriasGrupo(nomes), motivo: g.motivo || '', pct: g.pct, validade: g.validade || '' };
+        const pendRetro = ehB ? vendasHojeSemBonus(nomes, g.pct) : [];
         const escMot = String(g.motivo || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
         return `
         <div style="background:${ehB ? '#fef3c7' : '#e8f5e9'}; border:2px solid ${ehB ? '#fbbf24' : '#86efac'}; border-radius:10px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
@@ -2338,6 +2339,7 @@ function renderizarBonusAtivos() {
                 <span style="font-size:0.9rem; font-weight:900; color:${ehB ? '#92400e' : '#166534'};">${ehB ? '🔥 +' : '💸 -'}${g.pct}% ${ehB ? 'de comissão' : 'de desconto'}</span>
                 <span style="font-size:0.78rem; color:var(--brand-dark); font-weight:700; display:block; margin-top:2px;">em ${descreverCategoriasGrupo(nomes)}</span>
                 <span style="font-size:0.68rem; color:${ehB ? '#a16207' : '#15803d'}; display:block; margin-top:2px; font-weight:800;">${prazo ? '⏰ ' + prazo : '∞ sem prazo'}</span>
+                ${pendRetro.length ? `<button onclick="aplicarBonusRetroativoGrupo('${idG}')" style="margin-top:8px; background:#fff; color:#92400e; border:1px dashed #f59e0b; border-radius:8px; padding:6px 10px; font-size:0.66rem; font-weight:800; cursor:pointer;">↩️ Incluir ${pendRetro.length} venda(s) de hoje feita(s) antes do bônus</button>` : ''}
             </div>
             <div style="display:flex; flex-direction:column; gap:6px; flex:0 0 auto;">
                 <button class="btn-acao" style="background:#fff; color:#7c2d12; border-color:#fbbf24; width:36px; height:36px;" onclick="editarMotivoGrupoIncentivo('${idG}')" title="${g.motivo ? 'Trocar a mensagem' : 'Colocar uma mensagem pra equipe'}">✏️</button>
@@ -2499,12 +2501,22 @@ function enviarIncentivoLote(dados) {
     mostrarLoading(dados.operacao === 'remover' ? 'Removendo...' : 'Aplicando incentivo...');
     fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'incentivo_lote', modo: incLote.modo, ...dados }) })
         .then(r => r.json())
-        .then(res => {
+        .then(async res => {
             if (res.sucesso) {
                 mostrarAlerta(dados.operacao === 'remover' ? 'Removido!' : 'Incentivo no ar! ⚡', dados.operacao === 'remover' ? `Incentivo retirado de ${dados.rotulo}.` : `${res.afetados} produto(s) com o incentivo. A equipe já vê no PDV.`, 'success');
                 const pctEl = document.getElementById('il-pct'); if (pctEl) pctEl.value = '';
                 const motEl = document.getElementById('il-motivo'); if (motEl) motEl.value = '';
-                sincronizarDadosUnico();
+                await sincronizarDadosUnico();
+                // ↩️ Bônus novo: já tinha venda hoje desses produtos? Oferece incluir na hora (antes que alguém fique sem)
+                if (dados.operacao === 'aplicar' && (dados.modo || incLote.modo) === 'bonus') {
+                    const antes = vendasHojeSemBonus(dados.produtos, dados.pct).filter(v => !v.repasse_feito);
+                    if (antes.length) {
+                        const idTmp = 'grp-retro-' + Date.now();
+                        window._gruposIncentivo = window._gruposIncentivo || {};
+                        window._gruposIncentivo[idTmp] = { modo: 'bonus', produtos: dados.produtos, pct: dados.pct };
+                        setTimeout(() => aplicarBonusRetroativoGrupo(idTmp), 1200);
+                    }
+                }
             } else mostrarAlerta('Erro', res.erro || 'Falha ao aplicar.', 'error');
         })
         .catch(() => mostrarAlerta('Erro', 'Falha de conexão — nada foi alterado.', 'error'))
@@ -2556,6 +2568,51 @@ const LIMITE_GRUPO_INCENTIVO = 4; // a partir de 4 produtos com o mesmo incentiv
 function textoPrazoIncentivo(validade) {
     if (!validade) return '';
     return validade === isoLocal(new Date()) ? 'SÓ HOJE' : `até ${validade.split('-').reverse().join('/')}`;
+}
+
+// ↩️ Vendas de HOJE desses produtos, feitas por vendedores da equipe, que ainda não têm esse bônus
+function vendasHojeSemBonus(nomesProdutos, pct) {
+    const hoje = isoLocal(new Date());
+    const setProd = new Set(nomesProdutos);
+    const vendedores = new Set(usuariosGlobal.filter(u => u.cargo === 'Vendedor').map(u => normalizarNomeBusca(u.usuario)));
+    return vendasGlobal.filter(v => v.dataVendaIso === hoje && v.status !== 'Presente' && setProd.has(v.produto)
+        && vendedores.has(normalizarNomeBusca(v.socio)) && (parseFloat(v.bonus_aplicado) || 0) < pct);
+}
+
+function aplicarBonusRetroativoGrupo(idG) {
+    const gI = (window._gruposIncentivo || {})[idG];
+    if (!gI) return;
+    const vendas = vendasHojeSemBonus(gI.produtos, gI.pct);
+    if (!vendas.length) return mostrarAlerta('Tudo certo!', 'Nenhuma venda de hoje sem o bônus.', 'success');
+
+    // Prévia por vendedor: quem ganha e quanto a mais
+    const porVend = {}; let jaAcertadas = 0;
+    vendas.forEach(v => {
+        if (v.repasse_feito) { jaAcertadas++; return; }
+        const extra = parseDinheiro(v.valor_venda) * (gI.pct - (parseFloat(v.bonus_aplicado) || 0)) / 100;
+        if (!porVend[v.socio]) porVend[v.socio] = { qtd: 0, extra: 0 };
+        porVend[v.socio].qtd++; porVend[v.socio].extra += extra;
+    });
+    const linhas = Object.keys(porVend).map(s => `• ${s}: ${porVend[s].qtd} venda(s) → +${fmt(porVend[s].extra)} de comissão`).join('\n');
+    const totalExtra = Object.values(porVend).reduce((s, x) => s + x.extra, 0);
+    if (!linhas) return mostrarAlerta('Já acertadas', `As ${jaAcertadas} venda(s) de hoje já tiveram a comissão acertada — essas não dá pra mexer pelo sistema.`, 'warning');
+
+    abrirConfirmacao(
+        'Incluir as vendas de hoje? ↩️',
+        `Essas vendas foram feitas ANTES de você ligar o bônus de +${gI.pct}%:\n\n${linhas}\n\n💰 Total a mais: ${fmt(totalExtra)}.${jaAcertadas ? `\n\n⚠️ ${jaAcertadas} venda(s) já tiveram a comissão acertada e ficam de fora.` : ''}`,
+        '↩️', '#b45309', '#92400e', '✅ Incluir',
+        () => {
+            mostrarLoading('Aplicando o bônus nas vendas de hoje...');
+            fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'aplicar_bonus_retroativo', produtos: gI.produtos, pct: gI.pct }) })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.sucesso) { mostrarAlerta('Bônus incluído! 🎉', `${res.atualizadas} venda(s) agora têm o bônus de +${gI.pct}% (${fmt(res.extraTotal || 0)} a mais de comissão). Já aparece no painel de cada vendedor.`, 'success'); sincronizarDadosUnico(); }
+                    else mostrarAlerta('Erro', res.erro || 'Falha ao aplicar.', 'error');
+                })
+                .catch(() => mostrarAlerta('Erro', 'Falha de conexão — nada foi alterado.', 'error'))
+                .finally(() => ocultarLoading());
+        }
+    );
 }
 
 function removerGrupoIncentivo(idG) {
