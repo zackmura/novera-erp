@@ -2329,15 +2329,20 @@ function renderizarBonusAtivos() {
         const prazo = textoPrazoIncentivo(g.validade);
         const idG = 'grp-' + modo + '-' + Math.random().toString(36).slice(2, 8);
         window._gruposIncentivo = window._gruposIncentivo || {};
-        window._gruposIncentivo[idG] = { modo, produtos: nomes, rotulo: descreverCategoriasGrupo(nomes) };
+        window._gruposIncentivo[idG] = { modo, produtos: nomes, rotulo: descreverCategoriasGrupo(nomes), motivo: g.motivo || '' };
+        const escMot = String(g.motivo || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
         return `
         <div style="background:${ehB ? '#fef3c7' : '#e8f5e9'}; border:2px solid ${ehB ? '#fbbf24' : '#86efac'}; border-radius:10px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <div style="min-width:0;">
+                ${g.motivo ? `<span style="font-size:0.8rem; font-weight:900; color:#7c2d12; display:block; margin-bottom:3px;">🎉 ${escMot}</span>` : ''}
                 <span style="font-size:0.9rem; font-weight:900; color:${ehB ? '#92400e' : '#166534'};">${ehB ? '🔥 +' : '💸 -'}${g.pct}% ${ehB ? 'de comissão' : 'de desconto'}</span>
                 <span style="font-size:0.78rem; color:var(--brand-dark); font-weight:700; display:block; margin-top:2px;">em ${descreverCategoriasGrupo(nomes)}</span>
                 <span style="font-size:0.68rem; color:${ehB ? '#a16207' : '#15803d'}; display:block; margin-top:2px; font-weight:800;">${prazo ? '⏰ ' + prazo : '∞ sem prazo'}</span>
             </div>
-            <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px; flex:0 0 auto;" onclick="removerGrupoIncentivo('${idG}')" title="Remover o grupo inteiro">🗑️</button>
+            <div style="display:flex; flex-direction:column; gap:6px; flex:0 0 auto;">
+                <button class="btn-acao" style="background:#fff; color:#7c2d12; border-color:#fbbf24; width:36px; height:36px;" onclick="editarMotivoGrupoIncentivo('${idG}')" title="${g.motivo ? 'Trocar a mensagem' : 'Colocar uma mensagem pra equipe'}">✏️</button>
+                <button class="btn-acao" style="background:#fee2e2; color:#991b1b; border-color:#fecaca; width:36px; height:36px;" onclick="removerGrupoIncentivo('${idG}')" title="Remover o grupo inteiro">🗑️</button>
+            </div>
         </div>`;
     };
     const bonusIndividuais = [], descIndividuais = [];
@@ -2408,6 +2413,7 @@ function renderizarPainelIncentivoLote(forcar) {
     const chipPrazo = (p, rot) => `<button onclick="incLote.prazo='${p}'; renderizarPainelIncentivoLote(true);" style="padding:6px 11px; border-radius:20px; font-size:0.66rem; font-weight:800; cursor:pointer; border:1px solid ${incLote.prazo === p ? cor : 'var(--border-color)'}; background:${incLote.prazo === p ? cor : '#fff'}; color:${incLote.prazo === p ? '#fff' : 'var(--brand-dark)'};">${rot}</button>`;
     const pctAntes = (document.getElementById('il-pct') || {}).value || '';
     const dataAntes = (document.getElementById('il-data') || {}).value || '';
+    const motivoAntes = (document.getElementById('il-motivo') || {}).value || '';
     // Lembra as categorias desmarcadas ao redesenhar (trocar modo/prazo não pode resetar a escolha)
     const chksAntes = document.querySelectorAll('.il-tipo');
     const desmarcados = new Set(Array.from(chksAntes).filter(c => !c.checked).map(c => c.value));
@@ -2425,6 +2431,8 @@ function renderizarPainelIncentivoLote(forcar) {
             ${chipPrazo('hoje', '📅 Só hoje')}${chipPrazo('7d', '7 dias')}${chipPrazo('data', '🗓️ Escolher data')}${chipPrazo('sem', '∞ Sem prazo')}
             ${incLote.prazo === 'data' ? `<input type="date" id="il-data" value="${dataAntes}" style="padding:6px; margin:0; border-radius:8px;">` : ''}
         </div>
+        <label style="font-size:0.66rem; font-weight:800; color:#666;">🎉 Mensagem ${ehBonus ? 'pra equipe' : 'da promoção'} <span style="font-weight:600; color:#999;">(opcional)</span></label>
+        <input type="text" id="il-motivo" maxlength="140" value="${motivoAntes.replace(/"/g, '&quot;')}" placeholder="${ehBonus ? 'Ex: Feliz Dia do Vendedor! Hoje a comissão é por nossa conta 💖' : 'Ex: Semana do Consumidor 🛍️'}" style="width:100%; box-sizing:border-box; padding:10px; margin:2px 0 10px;">
         <label style="font-size:0.66rem; font-weight:800; color:#666;">Em quais categorias?</label>
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px;">
             ${Object.keys(tipos).sort().map(t => `<label style="display:flex; align-items:center; gap:5px; background:#fdf5f7; border:1px solid #f3d8e2; border-radius:20px; padding:5px 11px; font-size:0.68rem; font-weight:700; cursor:pointer;"><input type="checkbox" class="il-tipo" value="${t}" ${desmarcados.has(t) ? '' : 'checked'} style="width:15px; height:15px; margin:0; accent-color:${cor};"> ${t} <span style="color:#999;">(${tipos[t]})</span></label>`).join('')}
@@ -2465,6 +2473,7 @@ function aplicarIncentivoLote(operacao) {
         if (validade < isoLocal(hoje)) return mostrarAlerta('Aviso', 'A data final não pode ser no passado.', 'warning');
     }
     const prazoTxt = validade ? (validade === isoLocal(hoje) ? 'SÓ HOJE (até 23:59)' : `até ${validade.split('-').reverse().join('/')} (23:59)`) : 'SEM PRAZO (até você remover)';
+    const motivo = ((document.getElementById('il-motivo') || {}).value || '').trim();
 
     // Exemplo concreto pra ninguém confirmar no escuro
     const exemploProd = Object.values(estoqueAgrupado).find(e => produtos.includes(e.nome) && parseDinheiro(e.preco) > 0);
@@ -2477,9 +2486,9 @@ function aplicarIncentivoLote(operacao) {
     }
     abrirConfirmacao(
         ehBonus ? 'Aplicar bônus de comissão? 🔥' : 'Aplicar desconto? 💸',
-        `${ehBonus ? '+' : '-'}${pct}% ${ehBonus ? 'de comissão extra' : 'no preço'} em ${rotulo}.\n⏰ Vale: ${prazoTxt}.${exemplo}`,
+        `${motivo ? `🎉 "${motivo}"\n\n` : ''}${ehBonus ? '+' : '-'}${pct}% ${ehBonus ? 'de comissão extra' : 'no preço'} em ${rotulo}.\n⏰ Vale: ${prazoTxt}.${exemplo}`,
         ehBonus ? '🔥' : '💸', ehBonus ? '#b45309' : '#15803d', ehBonus ? '#92400e' : '#14532d', '⚡ Aplicar',
-        () => enviarIncentivoLote({ operacao: 'aplicar', produtos, rotulo, pct, validade })
+        () => enviarIncentivoLote({ operacao: 'aplicar', produtos, rotulo, pct, validade, motivo })
     );
 }
 
@@ -2494,6 +2503,7 @@ function enviarIncentivoLote(dados) {
             if (res.sucesso) {
                 mostrarAlerta(dados.operacao === 'remover' ? 'Removido!' : 'Incentivo no ar! ⚡', dados.operacao === 'remover' ? `Incentivo retirado de ${dados.rotulo}.` : `${res.afetados} produto(s) com o incentivo. A equipe já vê no PDV.`, 'success');
                 const pctEl = document.getElementById('il-pct'); if (pctEl) pctEl.value = '';
+                const motEl = document.getElementById('il-motivo'); if (motEl) motEl.value = '';
                 sincronizarDadosUnico();
             } else mostrarAlerta('Erro', res.erro || 'Falha ao aplicar.', 'error');
         })
@@ -2505,18 +2515,42 @@ function enviarIncentivoLote(dados) {
 function agruparIncentivos(lista, campoPct) {
     const grupos = {};
     lista.forEach(x => {
-        const k = (parseFloat(x[campoPct]) || 0) + '|' + (x.validade || '');
-        if (!grupos[k]) grupos[k] = { pct: parseFloat(x[campoPct]) || 0, validade: x.validade || '', itens: [] };
+        const k = (parseFloat(x[campoPct]) || 0) + '|' + (x.validade || '') + '|' + (x.motivo || '');
+        if (!grupos[k]) grupos[k] = { pct: parseFloat(x[campoPct]) || 0, validade: x.validade || '', motivo: x.motivo || '', itens: [] };
         grupos[k].itens.push(x);
     });
     return Object.values(grupos).sort((a, b) => b.pct - a.pct);
 }
-// "todos os Perfumes (32) + 5 Cremes" — descreve as categorias de um grupo
-function descreverCategoriasGrupo(nomes) {
-    const totalPorTipo = tiposDeProdutoComContagem();
+// "todos os Perfumes (32) + 5 Cremes" — descreve as categorias de um grupo.
+// soComEstoque: compara só com os produtos que TÊM estoque (é o que a vendedora consegue vender)
+function descreverCategoriasGrupo(nomes, soComEstoque) {
+    const totalPorTipo = {};
+    Object.values(estoqueAgrupado).forEach(e => { if (soComEstoque && !((e.totalQtd || 0) > 0)) return; const t = String(e.tipo || 'Outros').trim(); totalPorTipo[t] = (totalPorTipo[t] || 0) + 1; });
     const noGrupo = {};
     nomes.forEach(n => { const e = estoqueAgrupado[padronizarTexto(n)]; const t = e ? String(e.tipo || 'Outros').trim() : 'Outros'; noGrupo[t] = (noGrupo[t] || 0) + 1; });
-    return Object.keys(noGrupo).map(t => noGrupo[t] >= (totalPorTipo[t] || 0) ? `todos os ${t}s (${noGrupo[t]})` : `${noGrupo[t]} ${t}${noGrupo[t] > 1 ? 's' : ''}`).join(' + ');
+    const tiposGrupo = Object.keys(noGrupo);
+    const cobreTudo = tiposGrupo.length === Object.keys(totalPorTipo).length && tiposGrupo.every(t => noGrupo[t] >= (totalPorTipo[t] || 0));
+    if (cobreTudo) return `TODOS os produtos (${nomes.length})`;
+    return tiposGrupo.map(t => noGrupo[t] >= (totalPorTipo[t] || 0) ? `todos os ${t}s (${noGrupo[t]})` : `${noGrupo[t]} ${t}${noGrupo[t] > 1 ? 's' : ''}`).join(' + ');
+}
+
+// ✏️ Coloca (ou troca) a mensagem de um incentivo que JÁ está no ar
+async function editarMotivoGrupoIncentivo(idG) {
+    const gI = (window._gruposIncentivo || {})[idG];
+    if (!gI) return;
+    // O campo abre VAZIO de propósito: o ajudante devolve o texto inicial quando a pessoa apaga tudo,
+    // então só com o campo vazio dá pra "confirmar vazio = tirar a mensagem"
+    const novo = await pedirNomeDocumento('', gI.motivo ? `🎉 Mensagem atual: "${gI.motivo}" — escreva a nova (ou confirme vazio pra tirar)` : '🎉 Mensagem pra equipe (ex: Feliz Dia do Vendedor!)');
+    if (novo === null) return;
+    mostrarLoading('Salvando mensagem...');
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: 'incentivo_lote', operacao: 'motivo', modo: gI.modo, produtos: gI.produtos, motivo: String(novo).trim() }) })
+        .then(r => r.json())
+        .then(res => {
+            if (res.sucesso) { mostrarAlerta('Mensagem no ar! 🎉', String(novo).trim() ? 'A equipe já vê a mensagem no PDV.' : 'Mensagem removida.', 'success'); sincronizarDadosUnico(); }
+            else mostrarAlerta('Erro', res.erro || 'Falha ao salvar.', 'error');
+        })
+        .catch(() => mostrarAlerta('Erro', 'Falha de conexão.', 'error'))
+        .finally(() => ocultarLoading());
 }
 const LIMITE_GRUPO_INCENTIVO = 4; // a partir de 4 produtos com o mesmo incentivo, vira resumo
 function textoPrazoIncentivo(validade) {
@@ -4912,7 +4946,7 @@ function atualizarAvisoBonusProduto(nomeProduto) {
         const cheio = prodD ? parseDinheiro(prodD.preco) : 0;
         partes.push(`💸 Promoção <b>-${descAtivo.percentual}%</b>${cheio ? `: de <s>${fmt(cheio)}</s> por <b>${fmt(cheio * (1 - descAtivo.percentual / 100))}</b>` : ''} — o valor abaixo já está com desconto.`);
     }
-    if (bonusAtivo && usuarioCargo !== 'Admin') partes.push(`🔥 Esse produto tem bônus de <b>+${bonusAtivo.bonusPercentual}%</b> de comissão${bonusAtivo.validade ? ` (${textoPrazoIncentivo(bonusAtivo.validade)})` : ' hoje'}!`);
+    if (bonusAtivo && usuarioCargo !== 'Admin') partes.push(`🔥 Esse produto tem bônus de <b>+${bonusAtivo.bonusPercentual}%</b> de comissão${bonusAtivo.validade ? ` (${textoPrazoIncentivo(bonusAtivo.validade)})` : ' hoje'}!${bonusAtivo.motivo ? ` 🎉 ${String(bonusAtivo.motivo).replace(/</g, '&lt;')}` : ''}`);
     if (!nomeProduto || !partes.length) { aviso.style.display = 'none'; return; }
 
     aviso.innerHTML = partes.join('<br>');
@@ -5119,8 +5153,11 @@ function renderizarBannerBonusComissao() {
     agruparIncentivos(itens.map(x => ({ ...x.bonus, _est: x.estoque })), 'bonusPercentual').forEach(g => {
         const totalPct = (minhaComissao + g.pct).toFixed(1).replace(/\.0$/, '');
         const prazo = textoPrazoIncentivo(g.validade);
+        const escMotB = String(g.motivo || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        // 🎉 A mensagem da diretoria vem em destaque, antes da conta da comissão
+        if (g.motivo) html += `<p style="margin:2px 0 8px 0; font-size:1.02rem; font-weight:900; color:#7c2d12; line-height:1.35; font-family:'Playfair Display', serif;">🎉 ${escMotB}</p>`;
         if (g.itens.length >= LIMITE_GRUPO_INCENTIVO) {
-            html += `<p style="margin:0 0 6px 0; font-size:0.82rem; color:#78350f; line-height:1.5;">Vendendo <b>${descreverCategoriasGrupo(g.itens.map(x => x.nomeProduto))}</b>${prazo ? ` <b style="background:#fff; border:1px solid #fbbf24; border-radius:8px; padding:0 6px;">⏰ ${prazo}</b>` : ''}, você ganha <b>${minhaComissao}% + ${g.pct}%</b> = <b style="font-size:0.95rem;">${totalPct}% de comissão!</b> 🎉</p>`;
+            html += `<p style="margin:0 0 6px 0; font-size:0.82rem; color:#78350f; line-height:1.5;">Vendendo <b>${descreverCategoriasGrupo(g.itens.map(x => x.nomeProduto), true)}</b>${prazo ? ` <b style="background:#fff; border:1px solid #fbbf24; border-radius:8px; padding:0 6px;">⏰ ${prazo}</b>` : ''}, você ganha <b>${minhaComissao}% + ${g.pct}%</b> = <b style="font-size:0.95rem;">${totalPct}% de comissão!</b> 🎉</p>`;
             return;
         }
         g.itens.forEach(b => {
@@ -5158,7 +5195,8 @@ function renderizarBannerPromosCliente() {
             const precos = g.itens.map(x => parseFloat(x._est.preco) || 0).filter(p => p > 0);
             const cont = {}; precos.forEach(p => cont[p] = (cont[p] || 0) + 1);
             const precoTipico = parseFloat(Object.keys(cont).sort((a, b) => cont[b] - cont[a])[0]) || 0;
-            html += `<p style="margin:0 0 6px 0; font-size:0.82rem; color:#14532d; line-height:1.5;"><b>-${g.pct}%</b> em <b>${descreverCategoriasGrupo(g.itens.map(x => x.nomeProduto))}</b>${prazo ? ` <b>(${prazo})</b>` : ''}${precoTipico ? ` — ex: de <s>${fmt(precoTipico)}</s> por <b>${fmt(precoTipico * (1 - g.pct / 100))}</b>` : ''}. O PDV já preenche o preço com desconto! 📲</p>`;
+            if (g.motivo) html += `<p style="margin:2px 0 8px 0; font-size:1rem; font-weight:900; color:#14532d; font-family:'Playfair Display', serif;">🎉 ${String(g.motivo).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`;
+            html += `<p style="margin:0 0 6px 0; font-size:0.82rem; color:#14532d; line-height:1.5;"><b>-${g.pct}%</b> em <b>${descreverCategoriasGrupo(g.itens.map(x => x.nomeProduto), true)}</b>${prazo ? ` <b>(${prazo})</b>` : ''}${precoTipico ? ` — ex: de <s>${fmt(precoTipico)}</s> por <b>${fmt(precoTipico * (1 - g.pct / 100))}</b>` : ''}. O PDV já preenche o preço com desconto! 📲</p>`;
             return;
         }
         g.itens.forEach(desc => {
