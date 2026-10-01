@@ -3449,21 +3449,29 @@ function abrirMeusCatalogos() {
     if (antigo) antigo.remove();
 
     const ehAdminLk = (usuarioCargo === 'Admin');
+    // 🔁 Repetidos: mesma "impressão digital" (mesmo dono + mesma configuração)
+    const contAssin = {};
+    catalogoLinksGlobal.forEach(lk => { if (lk.assin) contAssin[lk.assin] = (contAssin[lk.assin] || 0) + 1; });
+    const qtdRepetidos = Object.values(contAssin).reduce((s, n) => s + (n > 1 ? n - 1 : 0), 0);
+
     const linhas = catalogoLinksGlobal.map(lk => {
         const urlLk = new URL('catalogo.html', window.location.href); urlLk.search = 'k=' + lk.codigo;
+        const ehRepetido = lk.assin && contAssin[lk.assin] > 1;
         const resumo = [
             lk.qtdSel > 0 ? `🎯 ${lk.qtdSel} produtos` : (lk.tipos ? `📂 ${lk.tipos}` : '📖 completo'),
             lk.generos ? `🚻 ${lk.generos}` : '',
             lk.temPrecos ? '💰 preço próprio' : '',
-            lk.soEstoque ? '📦 só c/ estoque' : ''
+            lk.soEstoque ? '📦 só c/ estoque' : '',
+            lk.mostraQtd ? '🔢 mostra qtd' : ''
         ].filter(Boolean).join(' · ');
         return `
-        <div style="border:1px solid ${lk.ativo ? '#e3c6d2' : '#fca5a5'}; background:${lk.ativo ? '#fff' : '#fef2f2'}; border-radius:12px; padding:10px 12px; margin-bottom:8px; text-align:left;">
+        <div style="border:1px solid ${ehRepetido ? '#fcd34d' : (lk.ativo ? '#e3c6d2' : '#fca5a5')}; background:${ehRepetido ? '#fffbeb' : (lk.ativo ? '#fff' : '#fef2f2')}; border-radius:12px; padding:10px 12px; margin-bottom:8px; text-align:left;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-                <span style="font-size:0.72rem; font-weight:800; color:#966178;">?k=${lk.codigo} ${lk.ativo ? '<span style="background:#e8f5e9; color:#2e7d32; padding:1px 8px; border-radius:10px; font-size:0.55rem;">ATIVO</span>' : '<span style="background:#fee2e2; color:#b91c1c; padding:1px 8px; border-radius:10px; font-size:0.55rem;">DESATIVADO</span>'}</span>
+                <span style="font-size:0.72rem; font-weight:800; color:#966178;">?k=${lk.codigo} ${lk.ativo ? '<span style="background:#e8f5e9; color:#2e7d32; padding:1px 8px; border-radius:10px; font-size:0.55rem;">ATIVO</span>' : '<span style="background:#fee2e2; color:#b91c1c; padding:1px 8px; border-radius:10px; font-size:0.55rem;">DESATIVADO</span>'}${ehRepetido ? ' <span style="background:#fef3c7; color:#92400e; padding:1px 8px; border-radius:10px; font-size:0.55rem;">🔁 REPETIDO</span>' : ''}</span>
                 <span style="font-size:0.6rem; color:#999;">${lk.data || ''}</span>
             </div>
-            <p style="font-size:0.62rem; color:#888; margin:5px 0 8px; text-transform:capitalize;">${resumo}${ehAdminLk && lk.criadoPor ? ` · 👤 ${lk.criadoPor}` : ''}</p>
+            <p style="font-size:0.62rem; color:#888; margin:5px 0 ${lk.apontados ? '2px' : '8px'}; text-transform:capitalize;">${resumo}${ehAdminLk && lk.criadoPor ? ` · 👤 ${lk.criadoPor}` : ''}</p>
+            ${lk.apontados ? `<p style="font-size:0.6rem; color:#0369a1; margin:0 0 8px; font-weight:700;">↪️ +${lk.apontados} link(s) antigo(s) igual(is) abrem este aqui</p>` : ''}
             <div style="display:flex; gap:6px;">
                 <button onclick="copiarLinkCatalogoSalvo('${urlLk.href}', this)" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">📋 Copiar</button>
                 <button onclick="window.open('${urlLk.href}', '_blank')" style="flex:1; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; border-radius:8px; padding:7px; font-size:0.62rem; font-weight:800; cursor:pointer;">👀 Abrir</button>
@@ -3485,11 +3493,31 @@ function abrirMeusCatalogos() {
                 <h3 style="margin:4px 0 2px; color:#966178; font-size:1.05rem; font-weight:900;">${ehAdminLk ? 'Links de Catálogo da Equipe' : 'Meus Links de Catálogo'}</h3>
                 <p style="margin:0; color:#999; font-size:0.68rem;">Promoção acabou? Desative o link — quem abrir verá "catálogo encerrado".</p>
             </div>
+            ${qtdRepetidos ? `
+            <div style="margin:4px 16px 0; background:#fffbeb; border:1px solid #fcd34d; border-radius:12px; padding:10px 12px; text-align:left;">
+                <p style="margin:0 0 6px; font-size:0.7rem; font-weight:800; color:#92400e;">🔁 ${qtdRepetidos} link(s) repetido(s) encontrado(s)</p>
+                <p style="margin:0 0 8px; font-size:0.62rem; color:#92400e; line-height:1.45;">Unificar deixa só 1 link por catálogo. Quem já recebeu um link repetido <b>continua abrindo normalmente</b> — ele passa a mostrar o link principal.</p>
+                <button onclick="unificarLinksCatalogo()" style="width:100%; background:#b45309; color:#fff; border:none; border-radius:8px; padding:9px; font-size:0.68rem; font-weight:800; cursor:pointer;">🧹 Unificar os repetidos</button>
+            </div>` : ''}
             <div style="padding:12px 16px 18px; overflow-y:auto;">
                 ${linhas || '<p style="text-align:center; color:#999; font-size:0.75rem; padding:20px 0;">Nenhum link criado ainda.<br>Gere o primeiro no botão verde do Catálogo! 🔗</p>'}
             </div>
         </div>`;
     document.body.appendChild(overlay);
+}
+
+function unificarLinksCatalogo() {
+    mostrarLoading("Unificando links repetidos...");
+    fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'unificar_catalogo_links', usuario: usuarioLogado }) })
+        .then(r => r.json())
+        .then(async res => {
+            if (!res.sucesso) return mostrarAlerta("Erro", res.erro || "Falha ao unificar.", "error");
+            await sincronizarDadosUnico();
+            abrirMeusCatalogos();
+            mostrarAlerta("Links unificados! 🧹", res.unificados ? `${res.unificados} link(s) repetido(s) agora abrem o link principal. Nenhum cliente fica com link quebrado.` : "Não havia repetidos pra unificar.", "success");
+        })
+        .catch(() => mostrarAlerta("Erro", "Falha de conexão — nada foi alterado.", "error"))
+        .finally(() => ocultarLoading());
 }
 
 async function copiarLinkCatalogoSalvo(linkTxt, btn) {
@@ -3636,11 +3664,16 @@ async function gerarLinkCatalogoOnline() {
     // 🔗 TODO link vira código CURTO no servidor (?k=abc123) — link comprido cheio de letras
     // parece golpe no WhatsApp e ninguém clica. O formato longo fica só como plano B de emergência.
     mostrarLoading("Gerando seu link...");
+    let avisoReuso = '';
     try {
         const resLk = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'salvar_catalogo_link', usuario: usuarioLogado, dados: dadosLink }) });
         const jsonLk = await resLk.json();
         if (!jsonLk.sucesso || !jsonLk.codigo) throw new Error(jsonLk.erro || 'Falha ao salvar.');
         urlPagina.search = 'k=' + jsonLk.codigo;
+        // ♻️ Catálogo igual a um que você já tinha: o servidor devolveu o MESMO link
+        if (jsonLk.reutilizado) avisoReuso = jsonLk.reativado
+            ? `Você já tinha um link igualzinho a esse (?k=${jsonLk.codigo}) que estava DESATIVADO — reativei e usei ele. Assim seus clientes não recebem links diferentes pra mesma coisa.`
+            : `Você já tinha um link igualzinho a esse (?k=${jsonLk.codigo}) — usei o MESMO, em vez de criar outro. Quem já recebeu ele continua vendo tudo atualizado.`;
     } catch (e) {
         if (customCatLink) {
             // Personalizado NÃO tem plano B (a configuração só existe no servidor)
@@ -3665,9 +3698,9 @@ async function gerarLinkCatalogoOnline() {
     overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); animation:fadeIn 0.25s ease;';
     overlay.innerHTML = `
         <div style="background:#fff; border-radius:20px; max-width:340px; width:100%; padding:26px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif;">
-            <div style="font-size:3rem;">🔗</div>
-            <h3 style="margin:6px 0 4px 0; color:#966178; font-size:1.1rem; font-weight:900;">Link do Catálogo Pronto!</h3>
-            <p style="margin:0 0 12px 0; color:#888; font-size:0.75rem;">A página abre com os filtros escolhidos e mostra sempre os preços e o estoque de agora.</p>
+            <div style="font-size:3rem;">${avisoReuso ? '♻️' : '🔗'}</div>
+            <h3 style="margin:6px 0 4px 0; color:#966178; font-size:1.1rem; font-weight:900;">${avisoReuso ? 'Esse link você já tinha!' : 'Link do Catálogo Pronto!'}</h3>
+            ${avisoReuso ? `<p style="margin:0 0 12px 0; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:8px 10px; color:#166534; font-size:0.7rem; font-weight:700; line-height:1.45;">${avisoReuso}</p>` : `<p style="margin:0 0 12px 0; color:#888; font-size:0.75rem;">A página abre com os filtros escolhidos e mostra sempre os preços e o estoque de agora.</p>`}
             <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:8px 10px; font-size:0.65rem; color:#966178; word-break:break-all; margin-bottom:14px;">${link}</div>
             <button id="btn-link-zap" class="btn-salvar" style="margin:0 0 8px 0; background:#25D366; box-shadow:0 4px 0 #1b9c4b;">📲 Enviar no WhatsApp</button>
             <button id="btn-link-copiar" class="btn-salvar" style="margin:0 0 8px 0; background:#966178; box-shadow:0 4px 0 #7a4a5e;">📋 Copiar Link</button>
