@@ -512,6 +512,7 @@
                 <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px;">${selosHtml}</div>
                 <p style="margin:0; font-size:0.78rem; font-weight:900; color:${j.cheia ? '#15803d' : '#966178'};">${msg}</p>
                 <p style="margin:7px 0 0; font-size:0.54rem; color:#b8a0ab;">✦ A cada ${brlClube(j.regra.valorSelo)} em compras, 1 selo · cartela cheia = até ${brlClube(j.regra.teto)} em presentes ✦</p>
+                ${(j.cashback && j.cashback.saldo > 0.004) ? `<div style="margin-top:10px; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:10px; padding:8px 10px; font-size:0.7rem; color:#065f46; font-weight:800;">💰 Você também tem <b>${brlClube(j.cashback.saldo)}</b> de cashback pra usar até ${String(j.cashback.vence || '').split('-').reverse().join('/')}!</div>` : ''}
             </div>
         </div>`;
     }

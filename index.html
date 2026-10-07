@@ -402,6 +402,7 @@
                             <div class="pdv-card-body">
                             <div class="row"><div class="col"><label>Data da Venda</label><input type="date" id="v-data"></div><div class="col"><label>Cliente</label><input type="text" id="v-cliente" list="lista-clientes" oninput="atualizarFaixaClubePdv()" onchange="atualizarFaixaClubePdv()"></div></div>
                             <div id="faixa-clube-pdv" style="display:none;"></div>
+                            <div id="faixa-cashback-pdv" style="display:none;"></div>
                             <div class="row"><div class="col"><label>Vendedor</label><input type="text" id="v-socio" list="lista-socios-dinamica"></div><div class="col"><label>Status PG</label><select id="v-status" onchange="onStatusVendaChange(false)"><option value="Pendente">Pendente</option><option value="Pago">Pago</option><option value="Parcelado">⏳ Parcelado</option><option value="Presente">🎁 Presente / Bonificação</option></select></div></div>
                             <div id="box-prev-pgto" style="background:#fffbeb; border:1px dashed #fcd34d; border-radius:10px; padding:10px 12px; margin-bottom:10px;">
                                 <label style="color:#92400e; font-size:0.72rem; font-weight:800;">📅 Combinado pra pagar quando? (obrigatório no fiado)</label>
@@ -455,6 +456,8 @@
                         <div id="carrinho-lista" style="background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; min-height: 60px; margin-bottom: 15px;">
                             <p style="text-align: center; color: #999; font-size: 0.8rem; margin: 10px 0;">Carrinho vazio. Adicione produtos acima.</p>
                         </div>
+                        <!-- 💰 Cashback do cliente: aparece sozinho quando ele tem saldo -->
+                        <div id="cashback-carrinho-box" style="display:none;"></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; background: var(--brand-dark); color: white; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
                             <span style="font-weight: 700;">TOTAL A COBRAR:</span>
                             <span id="carrinho-total" style="font-size: 1.5rem; font-weight: 900;">R$ 0,00</span>
@@ -1444,6 +1447,8 @@
         <span style="font-weight: 700; font-size: 1rem; color: #4A4A4A;">TOTAL PAGO:</span>
         <span id="rec-total" style="font-weight: 800; font-size: 1.4rem; color: #966178;">R$ 0,00</span>
     </div>
+    <!-- 💰 Cashback ganho nessa(s) compra(s): o cliente vê no recibo e já sabe que tem crédito pra voltar -->
+    <div id="rec-cashback" style="display:none; background:#ecfdf5; border:1px dashed #34d399; border-radius:8px; padding:10px 12px; margin-top:18px; text-align:center; font-size:0.8rem; color:#065f46; font-weight:700;"></div>
     <!-- (sem PIX aqui de propósito: recibo é de conta JÁ PAGA — dados de pagamento só na cobrança) -->
     <div id="rec-rodape" style="text-align: center; margin-top: 18px; font-size: 0.7rem; color: #888;">
         <p style="margin:0;">Obrigado pela preferência!</p><p style="margin:0;">Novera Scent - Aromas que marcam.</p>
@@ -1748,6 +1753,16 @@
                 <small style="font-size:0.65rem; color:#b45309; display:block; margin-top:3px;">⚠️ Só o "selos p/ cartela" vale pra todo mundo na hora (mudar de 8 pra 10 faz quem está com 8 voltar a ter 2 faltando).</small>
                 <p id="clube-hist-selo" style="display:none; margin:6px 0 0; font-size:0.62rem; color:#666;"></p>
                 <div id="aviso-clube-preco" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:8px 10px; margin-top:6px; font-size:0.68rem; font-weight:800; color:#b91c1c;"></div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight:700; color: #555; font-size: 0.8rem; display: block; margin-bottom: 5px;">💰 Cashback automático (todo cliente, sem cadastro)</label>
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex:1;"><small style="font-size:0.6rem; color:#999; display:block;">% de volta</small><input type="number" id="cfg-cashback-pct" placeholder="2" min="0" max="20" step="0.5" style="width:100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;"></div>
+                    <div style="flex:1;"><small style="font-size:0.6rem; color:#999; display:block;">Validade (dias)</small><input type="number" id="cfg-cashback-dias" placeholder="45" min="1" style="width:100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;"></div>
+                    <div style="flex:1;"><small style="font-size:0.6rem; color:#999; display:block;">Usar até % da compra</small><input type="number" id="cfg-cashback-max" placeholder="100" min="1" max="100" style="width:100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;"></div>
+                </div>
+                <small style="font-size:0.65rem; color:#999;">Gera só em compra PAGA, sobre o valor pago (cashback usado não gera cashback). Mudar o % vale só pras próximas compras. Coloque 0 pra desligar.</small>
             </div>
 
             <div style="margin-bottom: 20px;">

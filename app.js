@@ -287,6 +287,7 @@ let visitasCatalogoGlobal = []; // 🔗 acessos ao catálogo online (vendedor: s
 let catalogoLinksGlobal = []; // 🗂️ links de catálogo criados (vendedor: os seus; admin: todos, com liga/desliga)
 let aceleradoresGlobal = []; // 💰 aceleradores de meta fechados (2% sobre vendas pagas acima da meta)
 let bonusEquipeGlobal = []; // 👥 bônus de equipe fechados (X% sobre vendas pagas dos indicados vai pra quem indicou)
+let cashbackSaldosGlobal = []; // 💰 saldos de cashback por cliente (só quem tem saldo)
 let clubeResgatesGlobal = []; // 📇 resgates do Clube de Selos (pra calcular o saldo das cartelas)
 
 // 📇 Regras do Clube de Selos (configuráveis por chaves nos Parâmetros; padrão da casa abaixo)
@@ -349,7 +350,82 @@ function calcularCartelaCliente(cli) {
 
 // 🛒 FAIXA DO CLUBE NO PDV: digitou o cliente na venda, a situação dele aparece na hora —
 // sem precisar abrir o menu Clientes. Um toque abre a cartela (ou o convite).
+// ==========================================
+// 💰 CASHBACK AUTOMÁTICO — qualquer cliente, sem Clube. Gera X% de toda compra PAGA,
+// vale N dias, e aparece sozinho no PDV quando o cliente tem saldo.
+// ==========================================
+function configCashback() {
+    return {
+        pct: parseFloat(configuracoesGlobais.cashback_pct) || 0,
+        dias: parseInt(configuracoesGlobais.cashback_dias) || 45,
+        maxUso: parseFloat(configuracoesGlobais.cashback_max_uso) || 100,
+        inicio: configuracoesGlobais.cashback_inicio || ''
+    };
+}
+function saldoCashbackDe(nomeCliente) {
+    const alvo = normalizarNomeBusca(nomeCliente);
+    if (!alvo) return null;
+    const s = cashbackSaldosGlobal.find(x => normalizarNomeBusca(x.cliente) === alvo);
+    return (s && s.saldo > 0.004) ? s : null;
+}
+const dataBrCurtaCb = (iso) => iso ? String(iso).split('-').reverse().slice(0, 2).join('/') : '';
+const somarDiasLocal = (dias) => { const d = new Date(); d.setDate(d.getDate() + dias); return isoLocal(d); };
+// Quanto de cashback uma compra PAGA gera (pra avisar a vendedora e o cliente)
+function cashbackGeradoPor(valorPago) {
+    const cb = configCashback();
+    if (!(cb.pct > 0) || !(valorPago > 0)) return 0;
+    return Math.round(valorPago * cb.pct) / 100;
+}
+
+// 🧾 Cashback no recibo: soma o que as compras PAGAS (desde o início do programa) geraram e ainda vale
+function preencherCashbackRecibo(pedidos) {
+    const el = document.getElementById('rec-cashback');
+    if (!el) return;
+    const cb = configCashback();
+    let ganho = 0, vence = '';
+    const hoje = isoLocal(new Date());
+    (pedidos || []).forEach(p => {
+        if (!p || p.status !== 'Pago') return;
+        const partes = String(p.dataPgtoDisplay || '').split('/');
+        const pgIso = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : hoje;
+        if (!cb.inicio || pgIso < cb.inicio) return;
+        const d = new Date(pgIso + 'T12:00:00'); d.setDate(d.getDate() + cb.dias);
+        const venceItem = isoLocal(d);
+        if (venceItem < hoje) return; // já venceu, não faz sentido anunciar
+        ganho += cashbackGeradoPor(parseDinheiro(p.valor_venda));
+        if (!vence || venceItem < vence) vence = venceItem;
+    });
+    if (ganho > 0.004) {
+        el.innerHTML = `💰 Você ganhou <b>${fmt(ganho)}</b> de cashback!<br><span style="font-size:0.7rem; font-weight:600;">Use na sua próxima compra até ${vence.split('-').reverse().join('/')}.</span>`;
+        el.style.display = 'block';
+    } else el.style.display = 'none';
+}
+
+let usarCashbackPdv = false, usarCashbackPdvPara = '';
+function alternarCashbackPdv(ligado) {
+    usarCashbackPdv = !!ligado;
+    usarCashbackPdvPara = normalizarNomeBusca((document.getElementById('v-cliente') || {}).value || '');
+    renderizarCarrinho();
+}
+
+function atualizarFaixaCashbackPdv() {
+    const faixa = document.getElementById('faixa-cashback-pdv');
+    const inp = document.getElementById('v-cliente');
+    if (!faixa || !inp) return;
+    const s = saldoCashbackDe(inp.value);
+    if (!s) faixa.style.display = 'none';
+    else {
+        faixa.innerHTML = `<div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px; padding:8px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:0.74rem; color:#065f46; font-weight:800;">💰 ${String(inp.value).trim().split(' ')[0]} tem <b>${fmt(s.saldo)}</b> de cashback</span>
+            <span style="font-size:0.62rem; color:#047857; font-weight:700;">vence ${dataBrCurtaCb(s.vence)} · use no passo 3 ⬇️</span>
+        </div>`;
+        faixa.style.display = 'block';
+    }
+    if (typeof renderizarCarrinho === 'function') renderizarCarrinho();
+}
+
 function atualizarFaixaClubePdv() {
+    atualizarFaixaCashbackPdv();
     const faixa = document.getElementById('faixa-clube-pdv');
     const inp = document.getElementById('v-cliente');
     if (!faixa || !inp) return;
@@ -828,6 +904,7 @@ async function sincronizarDadosUnico() {
             aceleradoresGlobal = dados.aceleradores || [];
             bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
+            cashbackSaldosGlobal = dados.cashbackSaldos || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -3972,8 +4049,8 @@ async function gerarLinkCatalogoOnline() {
             <div id="area-qr-catalogo" style="display:none; margin: 4px 0 12px 0;">
                 <div id="qr-catalogo-render" style="display:none;"></div>
                 <img id="qr-cartao-img" alt="Cartão do catálogo" style="width:100%; max-width:250px; border-radius:14px; box-shadow:0 10px 26px rgba(0,0,0,0.22); display:block; margin:0 auto;">
-                <p style="font-size:0.62rem; color:#888; margin:8px 0 8px;">Cartão pronto pra imprimir: cole nas sacolinhas, caixinhas ou ponha na bio do Instagram!</p>
-                <button id="btn-qr-baixar" class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">⬇️ Baixar Cartão (imagem)</button>
+                <p style="font-size:0.62rem; color:#888; margin:8px 0 8px;">Cartão pronto pra imprimir: cole nas sacolinhas, caixinhas ou ponha na bio do Instagram!<br>💡 No iPhone também dá pra <b>segurar o dedo na imagem</b> e tocar em "Salvar Imagem".</p>
+                <button id="btn-qr-baixar" class="btn-salvar" style="margin:0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">📲 Salvar / Compartilhar Cartão</button>
             </div>
             <button id="btn-link-abrir" class="btn-salvar" style="margin:0 0 8px 0; background:#fdf5f7; color:#966178; border:1px solid #f3d8e2; box-shadow:none;">👀 Ver como o Cliente vê</button>
             <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-link-catalogo').remove();">Fechar</button>
@@ -3987,15 +4064,27 @@ async function gerarLinkCatalogoOnline() {
         if (area.style.display !== 'none') { area.style.display = 'none'; btnQr.innerHTML = '📱 Gerar Cartão com QR Code'; return; }
         if (!overlay._cartaoQr) {
             btnQr.innerHTML = '⏳ Montando o cartão...';
-            try { overlay._cartaoQr = await montarCartaoQrCatalogo(overlay, link); }
+            try {
+                overlay._cartaoQr = await montarCartaoQrCatalogo(overlay, link);
+                // 🍎 Prepara o ARQUIVO já aqui: no iPhone o compartilhar precisa sair no "calor do toque",
+                // sem esperar conversões — senão o Safari bloqueia e nada acontece
+                const blobQr = await (await fetch(overlay._cartaoQr)).blob();
+                overlay._arquivoQr = new File([blobQr], 'Cartao_Catalogo_' + String(usuarioLogado).replace(/\s+/g, '_') + '.png', { type: 'image/png' });
+            }
             catch (e) { btnQr.innerHTML = '📱 Gerar Cartão com QR Code'; return mostrarAlerta("Erro", "Não consegui desenhar o QR Code neste aparelho.", "error"); }
             overlay.querySelector('#qr-cartao-img').src = overlay._cartaoQr;
         }
         area.style.display = 'block';
         btnQr.innerHTML = '📱 Ocultar Cartão';
     };
-    overlay.querySelector('#btn-qr-baixar').onclick = () => {
+    // 📲 iPhone/iPad não aceitam download forçado de imagem: lá abrimos a folha nativa de
+    // compartilhar (com "Salvar Imagem"); no Android/PC segue o download direto de sempre
+    overlay.querySelector('#btn-qr-baixar').onclick = async () => {
         if (!overlay._cartaoQr) return;
+        if (overlay._arquivoQr && navigator.canShare && navigator.canShare({ files: [overlay._arquivoQr] })) {
+            try { await navigator.share({ files: [overlay._arquivoQr], title: 'Cartão do Catálogo' }); return; }
+            catch (e) { if (e && e.name === 'AbortError') return; /* cancelou a folha — tudo bem */ }
+        }
         const aQr = document.createElement('a');
         aQr.href = overlay._cartaoQr;
         aQr.download = 'Cartao_Catalogo_' + String(usuarioLogado).replace(/\s+/g, '_') + '.png';
@@ -5087,9 +5176,12 @@ function renderizarCarrinho() {
     const container = document.getElementById('carrinho-lista');
     const elTotal = document.getElementById('carrinho-total');
     
+    const boxCb = document.getElementById('cashback-carrinho-box');
+    window._cashbackUsadoPdv = 0;
     if (carrinhoPDV.length === 0) {
         container.innerHTML = '<p style="text-align: center; color: #999; font-size: 0.8rem; margin: 10px 0;">Carrinho vazio. Adicione produtos acima.</p>';
         elTotal.innerText = "R$ 0,00";
+        if (boxCb) boxCb.style.display = 'none';
         return;
     }
 
@@ -5114,8 +5206,36 @@ function renderizarCarrinho() {
     });
     
     container.innerHTML = html;
-    elTotal.innerText = fmt(somaPedido);
+
+    // 💰 Cashback: o cliente tem saldo? Aparece sozinho com a opção de abater do total
+    const nomeCliCb = (document.getElementById('v-cliente') || {}).value || '';
+    const sCb = saldoCashbackDe(nomeCliCb);
+    const statusCb = (document.getElementById('v-status') || {}).value;
+    let usadoCb = 0;
+    if (boxCb) {
+        if (sCb && somaPedido > 0 && statusCb !== 'Presente') {
+            const tetoCb = Math.round(somaPedido * configCashback().maxUso) / 100;
+            const podeCb = Math.min(sCb.saldo, tetoCb, somaPedido);
+            const ativoCb = usarCashbackPdv && usarCashbackPdvPara === normalizarNomeBusca(nomeCliCb);
+            if (ativoCb) usadoCb = podeCb;
+            boxCb.innerHTML = `<label style="display:flex; align-items:center; gap:10px; background:${ativoCb ? '#d1fae5' : '#ecfdf5'}; border:2px ${ativoCb ? 'solid' : 'dashed'} #34d399; border-radius:12px; padding:10px 12px; margin-bottom:12px; cursor:pointer;">
+                <input type="checkbox" ${ativoCb ? 'checked' : ''} onchange="alternarCashbackPdv(this.checked)" style="width:22px; height:22px; accent-color:#059669; flex-shrink:0; margin:0;">
+                <span style="flex:1; font-size:0.78rem; color:#065f46; line-height:1.4;"><b>💰 Usar o cashback do cliente: −${fmt(podeCb)}</b><br><span style="font-size:0.64rem;">Saldo ${fmt(sCb.saldo)} · vence ${dataBrCurtaCb(sCb.vence)}${podeCb < sCb.saldo - 0.004 ? ` · o resto fica pra próxima` : ''}</span></span>
+            </label>`;
+            boxCb.style.display = 'block';
+        } else boxCb.style.display = 'none';
+    }
+    window._cashbackUsadoPdv = usadoCb;
+    elTotal.innerHTML = usadoCb > 0
+        ? `<s style="font-size:0.85rem; opacity:0.6; font-weight:600;">${fmt(somaPedido)}</s> ${fmt(somaPedido - usadoCb)}`
+        : fmt(somaPedido);
 }
+
+// Trocar o status (ex: pra Presente) redesenha o carrinho: presente não usa cashback
+(function ligarStatusNoCarrinho() {
+    const ligar = () => { const st = document.getElementById('v-status'); if (st && !st.dataset.cbLigado) { st.dataset.cbLigado = '1'; st.addEventListener('change', () => renderizarCarrinho()); } };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ligar); else ligar();
+})();
 
 let vendaCarrinhoEmAndamento = false; // trava contra clique duplo enquanto o pedido está sendo enviado ao servidor
 
@@ -5145,6 +5265,9 @@ function salvarVendaCarrinho() {
 
     mostrarLoading("Registrando Pedido...");
     const msgLog = `🛒 Pedido Fechado: ${cliente} (${carrinhoPDV.length} itens). Status: ${status}`;
+    renderizarCarrinho(); // recalcula o cashback com os dados de agora
+    const cashbackUsadoEnvio = status === 'Presente' ? 0 : (window._cashbackUsadoPdv || 0);
+    const brutoEnvio = carrinhoPDV.reduce((s, it) => s + (parseFloat(it.valor_total_item) || 0), 0);
 
     const envio = {
         usuario: usuarioLogado,
@@ -5156,6 +5279,7 @@ function salvarVendaCarrinho() {
         observacao: observacao,
         data_prev_pgto: prevPgto,
         carrinho: carrinhoPDV,
+        cashback_usado: cashbackUsadoEnvio,
         log_detalhe: msgLog
     };
 
@@ -5167,10 +5291,17 @@ function salvarVendaCarrinho() {
     .then(r => r.json())
     .then(resultado => {
         if (resultado.sucesso) {
-            mostrarAlerta("Sucesso", resultado.pedido ? `Pedido #${resultado.pedido} finalizado! Esse é o número de referência dele.` : "Pedido finalizado!", "success");
+            // 💰 Conta do cashback: o que foi usado e (se pago agora) o que o cliente acabou de ganhar
+            const usadoOk = parseFloat(resultado.cashbackUsado) || 0;
+            const ganhou = status === 'Pago' ? cashbackGeradoPor(brutoEnvio - usadoOk) : 0;
+            const txtCb = (usadoOk > 0 ? `\n💰 ${fmt(usadoOk)} de cashback usado.` : '')
+                + (ganhou > 0 ? `\n💰 ${cliente.split(' ')[0]} ganhou ${fmt(ganhou)} de cashback pra próxima compra (vale até ${dataBrCurtaCb(somarDiasLocal(configCashback().dias))}).` : (status === 'Pendente' || status === 'Parcelado') && cashbackGeradoPor(brutoEnvio - usadoOk) > 0 ? `\n💰 Quando pagar, ${cliente.split(' ')[0]} ganha ${fmt(cashbackGeradoPor(brutoEnvio - usadoOk))} de cashback.` : '');
+            mostrarAlerta("Sucesso", (resultado.pedido ? `Pedido #${resultado.pedido} finalizado! Esse é o número de referência dele.` : "Pedido finalizado!") + txtCb, "success");
             document.getElementById('v-cliente').value = "";
             document.getElementById('v-observacao').value = "";
             carrinhoPDV = []; // Limpa o carrinho
+            usarCashbackPdv = false; usarCashbackPdvPara = '';
+            atualizarFaixaCashbackPdv();
             renderizarCarrinho();
             sincronizarDadosUnico();
         } else {
@@ -6016,6 +6147,7 @@ async function gerarReciboDeLinhas(linhas, clienteSugerido) {
     });
     document.getElementById('rec-itens-lista').innerHTML = htmlItens;
     document.getElementById('rec-total').innerText = fmt(somaTotal);
+    preencherCashbackRecibo(linhas.map(l => vendasGlobal.find(v => v.linha == l)).filter(Boolean));
     try {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
@@ -6032,7 +6164,7 @@ async function montarRecibo() {
     if (checkboxes.length === 0) return mostrarAlerta("Aviso", "Deixe pelo menos um pedido marcado para o recibo.", "warning");
     mostrarLoading("Gerando Recibo..."); document.getElementById('rec-cli-nome').innerText = clienteNomeExibicao; document.getElementById('rec-data-emissao').innerText = new Date().toLocaleDateString('pt-BR'); let htmlItens = "", somaTotal = 0;
     checkboxes.forEach(chk => { const pedido = vendasGlobal.find(v => v.linha == chk.value); if (pedido) { const valor = parseDinheiro(pedido.valor_venda); somaTotal += valor; const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso, txtPago = pedido.status === 'Pago' ? `Pago: ${pedido.dataPgtoDisplay || '?'}` : 'Pendente'; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); htmlItens += `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; } });
-    document.getElementById('rec-itens-lista').innerHTML = htmlItens; document.getElementById('rec-total').innerText = fmt(somaTotal);
+    document.getElementById('rec-itens-lista').innerHTML = htmlItens; document.getElementById('rec-total').innerText = fmt(somaTotal); preencherCashbackRecibo(Array.from(checkboxes).map(c => vendasGlobal.find(v => v.linha == c.value)).filter(Boolean));
     try {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
@@ -6044,7 +6176,7 @@ async function montarRecibo() {
 async function gerarReciboUnico(linha) {
     const pedido = vendasGlobal.find(v => v.linha == linha); if (!pedido) return; let nomeExibicao = await pedirNomeDocumento(pedido.cliente, "Nome no Recibo"); if (nomeExibicao === null) return;
     mostrarLoading("Gerando Recibo..."); document.getElementById('rec-cli-nome').innerText = nomeExibicao; document.getElementById('rec-data-emissao').innerText = new Date().toLocaleDateString('pt-BR');
-    const valor = parseDinheiro(pedido.valor_venda); const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso; const txtPago = `Pago em: ${pedido.dataPgtoDisplay || '?'}`; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); const htmlItem = `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; document.getElementById('rec-itens-lista').innerHTML = htmlItem; document.getElementById('rec-total').innerText = fmt(valor);
+    const valor = parseDinheiro(pedido.valor_venda); const dataCompra = pedido.dataVendaDisplay || pedido.dataVendaIso; const txtPago = `Pago em: ${pedido.dataPgtoDisplay || '?'}`; const nomeHtml = formatarNomeProdutoHtml(pedido.produto, 'recibo'); const htmlItem = `<div style="display:flex; justify-content: space-between; border-bottom: 1px solid #f3d8e2; padding: 8px 0;"><div style="flex: 1;"><strong style="color: #2C2A2B; line-height:1.4;">${pedido.qtd}x ${nomeHtml}</strong><br><span style="font-size: 0.7rem; color: #888;">${pedido.numeroPedido ? "Pedido #" + pedido.numeroPedido + " | " : ""}Data: ${dataCompra} | ${txtPago}</span></div><div style="font-weight: 700; color: #966178;">${fmt(valor)}</div></div>`; document.getElementById('rec-itens-lista').innerHTML = htmlItem; document.getElementById('rec-total').innerText = fmt(valor); preencherCashbackRecibo([pedido]);
     try {
         const template = document.getElementById('recibo-template'); template.style.display = 'block'; template.style.position = 'fixed'; template.style.top = '0'; template.style.left = '0'; template.style.zIndex = '-9999';
         await new Promise(r => setTimeout(r, 200));
@@ -6252,7 +6384,10 @@ function darBaixaVendaLote() {
             sincronizarDadosUnico();
             // 🧾 Atalho esperto: acabou de dar baixa? Já oferece o recibo dessas mesmas vendas, sem procurar de novo
             if (clientesSet.size === 1) {
-                abrirConfirmacao("Recebido! Gerar Recibo?", `Baixa de ${linhas.length} venda(s) de ${cliNome} concluída (${fmt(totalLote)}). Quer já gerar o recibo delas?`, "🧾", "#966178", "#7a4a5e", "🧾 Gerar Recibo", () => { gerarReciboDeLinhas(linhas, cliNome); });
+                abrirConfirmacao("Recebido! Gerar Recibo?", `Baixa de ${linhas.length} venda(s) de ${cliNome} concluída (${fmt(totalLote)}).${cashbackGeradoPor(totalLote) > 0 ? `
+💰 ${String(cliNome).split(" ")[0]} ganhou ${fmt(cashbackGeradoPor(totalLote))} de cashback (aparece no recibo).` : ""}
+
+Quer já gerar o recibo delas?`, "🧾", "#966178", "#7a4a5e", "🧾 Gerar Recibo", () => { gerarReciboDeLinhas(linhas, cliNome); });
             } else {
                 mostrarAlerta("Recebido!", "Baixa em lote concluída.", "success");
             }
@@ -6307,7 +6442,8 @@ function confirmarBaixaTotal(linha) {
     abrirConfirmacao("Confirmar Pagamento?", `Marcar a venda de ${v.cliente} como RECEBIDA hoje?`, "💰", "#2e7d32", "#1b5e20", "💲 Receber", () => {
         mostrarLoading("Salvando...");
         const msgLog = `💲 Recebeu pagamento de ${v.cliente} no valor de ${safeFmt(v.valor_venda)}`;
-        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_venda_lote", linhas: [linha], status: "Pago", log_detalhe: msgLog }) }).then(() => { mostrarAlerta("Recebido!", "Baixa ok.", "success"); sincronizarDadosUnico(); });
+        fetch(API_NOVERA, { method: "POST", headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, acao: "atualizar_status_venda_lote", linhas: [linha], status: "Pago", log_detalhe: msgLog }) }).then(() => { const cbG = cashbackGeradoPor(parseDinheiro(v.valor_venda)); mostrarAlerta("Recebido!", "Baixa ok." + (cbG > 0 ? `
+💰 ${String(v.cliente).split(" ")[0]} ganhou ${fmt(cbG)} de cashback pra próxima compra (vale até ${dataBrCurtaCb(somarDiasLocal(configCashback().dias))}).` : ""), "success"); sincronizarDadosUnico(); });
     });
 }
 
@@ -6332,7 +6468,9 @@ function confirmarBaixaParcial(linha) {
         .then(res => {
             if (res.sucesso) {
                 const mBp = document.getElementById('modal-baixa-parcial'); if (mBp) mBp.remove();
-                mostrarAlerta("Parte recebida! ➗", `${qtdPaga} unidade(s) viraram uma venda PAGA de hoje; o restante segue pendente com a mesma data combinada — a cobrança continua viva.`, "success");
+                const cbParc = cashbackGeradoPor(parseDinheiro(v.valor_venda) / (parseFloat(v.qtd) || 1) * qtdPaga);
+                mostrarAlerta("Parte recebida! ➗", `${qtdPaga} unidade(s) viraram uma venda PAGA de hoje; o restante segue pendente com a mesma data combinada — a cobrança continua viva.${cbParc > 0 ? `
+💰 ${String(v.cliente).split(" ")[0]} ganhou ${fmt(cbParc)} de cashback.` : ""}`, "success");
                 sincronizarDadosUnico();
             } else mostrarAlerta("Erro", res.erro || "Falha ao registrar a baixa parcial.", "error");
         })
@@ -9566,6 +9704,7 @@ async function sincronizarDadosSilencioso() {
             aceleradoresGlobal = dados.aceleradores || [];
             bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
+            cashbackSaldosGlobal = dados.cashbackSaldos || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -11621,6 +11760,9 @@ function aplicarConfiguracoesDinamicas() {
     if(document.getElementById('cfg-clube-teto')) document.getElementById('cfg-clube-teto').value = configuracoesGlobais.clube_teto_premio || 50;
     if(document.getElementById('cfg-acelerador-pct')) document.getElementById('cfg-acelerador-pct').value = configuracoesGlobais.acelerador_pct || 2;
     if(document.getElementById('cfg-bonus-gerente')) document.getElementById('cfg-bonus-gerente').value = configuracoesGlobais.pct_bonus_gerente || 2;
+    if(document.getElementById('cfg-cashback-pct')) document.getElementById('cfg-cashback-pct').value = configuracoesGlobais.cashback_pct !== undefined ? configuracoesGlobais.cashback_pct : 2;
+    if(document.getElementById('cfg-cashback-dias')) document.getElementById('cfg-cashback-dias').value = configuracoesGlobais.cashback_dias || 45;
+    if(document.getElementById('cfg-cashback-max')) document.getElementById('cfg-cashback-max').value = configuracoesGlobais.cashback_max_uso || 100;
     if(document.getElementById('cfg-doc-agradecimento')) document.getElementById('cfg-doc-agradecimento').value = configuracoesGlobais.doc_agradecimento || '';
     if(document.getElementById('cfg-doc-politica')) document.getElementById('cfg-doc-politica').value = configuracoesGlobais.doc_politica || '';
     if(document.getElementById('cfg-doc-pix')) document.getElementById('cfg-doc-pix').value = configuracoesGlobais.doc_pix || '';
@@ -11712,6 +11854,9 @@ function salvarParametrosSistema() {
                 clube_teto_premio: (document.getElementById('cfg-clube-teto') ? document.getElementById('cfg-clube-teto').value : '50'),
                 acelerador_pct: (document.getElementById('cfg-acelerador-pct') ? document.getElementById('cfg-acelerador-pct').value : '2'),
                 pct_bonus_gerente: (document.getElementById('cfg-bonus-gerente') ? document.getElementById('cfg-bonus-gerente').value : '2'),
+                cashback_pct: (document.getElementById('cfg-cashback-pct') ? (document.getElementById('cfg-cashback-pct').value === '' ? '2' : document.getElementById('cfg-cashback-pct').value) : '2'),
+                cashback_dias: (document.getElementById('cfg-cashback-dias') ? document.getElementById('cfg-cashback-dias').value || '45' : '45'),
+                cashback_max_uso: (document.getElementById('cfg-cashback-max') ? document.getElementById('cfg-cashback-max').value || '100' : '100'),
                 doc_agradecimento: (document.getElementById('cfg-doc-agradecimento') ? document.getElementById('cfg-doc-agradecimento').value.trim() : ''),
                 doc_politica: (document.getElementById('cfg-doc-politica') ? document.getElementById('cfg-doc-politica').value.trim() : ''),
                 doc_pix: (document.getElementById('cfg-doc-pix') ? document.getElementById('cfg-doc-pix').value.trim() : ''),
