@@ -56,6 +56,7 @@
    VISÃO DO ADMIN ..................... mesa de diretoria (+ ⚙️ Organizar Painel)
    MÓDULO: GESTÃO DE EQUIPE ........... usuários, comissões, gerente/indicação
    MÓDULO: ONBOARDING / 📖 GUIA DO VENDEDOR PAGINADO
+   🎓 TOUR GUIADO + MODO TREINO ...... tour na prática; bloqueia toda gravação enquanto roda
 
    ── CLIENTES E CLUBE ────────────────────────────────────────────────────────
    👥 MÓDULO: CADASTRO DE CLIENTES (ADMIN)
@@ -9646,6 +9647,7 @@ async function alterarSenha() {
 // Detecta se a pessoa está no meio de alguma coisa (modal aberto, digitando, itens marcados).
 // Nesses casos o auto-sync PULA a rodada — senão a atualização apaga o que está sendo feito.
 function usuarioEstaOcupado() {
+    if (window._modoTreino) return true; // durante o tour, a atualização automática espera (o treino controla a tela)
     // 1. Algum modal/janela aberto? (edições, confirmações, parâmetros, separação, catálogo...)
     const modais = document.querySelectorAll('[class*="modal-overlay"], [id^="modal-"]');
     for (const m of modais) {
@@ -9782,6 +9784,9 @@ const PAGINAS_GUIA = [
 <div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:12px; margin-bottom:10px;">
     <p style="margin:0; font-size:0.78rem;"><b>Como usar este guia:</b> leia uma página de cada vez tocando em <b>Avançar ▶</b>. Sem pressa — ele fica salvo e você pode voltar sempre. E em cada tela do app existe um botãozinho <b>❓ Como usar esta tela</b> que abre a lição certa na hora da dúvida!</p>
 </div>
+<div style="background:#f5f3ff; border:1px solid #c4b5fd; border-radius:10px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-size:0.78rem;">🎓 <b>Prefere ver na prática?</b> O botão roxo <b>🎓</b> no canto da tela abre o <b>Tour Guiado</b>: o app troca de tela sozinho, mostra onde tocar e <b>simula vendas e recebimentos</b> — tudo de treino, nada é salvo.</p>
+</div>
 <p style="margin:0;">Vamos começar? 🚀</p>` },
 
 { id: 'navegacao', emoji: '🧭', titulo: 'Se localizando no app', html: `
@@ -9811,15 +9816,14 @@ const PAGINAS_GUIA = [
 <p style="margin:0;">🔍 A busca aceita nome, código (N007 ou só 7) e família.</p>` },
 
 { id: 'vender', emoji: '🛒', titulo: 'Registrando uma Venda', html: `
-<p style="margin-bottom:10px;">Vendeu? Registre NA HORA — é o registro que garante sua comissão. Passo a passo:</p>
-<p style="margin-bottom:8px;"><b>1º</b> Na aba <b>Vendas</b>, digite o nome do cliente (o app sugere os seus).</p>
-<p style="margin-bottom:8px;"><b>2º</b> Escolha o produto na lista (🌸 feminino · 🔷 masculino · 🧸 infantil) ou toque no 📷 e aponte pro QR Code da etiqueta.</p>
-<p style="margin-bottom:8px;"><b>3º</b> Em <b>Status PG</b>: <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PAGO</span> se recebeu na hora · <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PENDENTE</span> se ficou fiado.</p>
-<p style="margin-bottom:8px;"><b>4º</b> Escolha <b>de qual local</b> sai o produto e confira a quantidade. Depois:</p>
+<p style="margin-bottom:10px;">Vendeu? Registre NA HORA — é o registro que garante sua comissão. A tela de venda tem <b>3 cartões numerados</b>, é só seguir:</p>
+<p style="margin-bottom:8px;"><b>① Dados do Pedido</b> — digite o nome do cliente (o app sugere os seus). Se ele tiver <b>💰 cashback</b> ou selos do Clube, aparece uma faixa avisando. Em <b>Status PG</b>: <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PAGO</span> se recebeu na hora · <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:800;">PENDENTE</span> se é fiado (aí o app pede a <b>data combinada</b> de pagamento).</p>
+<p style="margin-bottom:8px;"><b>② Adicionar Produtos</b> — escolha o produto (a lista é separada por tipo e por <b>🌸 feminino / 🔷 masculino</b>) ou toque no 📷 e aponte pro QR Code da etiqueta. Confira de <b>qual local</b> sai e toque em:</p>
 <div style="background:#e3f2fd; color:#1565c0; border:1px dashed #90caf9; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:8px;">➕ INSERIR NO CARRINHO</div>
-<p style="margin-bottom:8px;"><b>5º</b> Cliente quer mais coisas? Repita. No final, um toque só:</p>
+<p style="margin-bottom:8px;"><b>③ Conferir e Finalizar</b> — o carrinho mostra tudo. Cliente tem cashback? Aparece a opção <b>💰 Usar o cashback</b> e o total já cai. Por fim:</p>
 <div style="background:#2e7d32; color:#fff; border-radius:10px; padding:10px; text-align:center; font-weight:800; font-size:0.8rem; margin-bottom:10px;">✅ FINALIZAR VENDA COMPLETA</div>
-<p style="margin:0;">🔥 <b>Produto com foguinho e "+X%" na lista?</b> Comissão EXTRA hoje. 💸 <b>Com "PROMO -X%"?</b> Tem desconto ativo — cobre o preço promocional!</p>` },
+<p style="margin-bottom:8px;">📋 Toda venda ganha um <b>número de pedido</b> (ex: <b>#1042</b>) — é a referência pra falar com o cliente e achar a venda depois.</p>
+<p style="margin:0;">🔥 <b>Produto com foguinho "+X%"?</b> Comissão EXTRA hoje. 💸 <b>Com "PROMO -X%"?</b> O app já coloca o preço com desconto sozinho.</p>` },
 
 { id: 'vendersede', emoji: '🚚', titulo: 'Venda até o que NÃO está com você!', html: `
 <div style="background:#fef3c7; border:2px solid #fbbf24; border-radius:12px; padding:12px; margin-bottom:10px;">
@@ -9857,7 +9861,7 @@ const PAGINAS_GUIA = [
 </div>
 <p style="margin-bottom:6px;">🔔 <b>Sininho</b> — gera uma imagem bonita de cobrança pra mandar no WhatsApp (dá pra enviar a imagem ou só o texto).</p>
 <p style="margin-bottom:6px;">📲 <b>Zapzinho</b> — abre o WhatsApp do cliente com a cobrança JÁ ESCRITA. Se faltar o telefone dele, o app pede na hora e guarda pra sempre.</p>
-<p style="margin-bottom:6px;">💲 <b>Cifrão</b> — o cliente pagou! Toque pra dar baixa. O app já oferece o <b>recibo prontinho</b> em seguida.</p>
+<p style="margin-bottom:6px;">💲 <b>Cifrão</b> — o cliente pagou! Toque pra dar baixa. Se a venda tem <b>mais de 1 unidade</b> e ele pagou só uma parte (levou 2, pagou 1), o 💲 pergunta e <b>divide a venda</b>: a parte paga entra no caixa e o resto continua pendente. Depois, o 🧾 gera o recibo — que já mostra o <b>cashback</b> que o cliente ganhou.</p>
 <div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
     <p style="margin:0; font-size:0.75rem; color:#166534;"><b>Cobrar não é chato — é profissional.</b> A mensagem que o app monta é educada e amigável. Cliente que recebe lembrete organizado confia mais em você.</p>
 </div>
@@ -9905,9 +9909,9 @@ const PAGINAS_GUIA = [
 </div>
 <p style="margin:0;">🔒 Sua carteira é SUA: cada vendedor só vê os próprios clientes.</p>` },
 
-{ id: 'clube', emoji: '📇', titulo: 'Clube de Selos: cliente fiel ganha presente', html: `
+{ id: 'clube', emoji: '📇', titulo: 'Clube de Selos: cliente fiel ganha presente', html: () => `
 <div style="background:#fdf5f7; border:2px solid #e3c6d2; border-radius:12px; padding:12px; margin-bottom:10px;">
-    <p style="margin:0; font-weight:800; color:#966178; font-size:0.85rem;">🌸 A regra inteira em 1 frase: a cada R$ 50 em compras PAGAS, o cliente ganha 1 selo — juntou 8 selos, ganha até R$ 50 em produtos de PRESENTE (1 perfume OU 2 cremes OU creme + home spray — ele escolhe!).</p>
+    <p style="margin:0; font-weight:800; color:#966178; font-size:0.85rem;">🌸 A regra inteira em 1 frase: a cada ${fmt(configClube().valorSelo)} em compras PAGAS, o cliente ganha 1 selo — juntou ${configClube().selosCartela} selos, ganha até ${fmt(configClube().tetoPremio)} em produtos de PRESENTE (1 perfume OU 2 cremes OU creme + home spray — ele escolhe!).</p>
 </div>
 <p style="margin-bottom:10px;"><b>Você não carimba NADA.</b> O app conta os selos sozinho. Seu trabalho é 3 coisas: convidar, avisar e entregar. 😄</p>
 
@@ -9921,12 +9925,26 @@ const PAGINAS_GUIA = [
 
 <p style="margin-bottom:6px;"><b>1º CONVIDAR:</b> toque no chip <b>📇 Clube?</b> → aparece a explicação prontinha pro cliente → coloque o WhatsApp dele (é o "ingresso") → pronto! Cliente antigo já entra com <b>2 selos de presente</b>, novo entra com 1.</p>
 <p style="margin-bottom:6px;"><b>2º ACOMPANHAR:</b> os selos enchem sozinhos a cada compra PAGA. Na cartela tem o botão <b>📲 Enviar Cartela no WhatsApp</b> — manda a FOTO da cartela (linda, com carimbos e datas) + a mensagem pronta: <i>"faltam só 2 pro seu presente!"</i>. Ver os selos juntando dá vontade de completar rsrs.</p>
-<p style="margin-bottom:10px;"><b>3º ENTREGAR:</b> chip verde 🎁 → toque → <b>"Resgatar o Brinde"</b> → monte a <b>sacolinha do brinde</b>: adicione os produtos que o cliente escolher (o app soma e trava em R$ 50 — 1 perfume, 2 cremes, creme + spray...) → <b>"✅ Entregar"</b>. O app dá baixa no estoque, registra tudo e zera a cartela sozinho. <b>Você NÃO mexe em status nenhum</b> — e não tem como errar: se a cartela não estiver cheia ou passar do limite, o sistema recusa.</p>
+<p style="margin-bottom:10px;"><b>3º ENTREGAR:</b> chip verde 🎁 → toque → <b>"Resgatar o Brinde"</b> → monte a <b>sacolinha do brinde</b>: adicione os produtos que o cliente escolher (o app soma e trava em ${fmt(configClube().tetoPremio)} — 1 perfume, 2 cremes, creme + spray...) → <b>"✅ Entregar"</b>. O app dá baixa no estoque, registra tudo e zera a cartela sozinho. <b>Você NÃO mexe em status nenhum</b> — e não tem como errar: se a cartela não estiver cheia ou passar do limite, o sistema recusa.</p>
 
 <div style="background:#e8f5e9; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:8px;">
     <p style="margin:0; font-size:0.75rem; color:#166534;"><b>💡 Por que isso enche o SEU bolso:</b> só compra PAGA carimba selo — o cliente com fiado vai QUERER pagar rápido ("paga pra eu carimbar!"). Cliente com cartela pela metade não compra da concorrente. E o brinde quem paga é a empresa — pra você é só mais recompra e mais comissão.</p>
 </div>
 <p style="margin:0;">❓ Dúvidas comuns: <b>compras antigas contam?</b> Não — selos valem da entrada no Clube em diante (por isso o bônus de boas-vindas). <b>Fiado conta?</b> Só quando for pago. <b>Preciso anotar algo?</b> Nunca — é tudo automático.</p>` },
+
+{ id: 'cashback', emoji: '💰', titulo: 'Cashback: o cliente ganha pra voltar', html: () => `
+<div style="background:#ecfdf5; border:2px solid #34d399; border-radius:12px; padding:12px; margin-bottom:10px;">
+    <p style="margin:0; font-weight:800; color:#065f46; font-size:0.85rem;">💰 A regra em 1 frase: toda compra PAGA devolve ${configCashback().pct}% pro cliente usar na próxima compra, em até ${configCashback().dias} dias.</p>
+</div>
+<p style="margin-bottom:8px;"><b>Você não faz NADA pra gerar.</b> Vale pra qualquer cliente — não precisa estar no Clube nem ter cadastro. O app calcula sozinho quando a venda é paga.</p>
+<p style="margin-bottom:6px;"><b>Onde aparece:</b></p>
+<p style="margin-bottom:6px;">• No PDV: ao digitar o cliente, surge a faixa verde <b>"💰 Ana tem R$ 1,30 de cashback"</b>.</p>
+<p style="margin-bottom:6px;">• No passo ③: a opção <b>"💰 Usar o cashback do cliente"</b> — marcou, o total já cai.</p>
+<p style="margin-bottom:10px;">• No recibo de pagamento: <b>"Você ganhou R$ X de cashback, use até..."</b> — é isso que faz o cliente voltar.</p>
+<div style="background:#fdf5f7; border:1px solid #f3d8e2; border-radius:10px; padding:10px; margin-bottom:8px;">
+    <p style="margin:0; font-size:0.75rem;"><b>💡 Frase pra usar:</b> "Você tem R$ 3,25 de cashback guardado aqui comigo, vence dia 20 — quer aproveitar hoje?" Cliente adora sentir que tem dinheiro esperando.</p>
+</div>
+<p style="margin:0;">❓ <b>Fiado gera?</b> Só quando o cliente paga. <b>Cashback usado gera cashback?</b> Não — conta só o que ele pagou de verdade.</p>` },
 
 { id: 'fabrica', emoji: '⏳', titulo: 'Maceração e Sugestões', html: `
 <p style="margin-bottom:8px;"><b>⏳ Maceração</b> é a aba que mostra a fábrica trabalhando: cada lote em produção e a data em que fica pronto.</p>
@@ -9939,6 +9957,7 @@ const PAGINAS_GUIA = [
 { id: 'painel', emoji: '📊', titulo: 'Painel: seu dinheiro e suas conquistas', html: `
 <p style="margin-bottom:8px;">O <b>📊 Painel</b> é o seu contracheque ao vivo. Logo no topo, as 3 respostas que importam: <b>quanto vendi</b>, <b>comissão recebida</b> e <b>comissão a receber</b>.</p>
 <p style="margin-bottom:8px;">📅 <b>Trocando de mês:</b> use as setinhas <b>◀ Agosto 2026 ▶</b> no topo pra passear pelos meses. Se perdeu no passado, <b>toque no nome do mês</b> e volta pro atual.</p>
+<p style="margin-bottom:8px;">⚙️ <b>Monte o seu painel:</b> o botão ⚙️ ao lado dos meses deixa você <b>subir, descer e esconder</b> as gavetas — cada pessoa organiza do seu jeito.</p>
 <p style="margin-bottom:8px;">🗂️ <b>O painel é organizado em GAVETAS</b> — toque no título e ela abre/fecha (o app lembra como você deixou):</p>
 <div style="background:#faf7f8; border:1px dashed #e3c6d2; border-radius:10px; padding:10px; font-size:0.75rem; margin-bottom:10px;">
     <p style="margin:0 0 4px;"><b>🎯 Missões do Mês</b> — sua meta com a corrida contra o tempo, a meta da semana e o acelerador (lição que vem a seguir!).</p>
@@ -9961,7 +9980,35 @@ const PAGINAS_GUIA = [
 <p style="margin-bottom:8px;">⏳ <b>No Painel</b>, o cartão da meta mostra a corrida: sua barra verde contra a barrinha do tempo. Se a verde está na frente, você ganha. E quando o acelerador começar a render, aparece: <b>"💰 você já garantiu +R$ 23,00 extras este mês!"</b></p>
 <p style="margin:0;">💵 <b>Como recebe:</b> todo dia 1º o app fecha a conta do mês anterior e a Diretoria paga junto com o acerto normal das comissões. Você acompanha no Painel: "⏳ aguardando acerto" → "pago ✅".</p>` },
 
+{ id: 'adm_estoque', papel: 'admin', emoji: '🏬', titulo: '[Gestão] Estoque sob controle', html: `
+<p style="margin-bottom:8px;">Na aba <b>📦 Estoque</b>, os botões de cima são as ferramentas da diretoria:</p>
+<p style="margin-bottom:6px;">🧳 <b>Mala de Transferência</b> — escolha origem e destino UMA vez, coloque vários produtos e mande tudo junto. A <b>🪄 sugestão automática</b> completa o nível ideal de cada vendedora (ex: 3 de cada perfume). No fim, o <b>romaneio</b> vai pro WhatsApp dela.</p>
+<p style="margin-bottom:6px;">📜 <b>Diário do Estoque</b> — tudo que entrou e saiu, dia a dia, com filtros. A guia <b>📈 Linha do Tempo</b> mostra o estoque crescendo com um botão deslizante.</p>
+<p style="margin-bottom:6px;">💰 <b>Ajustar Preços</b> — reprecifica por categoria e ml de uma vez (Perfume 40ml, Creme 110ml...), com prévia antes de aplicar.</p>
+<p style="margin-bottom:6px;">📋 <b>Conferência</b> — conte o estoque de um local e o app ajusta as diferenças.</p>
+<p style="margin:0;">📜 Em cada produto, o botão <b>📜</b> mostra o "filme" daquele item: maceração, transferências, ajustes e vendas.</p>` },
+
+{ id: 'adm_fabrica', papel: 'admin', emoji: '🧪', titulo: '[Gestão] Fábrica e Compras', html: `
+<p style="margin-bottom:8px;"><b>🧪 Fábrica</b> tem 4 guias: <b>Nova Receita</b> (o precificador com o Livro de Receitas), <b>Lançar Produção</b>, <b>Fila Maceração</b> e <b>Sugestões</b> dos vendedores.</p>
+<p style="margin-bottom:8px;">Na <b>Fila</b>, cada lote mostra o <b>estoque de hoje</b> (🚨 zerado = prioridade) e você pode envasar só uma parte do lote — o resto continua macerando.</p>
+<p style="margin-bottom:8px;"><b>💸 Gastos</b>: em Planejar Compras, digite 2 letras e a <b>🧠 memória de compras</b> completa nome, categoria e último preço. O botão <b>🤖 Sugerir Compras</b> lista as essências que vão faltar.</p>
+<p style="margin:0;">🏷️ <b>Essências</b>: cadastre as fichas (a IA escreve a descrição) e gere a <b>etiqueta de amostras</b> separada por gênero.</p>` },
+
+{ id: 'adm_incentivos', papel: 'admin', emoji: '⚡', titulo: '[Gestão] Incentivos, promoções e fidelidade', html: () => `
+<p style="margin-bottom:8px;">No menu <b>🐌 Parado</b>, o cartão <b>⚡ Incentivo em Lote</b> dá <b>🔥 bônus de comissão</b> (pra equipe) ou <b>💸 desconto</b> (pro cliente) em categorias inteiras, com prazo (<b>só hoje</b>, 7 dias, data ou sem prazo) e uma <b>🎉 mensagem</b> que aparece pra equipe. O bônus some sozinho no fim do prazo.</p>
+<p style="margin-bottom:8px;">Ligou o bônus depois de algumas vendas do dia? O botão <b>↩️ Incluir as vendas de hoje</b> aplica nelas também.</p>
+<p style="margin-bottom:8px;"><b>Fidelidade:</b> o <b>Clube de Selos</b> (hoje ${fmt(configClube().valorSelo)} = 1 selo, ${configClube().selosCartela} selos = até ${fmt(configClube().tetoPremio)} de presente) e o <b>Cashback</b> (${configCashback().pct}% por ${configCashback().dias} dias) são ajustados nos <b>⚙️ Parâmetros</b>. Mudar o valor do selo vale só daqui pra frente — ninguém perde selo.</p>
+<p style="margin:0;">👥 <b>Programa de indicação:</b> no cadastro da Equipe, "Indicado(a) por" faz quem indicou ganhar o Bônus de Equipe sobre as vendas pagas da indicada.</p>` },
+
+{ id: 'adm_comunicacao', papel: 'admin', emoji: '🔔', titulo: '[Gestão] Avisos, mensagens e o consultor IA', html: `
+<p style="margin-bottom:8px;">Em <b>⋯ Mais</b> ficam duas centrais só da diretoria:</p>
+<p style="margin-bottom:6px;">🔔 <b>Avisos</b> — liga/desliga cada mensagem do Telegram, escolhe o horário das agendadas (fechamento do dia, lotes prontos...) e edita o texto de todas, com prévia.</p>
+<p style="margin-bottom:10px;">💬 <b>Mensagens</b> — os textos que vão pro <b>cliente</b> no WhatsApp (cobrança, cartela do Clube, romaneio, catálogo...). É o tom de voz da marca.</p>
+<p style="margin-bottom:8px;">🤖 No <b>📊 Painel</b>, a <b>Análise Profunda com IA</b> dá um parecer do negócio e você continua a conversa com ela. Em <b>📌 Instruções da Diretoria</b> você ensina as regras da casa (ex: "fiado de 30 dias é estratégia").</p>
+<p style="margin:0;">⚙️ O botão de engrenagem no topo leva às <b>Configurações</b> e aos <b>Parâmetros Globais</b>: marca, locais, metas, Clube, Cashback, rodapé dos recibos e Desafios da Casa (troféus personalizados).</p>` },
+
 { id: 'dicas', emoji: '✨', titulo: 'Últimos truques (você se formou! 🎓)', html: `
+<p style="margin-bottom:6px;">🎓 <b>Esqueceu como faz algo?</b> O botão 🎓 no canto abre o Tour Guiado de qualquer tela, a qualquer hora.</p>
 <p style="margin-bottom:6px;">🌙 <b>Modo escuro</b>: o botãozinho da lua no topo. Só muda no seu aparelho.</p>
 <p style="margin-bottom:6px;">✍️ Em campos com sugestões, <b>tocar já seleciona o texto</b> — digite por cima, sem apagar.</p>
 <p style="margin-bottom:6px;">🔥 <b>Foguinho</b> na lista de vendas = comissão extra HOJE naquele produto. 💸 <b>PROMO</b> = desconto ativo pro cliente (o banner verde mostra o preço certo a cobrar).</p>
@@ -9976,39 +10023,52 @@ const PAGINAS_GUIA = [
 
 let paginaGuiaAtual = 0;
 
+// Lições que a pessoa enxerga: as de todo mundo + as do papel dela (admin vê as de gestão)
+function paginasGuia() {
+    const ehAdm = usuarioCargo === 'Admin';
+    return PAGINAS_GUIA.filter(p => !p.papel || (p.papel === 'admin' ? ehAdm : !ehAdm));
+}
+
 function abrirGuiaVendedor(idPagina) {
-    paginaGuiaAtual = Math.max(0, PAGINAS_GUIA.findIndex(p => p.id === idPagina));
+    paginaGuiaAtual = Math.max(0, paginasGuia().findIndex(p => p.id === idPagina));
     renderizarPaginaGuia();
     document.getElementById('modal-tutorial').style.display = 'flex';
 }
 
 function renderizarPaginaGuia() {
-    const pag = PAGINAS_GUIA[paginaGuiaAtual];
+    const lista = paginasGuia();
+    const pag = lista[paginaGuiaAtual];
     if (!pag) return;
     document.getElementById('guia-emoji').innerText = pag.emoji;
     document.getElementById('titulo-tutorial-nome').innerText = pag.titulo;
-    document.getElementById('guia-subtitulo').innerText = paginaGuiaAtual === 0 ? `Que bom te ver por aqui, ${usuarioLogado}!` : `Lição ${paginaGuiaAtual + 1} de ${PAGINAS_GUIA.length}`;
+    document.getElementById('guia-subtitulo').innerText = paginaGuiaAtual === 0 ? `Que bom te ver por aqui, ${usuarioLogado}!` : `Lição ${paginaGuiaAtual + 1} de ${lista.length}`;
     const cont = document.getElementById('guia-conteudo');
-    cont.innerHTML = pag.html;
+    // html pode ser função: assim a lição mostra os valores ATUAIS (preço do selo, % do cashback...)
+    cont.innerHTML = typeof pag.html === 'function' ? pag.html() : pag.html;
     cont.scrollTop = 0;
-    document.getElementById('guia-contador').innerText = `${paginaGuiaAtual + 1} / ${PAGINAS_GUIA.length}`;
-    document.getElementById('guia-barra').style.width = (((paginaGuiaAtual + 1) / PAGINAS_GUIA.length) * 100).toFixed(0) + '%';
+    document.getElementById('guia-contador').innerText = `${paginaGuiaAtual + 1} / ${lista.length}`;
+    document.getElementById('guia-barra').style.width = (((paginaGuiaAtual + 1) / lista.length) * 100).toFixed(0) + '%';
     const btnV = document.getElementById('btn-guia-voltar');
     btnV.style.visibility = paginaGuiaAtual === 0 ? 'hidden' : 'visible';
-    document.getElementById('btn-guia-avancar').innerHTML = paginaGuiaAtual === PAGINAS_GUIA.length - 1 ? 'Concluir 🚀' : 'Avançar ▶';
+    document.getElementById('btn-guia-avancar').innerHTML = paginaGuiaAtual === lista.length - 1 ? 'Concluir 🚀' : 'Avançar ▶';
 }
 
 function navegarGuia(delta) {
-    if (paginaGuiaAtual === PAGINAS_GUIA.length - 1 && delta > 0) return concluirGuiaVendedor();
-    paginaGuiaAtual = Math.min(PAGINAS_GUIA.length - 1, Math.max(0, paginaGuiaAtual + delta));
+    const lista = paginasGuia();
+    if (paginaGuiaAtual === lista.length - 1 && delta > 0) return concluirGuiaVendedor();
+    paginaGuiaAtual = Math.min(lista.length - 1, Math.max(0, paginaGuiaAtual + delta));
     renderizarPaginaGuia();
 }
 
 // 🎓 Chegou na última página e tocou em "Concluir": ganha o troféu de formatura
 // (o servidor garante que é 1x na vida — reler o guia não duplica nada)
+// 👁️ Admin no "visualizar como" (a sessão original fica guardada no aparelho): testar o guia não vale troféu
+function estaVisualizandoComo() { return !!localStorage.getItem('novera_admin_token_original'); }
+
 function concluirGuiaVendedor() {
     fecharTutorialUsuario();
     if (usuarioCargo === 'Admin') return;
+    if (estaVisualizandoComo()) return mostrarAlerta('Guia concluído (teste) 👁️', `Você está vendo como ${usuarioLogado}, então o troféu de formatura NÃO foi dado — ele é só de quem lê de verdade.`, 'success');
     fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'concluir_guia', usuario: usuarioLogado }) })
         .then(r => r.json())
         .then(res => { if (res.sucesso && res.novo) sincronizarDadosUnico(); }) // a festa 🎊 aparece no próximo sync
@@ -10021,7 +10081,9 @@ function injetarBotoesAjuda() {
     const mapaAjuda = {
         'tab-vendas': 'vender', 'tab-estoque': 'estoque', 'tab-maceracaovendedor': 'fabrica',
         'tab-dashboard': 'painel', 'tab-encomendas': 'encomendas', 'tab-clientes': 'clientes',
-        'tab-sugestaoproducao': 'fabrica'
+        'tab-sugestaoproducao': 'fabrica',
+        // telas da diretoria
+        'tab-rotulos': 'adm_fabrica', 'tab-precificar': 'adm_fabrica', 'tab-gastos': 'adm_fabrica', 'tab-estoqueparado': 'adm_incentivos'
     };
     // Enquanto a pessoa não concluir o guia, os botões pulsam chamando atenção
     const jaLeuGuia = !!localStorage.getItem('novera_tutorial_visto_v2_' + usuarioLogado);
@@ -10031,7 +10093,7 @@ function injetarBotoesAjuda() {
         if (!tab || tab.querySelector('.btn-ajuda-tela')) return;
         const faixa = document.createElement('div');
         faixa.style.cssText = 'text-align:right; margin-bottom:6px;';
-        faixa.innerHTML = `<button class="btn-ajuda-tela${jaLeuGuia ? '' : ' ajuda-pulso'}" onclick="abrirGuiaVendedor('${mapaAjuda[tabId]}')">❓ Como usar esta tela</button>`;
+        faixa.innerHTML = `<button class="btn-ajuda-tela${jaLeuGuia ? '' : ' ajuda-pulso'}" onclick="abrirAjudaTela('${tabId}', '${mapaAjuda[tabId]}')">❓ Como usar esta tela</button>`;
         tab.insertBefore(faixa, tab.firstChild);
         injetou = true;
     });
@@ -10040,6 +10102,13 @@ function injetarBotoesAjuda() {
 
 function verificarTutorialUsuario() {
     injetarBotoesAjuda();
+    injetarBotaoTour();
+
+    // 🎓 Tour Guiado: na primeira vez aparece pra TODO MUNDO (admin e vendedor); depois é só pelo 🎓
+    if (!localStorage.getItem('novera_tour_v1_' + usuarioLogado)) {
+        setTimeout(() => { mostrarConviteTour(); }, 1200);
+        return;
+    }
 
     // Admin não precisa do tutorial pulando na tela dele
     if (usuarioCargo === 'Admin') return;
@@ -10085,6 +10154,534 @@ function fecharTutorialUsuario() {
     // E fecha a tela + para o pulsar dos botões ❓ (já não é mais novidade)
     document.getElementById('modal-tutorial').style.display = 'none';
     document.querySelectorAll('.btn-ajuda-tela').forEach(b => b.classList.remove('ajuda-pulso'));
+}
+
+// ==========================================
+// 🎓 TOUR GUIADO + MODO TREINO
+// O tour "pega na mão": troca de tela sozinho, destaca onde tocar e SIMULA vendas,
+// recebimentos e links. Blindagem: enquanto o treino roda, NENHUMA gravação chega ao
+// servidor (todo envio é interceptado aqui), o WhatsApp não abre, e ao sair o PDV volta
+// exatamente como estava. Disponível em qualquer tela pelo botão 🎓.
+// ==========================================
+window._modoTreino = false;
+
+(function instalarBlindagemTreino() {
+    const fetchReal = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+        const metodo = String((opts && opts.method) || 'GET').toUpperCase();
+        if (window._modoTreino && metodo !== 'GET') {
+            // Resposta de mentirinha que agrada qualquer tela ("deu certo"), sem tocar no servidor
+            const resp = { sucesso: true, treino: true, pedido: 'TREINO', codigo: 'treino', alterados: 0, afetados: 0, atualizadas: 0, unificados: 0, cashbackUsado: 0 };
+            return new Promise(r => setTimeout(() => r(new Response(JSON.stringify(resp), { status: 200, headers: { 'Content-Type': 'application/json' } })), 350));
+        }
+        return fetchReal(url, opts);
+    };
+    const openReal = window.open.bind(window);
+    window.open = function (url, alvo, recursos) {
+        if (window._modoTreino) {
+            mostrarToastTreino('📲 No treino o WhatsApp não abre — na vida real ele abriria agora, com a mensagem pronta.');
+            return { closed: false, focus() { }, close() { } }; // "janela" falsa: ninguém cai no plano B de redirecionar
+        }
+        return openReal(url, alvo, recursos);
+    };
+})();
+
+function mostrarToastTreino(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed; left:50%; bottom:calc(100px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#2C2A2B; color:#fff; padding:10px 16px; border-radius:12px; font-size:0.78rem; font-weight:700; z-index:100006; max-width:86vw; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.35); font-family:Montserrat, sans-serif;';
+    t.innerText = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3400);
+}
+
+const esperarTour = (ms) => new Promise(r => setTimeout(r, ms));
+const ehAdmTour = () => usuarioCargo === 'Admin';
+
+// Digita letra por letra (a pessoa VÊ o campo sendo preenchido) e dispara os mesmos eventos de quem digita
+async function digitarTreino(el, texto) {
+    if (!el) return;
+    el.value = '';
+    for (const ch of String(texto)) {
+        if (!window._modoTreino) return;
+        el.value += ch;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        await esperarTour(40);
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.dispatchEvent(new Event('keyup', { bubbles: true }));
+}
+
+function produtoDeTreino() {
+    return Object.values(estoqueAgrupado)
+        .filter(e => (e.totalQtd || 0) > 0)
+        .sort((a, b) => numeroCodigoNovera(a) - numeroCodigoNovera(b))[0] || null;
+}
+function vendasPermitidasTour() {
+    return vendasGlobal.filter(v => ehAdmTour() || normalizarNomeBusca(v.socio) === normalizarNomeBusca(usuarioLogado));
+}
+
+// ---------- Guarda e devolve o que a pessoa já tinha preenchido antes do treino ----------
+const CAMPOS_TREINO = ['v-cliente', 'v-socio', 'v-status', 'v-prev-pgto', 'v-observacao', 'v-produto', 'v-qtd', 'v-valor', 'f-v-busca', 'busca-estoque', 'c-item'];
+let _estadoAntesTreino = null;
+function guardarEstadoAntesTreino() {
+    const campos = {};
+    CAMPOS_TREINO.forEach(id => { const el = document.getElementById(id); if (el) campos[id] = el.value; });
+    _estadoAntesTreino = { campos, carrinho: JSON.parse(JSON.stringify(carrinhoPDV || [])), usarCb: usarCashbackPdv, usarCbPara: usarCashbackPdvPara };
+}
+function devolverEstadoAntesTreino() {
+    const st = _estadoAntesTreino;
+    if (!st) return;
+    _estadoAntesTreino = null;
+    carrinhoPDV = st.carrinho;
+    usarCashbackPdv = st.usarCb; usarCashbackPdvPara = st.usarCbPara;
+    const prodEl = document.getElementById('v-produto');
+    if (prodEl) { prodEl.value = st.campos['v-produto'] || ''; try { autoPreencherValorVenda(); } catch (e) { } }
+    Object.keys(st.campos).forEach(id => { if (id === 'v-produto') return; const el = document.getElementById(id); if (el) el.value = st.campos[id]; });
+    try { onStatusVendaChange(false); } catch (e) { }
+    try { atualizarFaixaClubePdv(); } catch (e) { }
+    try { renderizarCarrinho(); } catch (e) { }
+    try { filtrarVendas(); } catch (e) { }
+    try { renderizarEstoque(); } catch (e) { }
+}
+
+function entrarModoTreino() {
+    if (window._modoTreino) return;
+    guardarEstadoAntesTreino();
+    window._modoTreino = true;
+    if (!document.getElementById('faixa-modo-treino')) {
+        const fx = document.createElement('div');
+        fx.id = 'faixa-modo-treino';
+        fx.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:99986; background:linear-gradient(90deg,#5b21b6,#7c3aed); color:#fff; text-align:center; padding:7px 10px; font-size:0.7rem; font-weight:800; font-family:Montserrat, sans-serif; letter-spacing:0.5px; box-shadow:0 4px 12px rgba(0,0,0,0.25);';
+        fx.innerText = '🎓 MODO TREINO — tudo aqui é simulação, nada é salvo de verdade';
+        document.body.appendChild(fx);
+    }
+}
+async function sairModoTreino() {
+    window._modoTreino = false;
+    const fx = document.getElementById('faixa-modo-treino'); if (fx) fx.remove();
+    try { await sincronizarDadosUnico(); } catch (e) { } // volta tudo pros dados REAIS do servidor
+    devolverEstadoAntesTreino();
+}
+
+// Fecha qualquer janela que o tour abriu (as fixas só escondem; as criadas na hora somem)
+function fecharModaisDoTreino() {
+    ['modal-gerar-catalogo', 'modal-confirmar', 'modal-recibo-preview'].forEach(id => { const m = document.getElementById(id); if (m) m.style.display = 'none'; });
+    ['modal-link-catalogo', 'modal-baixa-parcial', 'modal-central-notif', 'modal-central-zap', 'modal-organizar-painel', 'modal-meus-catalogos', 'modal-ajuda-tela'].forEach(id => { const m = document.getElementById(id); if (m) m.remove(); });
+}
+// Janela criada pelo tour fica ABAIXO do destaque do tour (senão ela cobriria a explicação)
+function rebaixarModalTour(id) { const m = document.getElementById(id); if (m) m.style.zIndex = '10002'; }
+
+// ==========================================
+// 📚 TRILHAS: cada uma é uma "aula" curta. papel: todos | admin | vendedor. tela = aba onde ela acontece.
+// Passo: { aba, alvo (seletor ou função), titulo, texto, antes(), acao() + rotuloAcao, depois(), se() }
+// ==========================================
+const TRILHAS_TOUR = [
+    {
+        id: 'inicio', emoji: '👋', nome: 'Primeiros passos', desc: 'Como o app funciona e onde fica cada coisa', papel: 'todos', tela: null,
+        passos: () => [
+            { titulo: 'Bem-vindo ao Tour Guiado! 🎓', texto: 'Eu vou <b>pegar na sua mão</b>: o app troca de tela sozinho, mostra onde tocar e até <b>simula vendas e recebimentos</b>.<br><br>🛡️ Viu a faixa roxa lá em cima? Enquanto ela aparecer, você está no <b>MODO TREINO</b>: nada é salvo e nenhuma mensagem é enviada. Pode explorar sem medo!' },
+            { alvo: '#btn-tour-flutuante', titulo: 'O botão do treinamento', texto: 'Esse botão roxo <b>🎓</b> fica em TODAS as telas. Toque nele quando quiser rever o tour completo ou só o da tela em que você está.' },
+            { alvo: '.bottom-nav', titulo: 'Trocando de tela', texto: () => ehAdmTour() ? 'Por aqui você troca de tela: <b>Essências, Fábrica, Gastos, Estoque, Vendas e Painel</b>. O resto fica em <b>⋯ Mais</b>: Parado, Encomendas, Clientes, Avisos e Mensagens.' : 'Por aqui você troca de tela: <b>🛒 Vendas</b>, <b>📦 Estoque</b>, <b>⏳ Maceração</b> e <b>📊 Painel</b>. O resto (Encomendas, Clientes, Sugerir) fica em <b>⋯ Mais</b>.' },
+            { aba: 'vendas', antes: () => { toggleVendasTab('registro'); window.scrollTo(0, 0); }, alvo: () => document.querySelector('#tab-vendas .btn-ajuda-tela'), titulo: 'Ajuda em cada tela', texto: 'Cada tela tem esse botão dourado <b>❓ Como usar esta tela</b>: ele abre o tour daquela tela ou a explicação pra ler com calma.' }
+        ]
+    },
+    {
+        id: 'venda', emoji: '🛒', nome: 'Fazer uma venda', desc: 'Simulação completa: cliente, produto, carrinho e finalizar', papel: 'todos', tela: 'vendas',
+        passos: () => {
+            const prod = produtoDeTreino();
+            return [
+                { aba: 'vendas', antes: () => { toggleVendasTab('registro'); window.scrollTo(0, 0); }, alvo: '#vendas-registro-view .pdv-card', titulo: 'Vamos vender! (de mentirinha)', texto: 'A venda tem <b>3 cartões numerados</b>: ① dados do pedido, ② produtos, ③ conferir e finalizar. Eu vou preencher tudo pra você ver — é TREINO, nada é salvo.' },
+                { alvo: '#v-cliente', antes: async () => { if (ehAdmTour()) { const s = document.getElementById('v-socio'); if (s) s.value = usuarioLogado; } await digitarTreino(document.getElementById('v-cliente'), 'Cliente Treino'); }, titulo: '① Quem está comprando', texto: 'Digite o nome do cliente — o app sugere os que você já atendeu. Se ele tiver <b>💰 cashback</b> ou selos do Clube, aparece uma faixa aqui embaixo avisando.' },
+                { alvo: '#v-status', antes: () => { const st = document.getElementById('v-status'); if (st) { st.value = 'Pago'; st.dispatchEvent(new Event('change', { bubbles: true })); } }, titulo: 'Pagou na hora ou é fiado?', texto: '<b>Pago</b> = recebeu agora. <b>Pendente</b> = fiado: aí o app pede a <b>data combinada</b> de pagamento (com atalhos +7d, +15d e +30d). Aqui escolhi <b>Pago</b>.' },
+                { se: () => !!prod, alvo: '#v-produto', antes: () => { const sel = document.getElementById('v-produto'); if (sel) { sel.value = prod.nome; autoPreencherValorVenda(); } }, titulo: '② Escolhendo o produto', texto: () => `Escolhi <b>${prod.codigo ? prod.codigo + ' · ' : ''}${prod.nome}</b>. A lista é separada por tipo e por 🌸 feminino / 🔷 masculino. O 📷 do lado lê o QR Code da etiqueta.` },
+                { se: () => !!prod, alvo: '#v-local-estoque', titulo: 'De onde sai o produto', texto: 'O app já escolhe um local que tem estoque. Você pode vender o que está na <b>Sede</b> ou com outra pessoa — a venda e a comissão continuam sendo SUAS.' },
+                { se: () => !!prod, alvo: '[onclick="adicionarItemCarrinho()"]', titulo: 'Colocando no carrinho', texto: 'Toque em <b>➕ Inserir no carrinho</b>. Cliente quer mais coisas? É só repetir.', acao: () => adicionarItemCarrinho(), rotuloAcao: '➕ Inserir (treino)', esperaAcao: 400 },
+                { se: () => !!prod, alvo: '#carrinho-lista', titulo: '③ Conferindo o pedido', texto: 'O item entrou no carrinho, com o total embaixo. Se o cliente tiver cashback, aparece aqui a opção <b>💰 Usar o cashback</b> e o total já cai.' },
+                { se: () => !!prod, alvo: '#btn-finalizar-venda', titulo: 'Finalizando', texto: 'Agora é tocar em <b>✅ Finalizar</b>. Vai aparecer a mensagem de sucesso, do jeitinho da vida real — mas no treino nada vai pro sistema.', acao: () => salvarVendaCarrinho(), rotuloAcao: '✅ Finalizar (treino)', esperaAcao: 900 },
+                { titulo: 'Venda registrada! 🎉', texto: 'Na vida real, a venda ganha um <b>número de pedido</b> (ex: #1042), sai do estoque, aparece no histórico e a comissão entra no seu Painel. Viu como é rápido?' }
+            ];
+        }
+    },
+    {
+        id: 'consulta', emoji: '🔍', nome: 'Consultar vendas', desc: 'Busca rápida, atalhos e o cartão de cada venda', papel: 'todos', tela: 'vendas',
+        passos: () => [
+            { aba: 'vendas', antes: () => toggleVendasTab('registro'), alvo: '#ancora-historico', titulo: 'O histórico de vendas', texto: 'Logo depois do PDV fica o <b>Histórico & Consulta</b>: tudo que já foi vendido. O botão <b>📊 Histórico ⬇️</b> lá em cima te traz direto pra cá.' },
+            { alvo: '#f-v-busca', antes: async () => { const v = vendasPermitidasTour()[0]; await digitarTreino(document.getElementById('f-v-busca'), v ? String(v.cliente || 'a').split(' ')[0] : 'a'); }, titulo: 'Busca rápida', texto: 'Digite qualquer coisa: <b>nome do cliente</b>, produto ou o <b>nº do pedido</b> (ex: 1042). A lista filtra na hora.' },
+            { alvo: '#chips-visao-vendas', antes: () => { const b = document.getElementById('f-v-busca'); if (b) b.value = ''; filtrarVendas(); }, titulo: 'Atalhos de 1 toque', texto: '<b>📅 Hoje</b>, <b>7 dias</b>, <b>Este mês</b> e o mais importante: <b>🔴 Vencidos</b> — todos os fiados com a data estourada, juntos. É a sua lista de cobrança pronta!' },
+            { alvo: () => document.querySelector('#lista-vendas-cadastradas .card-venda-list'), titulo: 'Cada venda é um cartão', texto: 'No cartão: o <b>nº do pedido</b>, o cliente, o status e os botões. Nos fiados: <b>🔔</b> imagem de cobrança, <b>📲</b> cobrança no WhatsApp e <b>💲</b> receber.' }
+        ]
+    },
+    {
+        id: 'receber', emoji: '💲', nome: 'Receber um fiado', desc: 'Simulação: dar baixa num pagamento (até parcial)', papel: 'todos', tela: 'vendas',
+        passos: () => {
+            const botaoBaixa = () => document.querySelector('#lista-vendas-cadastradas [onclick^="darBaixaVenda("]');
+            return [
+                { aba: 'vendas', antes: () => { toggleVendasTab('registro'); const b = document.getElementById('f-v-busca'); if (b) b.value = ''; visaoVendas = ''; filtrarVendas(); }, alvo: () => { const b = botaoBaixa(); return b ? b.closest('.card-venda-list') : null; }, titulo: 'Recebendo um fiado', texto: () => botaoBaixa() ? 'Essa é uma venda fiada. Quando o cliente pagar, é só dar baixa — é o pagamento que <b>libera a sua comissão</b>.' : 'Quando você tiver uma venda fiada, ela aparece no histórico com o botão <b>💲</b> pra dar baixa. (Agora não tem nenhuma pendente pra eu simular.)' },
+                { se: () => !!botaoBaixa(), alvo: () => botaoBaixa(), titulo: 'O botão 💲', texto: 'Toque no 💲. Se a venda tiver mais de 1 unidade, ele pergunta se o cliente pagou <b>tudo ou só uma parte</b>. Vai abrir uma janelinha — pode confirmar, é treino!', acao: () => { const b = botaoBaixa(); if (b) b.click(); }, rotuloAcao: '💲 Simular recebimento', esperaAcao: 300 },
+                { titulo: 'Recebido! 💲', texto: 'Na vida real a venda vira <b>Paga</b>, entra no caixa, libera a comissão e o cliente ganha <b>cashback</b>. Depois o <b>🧾</b> gera o recibo bonito — que já mostra o cashback dele.' }
+            ];
+        }
+    },
+    {
+        id: 'estoque', emoji: '📦', nome: 'Consultar o estoque', desc: 'Achar produto, ver quanto tem e onde está', papel: 'todos', tela: 'estoque',
+        passos: () => {
+            const prod = produtoDeTreino();
+            return [
+                { aba: 'estoque', antes: async () => { window.scrollTo(0, 0); if (prod) await digitarTreino(document.getElementById('busca-estoque'), prod.codigo || String(prod.nome).split(' ').slice(1, 2).join(' ')); }, alvo: '#busca-estoque', titulo: 'Achando um produto', texto: 'Digite o nome ou o <b>código</b> (ex: N007). Os filtros embaixo separam por local, gênero e família olfativa.' },
+                { alvo: () => document.querySelector('#lista-estoque-cards .rotulo-card'), titulo: 'O cartão do produto', texto: 'Mostra o preço, quanto tem e <b>ONDE</b> está (📍 Sede, Kamila...). Você pode vender de qualquer local! 🔥 = comissão extra, 💸 = promoção.', depois: () => { const b = document.getElementById('busca-estoque'); if (b) { b.value = ''; renderizarEstoque(); } } },
+                { se: ehAdmTour, alvo: '#btn-transfer-lote', titulo: '🧳 Mala de Transferência', texto: 'Escolha origem e destino UMA vez e mande vários produtos juntos. A <b>🪄 sugestão</b> completa o nível ideal de cada vendedora, e o romaneio vai pro WhatsApp dela.' },
+                { se: ehAdmTour, alvo: '#btn-extrato-geral', titulo: '📜 Diário do Estoque', texto: 'Tudo que entrou e saiu, dia a dia, com filtros. A guia <b>📈 Linha do Tempo</b> mostra o estoque crescendo com um botão deslizante.' },
+                { se: ehAdmTour, alvo: '#btn-ajuste-precos', titulo: '💰 Ajustar Preços', texto: 'Reprecifica por categoria e ml de uma vez (Perfume 40ml, Creme 110ml...), com prévia antes de aplicar. Depois ele oferece alinhar o Clube de Selos.' },
+                { se: ehAdmTour, alvo: '#btn-conferencia-estoque', titulo: '📋 Conferência', texto: 'Conte o estoque de um local e o app ajusta as diferenças sozinho.' }
+            ];
+        }
+    },
+    {
+        id: 'catalogo', emoji: '🔗', nome: 'Catálogo online', desc: 'Simulação: gerar o link pra mandar aos clientes', papel: 'todos', tela: 'estoque',
+        passos: () => [
+            { aba: 'estoque', antes: () => window.scrollTo(0, 0), alvo: '[onclick="abrirModalCatalogo()"]', titulo: 'Seu catálogo online', texto: 'Aqui você gera um <b>link</b> com produtos e preços sempre atualizados, pra mandar no WhatsApp ou pôr no Instagram. O cliente escolhe e o pedido cai no SEU WhatsApp.', acao: () => abrirModalCatalogo(), rotuloAcao: '📖 Abrir (treino)', esperaAcao: 300 },
+            { alvo: () => document.querySelector('#modal-gerar-catalogo .modal-box-alert') || document.querySelector('#modal-gerar-catalogo > div'), titulo: 'Escolhendo o que mostrar', texto: 'Marque as <b>categorias</b>, os <b>gêneros</b> e se quer só o que tem em estoque. Dá até pra escolher produto por produto.' },
+            { alvo: '[onclick="gerarLinkCatalogoOnline()"]', titulo: 'Gerando o link', texto: 'Toque pra gerar o link. Se você já tiver um link igual, o app reaproveita o mesmo (nada de links repetidos).', acao: async () => { await gerarLinkCatalogoOnline(); rebaixarModalTour('modal-link-catalogo'); }, rotuloAcao: '🔗 Gerar link (treino)', esperaAcao: 300 },
+            { alvo: () => document.querySelector('#modal-link-catalogo > div'), titulo: 'Link pronto! 🔗', texto: 'Daqui você <b>envia no WhatsApp</b>, <b>copia</b> ou gera o <b>cartão com QR Code</b> pra imprimir e colar nas sacolinhas. (No treino o link é de mentirinha.)', depois: () => { const m = document.getElementById('modal-link-catalogo'); if (m) m.remove(); } }
+        ]
+    },
+    {
+        id: 'encomendas', emoji: '🎁', nome: 'Encomendas', desc: 'Anotar pedido de produto que acabou', papel: 'todos', tela: 'encomendas',
+        passos: () => [
+            { aba: 'encomendas', antes: () => window.scrollTo(0, 0), alvo: '#e-item', titulo: 'Encomenda: nunca perca uma venda', texto: 'Cliente quer um produto que está <b>zerado</b>? Anote aqui: produto, cliente e quantidade. Quando o estoque chegar, a encomenda <b>vira venda sozinha</b> e aparece pra separar.' },
+            { alvo: '#lista-encomendas-cards', titulo: 'Suas encomendas', texto: 'Aqui ficam as encomendas abertas: você acompanha quem está esperando o quê.' }
+        ]
+    },
+    {
+        id: 'clientes', emoji: '👥', nome: 'Clientes, Clube e Cashback', desc: 'Carteira de clientes e os programas de fidelidade', papel: 'todos', tela: 'clientes',
+        passos: () => [
+            { aba: 'clientes', antes: () => window.scrollTo(0, 0), alvo: '#cad-cli-nome', titulo: 'Sua carteira de clientes', texto: 'Cadastre com <b>WhatsApp</b> e <b>aniversário</b>: libera a cobrança direto no WhatsApp e o app te lembra do aniversário. Quem compra com você já entra sozinho na lista.' },
+            { alvo: () => document.querySelector('#lista-cadastro-clientes > div'), titulo: 'O Clube de Selos 📇', texto: () => `Os chips mostram o Clube: <b>📇 Clube?</b> = convidar, <b>🌸 3/8</b> = selos, <b>🎁 BRINDE</b> = cartela cheia. A cada ${fmt(configClube().valorSelo)} pagos, 1 selo; ${configClube().selosCartela} selos = até ${fmt(configClube().tetoPremio)} de presente.` },
+            { titulo: 'E o cashback 💰', texto: () => `Além do Clube, <b>todo cliente</b> ganha <b>${configCashback().pct}% de cashback</b> em compra paga, válido por ${configCashback().dias} dias — sem cadastro nenhum. Ele aparece sozinho no PDV quando o cliente tem saldo.` }
+        ]
+    },
+    {
+        id: 'maceracao', emoji: '⏳', nome: 'Maceração e sugestões', desc: 'O que a fábrica está produzindo', papel: 'vendedor', tela: 'maceracaovendedor',
+        passos: () => [
+            { aba: 'maceracaovendedor', antes: () => window.scrollTo(0, 0), alvo: '#lista-maceracao-vendedor', titulo: 'A fábrica trabalhando', texto: 'Cada lote em produção e o dia em que fica pronto. Use pra <b>vender o futuro</b>: "esse chega dia 15, quer que eu reserve o seu?"' },
+            { aba: 'sugestaoproducao', antes: () => window.scrollTo(0, 0), alvo: () => document.querySelector('#tab-sugestaoproducao .filtro-box') || document.getElementById('lista-minhas-sugestoes'), titulo: '💡 Sugerir', texto: 'Cliente pediu um aroma que não existe? Mande a sugestão pra fábrica — quem está vendendo sabe o que o povo quer.' }
+        ]
+    },
+    {
+        id: 'painel', emoji: '📊', nome: 'O Painel', desc: 'Meses, gavetas e o que cada número significa', papel: 'todos', tela: 'dashboard',
+        passos: () => [
+            { aba: 'dashboard', antes: () => window.scrollTo(0, 0), alvo: () => { const l = document.getElementById('d-label-mes'); return l ? l.parentElement : null; }, titulo: 'Passeando pelos meses', texto: 'Use ◀ ▶ pra trocar de mês. Tocar no nome do mês volta pro atual, e o <b>∞</b> mostra todo o período.' },
+            { alvo: '[onclick="abrirOrganizarPainel()"]', titulo: 'Monte o seu painel ⚙️', texto: 'O ⚙️ deixa você <b>subir, descer e esconder</b> as gavetas. Cada pessoa organiza do seu jeito, no seu aparelho.' },
+            { alvo: () => document.querySelector('#dash-dinamico-container .secao-dash'), titulo: 'As gavetas', texto: () => ehAdmTour() ? 'Toque no título pra abrir/fechar. Tem o <b>🧠 Analista</b>, o financeiro, equipe & comissões, alertas, rankings e gráficos.' : 'Toque no título pra abrir/fechar. <b>🎯 Missões</b> mostra sua meta e a corrida contra o tempo; <b>🏆 Conquistas</b> tem seus troféus; <b>📈 Análises</b> mostra quem chamar pra recomprar.' },
+            { se: () => ehAdmTour() && !!document.querySelector('[onclick^="abrirAnaliseProfundaIA"]'), alvo: () => document.querySelector('[onclick^="abrirAnaliseProfundaIA"]'), titulo: '🤖 Consultor de IA', texto: 'A <b>Análise Profunda</b> dá um parecer completo do negócio e você continua a conversa com ela. Em <b>📌 Instruções da Diretoria</b> você ensina as regras da casa.' }
+        ]
+    },
+    {
+        id: 'fabrica', emoji: '🧪', nome: 'Fábrica', desc: 'Receitas, produção e a fila de maceração', papel: 'admin', tela: 'precificar',
+        passos: () => [
+            { aba: 'precificar', antes: () => { toggleFabricaTab('receita'); window.scrollTo(0, 0); }, alvo: () => { const b = document.getElementById('btn-sub-fab-receita'); return b ? b.parentElement : null; }, titulo: 'As 4 guias da Fábrica', texto: '<b>🧪 Nova Receita</b> (precificador + Livro de Receitas), <b>⚡ Lançar Produção</b>, <b>⏳ Fila Maceração</b> e <b>💡 Sugestões</b> que chegam dos vendedores.' },
+            { alvo: '#btn-sub-fab-fila', titulo: 'A fila de maceração', texto: 'Vamos ver os lotes que estão macerando.', acao: () => toggleFabricaTab('fila'), rotuloAcao: '⏳ Ver a fila', esperaAcao: 300 },
+            { alvo: () => document.querySelector('#lista-producao-cards .rotulo-card') || document.getElementById('lista-producao-cards'), titulo: 'Cada lote', texto: 'Dias macerando, data de pronto e o <b>🏬 estoque de hoje</b> (🚨 zerado = prioridade). O <b>FINALIZAR LOTE</b> deixa envasar só uma parte — o resto continua macerando.', depois: () => toggleFabricaTab('receita') }
+        ]
+    },
+    {
+        id: 'essencias', emoji: '🏷️', nome: 'Essências', desc: 'Fichas olfativas e etiqueta de amostras', papel: 'admin', tela: 'rotulos',
+        passos: () => [
+            { aba: 'rotulos', antes: () => window.scrollTo(0, 0), alvo: '#lista-rotulos-cadastrados', titulo: 'Suas essências', texto: 'Cada essência tem código (N001...), gênero e a <b>ficha olfativa</b> (notas, ocasiões) — que a IA ajuda a escrever e que aparece no catálogo online.' },
+            { alvo: '[onclick="abrirModalEtiquetaAmostras()"]', titulo: 'Etiqueta de amostras', texto: 'Gera o PDF da etiqueta da caixinha, separado por 🌸 feminino e 🔷 masculino.' }
+        ]
+    },
+    {
+        id: 'gastos', emoji: '💸', nome: 'Gastos e compras', desc: 'Planejar compras com a memória de preços', papel: 'admin', tela: 'gastos',
+        passos: () => [
+            { aba: 'gastos', antes: async () => { toggleGastosTab('compras'); window.scrollTo(0, 0); await digitarTreino(document.getElementById('c-item'), 'ba'); }, alvo: '#c-item', titulo: 'Planejar uma compra', texto: 'Digite 2 letras e a <b>🧠 memória de compras</b> mostra o que você já comprou, com <b>categoria e último preço</b>. Um toque preenche tudo.' },
+            { alvo: '[onclick="gerarSugestaoCompras()"]', antes: () => { const c = document.getElementById('c-item'); if (c) { c.value = ''; c.blur(); } }, titulo: '🤖 Sugerir compras', texto: 'Cruza o que vai faltar com o código do fornecedor e o último preço pago, e monta a lista de compras pra você.' },
+            { alvo: '#btn-sub-despesas', titulo: 'Despesas', texto: 'Em <b>Despesas Livres</b> você lança o que já gastou — vai pro financeiro do Painel.' }
+        ]
+    },
+    {
+        id: 'parado', emoji: '⚡', nome: 'Incentivos e promoções', desc: 'Bônus de comissão e descontos em lote', papel: 'admin', tela: 'estoqueparado',
+        passos: () => [
+            { aba: 'estoqueparado', antes: () => window.scrollTo(0, 0), alvo: '#painel-incentivo-lote', titulo: '⚡ Incentivo em Lote', texto: '<b>🔥 Bônus de comissão</b> pra equipe ou <b>💸 desconto</b> pro cliente, em categorias inteiras, com prazo (só hoje, 7 dias, data) e uma <b>🎉 mensagem</b>. Acaba sozinho no fim do prazo.' },
+            { alvo: '#lista-bonus-ativos', titulo: 'Incentivos ativos', texto: 'Tudo que está valendo agora. Pelo <b>✏️</b> você troca a mensagem, e o <b>↩️</b> inclui as vendas do dia feitas antes de ligar o bônus.' },
+            { alvo: '#lista-estoque-parado', titulo: '🐌 Produtos parados', texto: 'Os produtos sem saída há muitos dias. Dê bônus ou desconto em um por um, aqui mesmo.' }
+        ]
+    },
+    {
+        id: 'central', emoji: '🔔', nome: 'Avisos, mensagens e configurações', desc: 'Telegram, textos do WhatsApp e parâmetros', papel: 'admin', tela: null,
+        passos: () => [
+            { alvo: () => { const a = document.getElementById('nav-notificacoes'); return alvoVisivelTour(a) ? a : document.getElementById('nav-mais'); }, titulo: '🔔 Avisos e 💬 Mensagens', texto: 'Em <b>⋯ Mais</b> ficam duas centrais da diretoria: <b>Avisos</b> (o que o Telegram te manda, horários e textos) e <b>Mensagens</b> (os textos que vão pro cliente no WhatsApp).', acao: () => { abrirCentralNotificacoes(); rebaixarModalTour('modal-central-notif'); }, rotuloAcao: '🔔 Abrir Avisos', esperaAcao: 300 },
+            { alvo: () => document.querySelector('#modal-central-notif > div'), titulo: 'Central de Avisos', texto: 'Ligue/desligue cada aviso, escolha os horários e toque em <b>📝 Editar texto</b> pra mudar a mensagem, com prévia.', depois: () => { const m = document.getElementById('modal-central-notif'); if (m) m.remove(); } },
+            { alvo: '.btn-settings', titulo: '⚙️ Configurações', texto: 'A engrenagem leva às Configurações e aos <b>Parâmetros Globais</b>: marca, locais, metas, <b>Clube de Selos</b>, <b>Cashback</b>, rodapé dos recibos e os <b>Desafios da Casa</b> (troféus personalizados).' }
+        ]
+    }
+];
+const ORDEM_TOUR_COMPLETO = {
+    admin: ['inicio', 'venda', 'consulta', 'receber', 'estoque', 'catalogo', 'fabrica', 'essencias', 'gastos', 'parado', 'clientes', 'encomendas', 'painel', 'central'],
+    vendedor: ['inicio', 'venda', 'consulta', 'receber', 'estoque', 'catalogo', 'encomendas', 'clientes', 'maceracao', 'painel']
+};
+function trilhasDoPapel() {
+    const papel = ehAdmTour() ? 'admin' : 'vendedor';
+    return TRILHAS_TOUR.filter(t => t.papel === 'todos' || t.papel === papel);
+}
+
+// ---------- Desenho: máscara escura, "buraco" iluminado no alvo e o cartão com a explicação ----------
+let tourAtual = null;
+function alvoVisivelTour(el) {
+    if (!el || !document.body.contains(el)) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+}
+function resolverAlvoTour(alvo) {
+    if (!alvo) return null;
+    try { const el = typeof alvo === 'function' ? alvo() : document.querySelector(alvo); return alvoVisivelTour(el) ? el : null; } catch (e) { return null; }
+}
+function elementosTour() {
+    if (!document.getElementById('tour-bloqueio')) {
+        const blq = document.createElement('div'); blq.id = 'tour-bloqueio';
+        blq.style.cssText = 'position:fixed; inset:0; z-index:99980; background:transparent;'; // segura cliques fora do roteiro
+        const bur = document.createElement('div'); bur.id = 'tour-buraco';
+        bur.style.cssText = 'position:fixed; z-index:99981; border-radius:12px; box-shadow:0 0 0 9999px rgba(20,12,24,0.62); outline:3px solid #a78bfa; outline-offset:2px; pointer-events:none; transition:all 0.3s ease; left:50%; top:50%; width:0; height:0;';
+        const card = document.createElement('div'); card.id = 'tour-card';
+        card.style.cssText = 'position:fixed; z-index:99985; background:#fff; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,0.45); padding:14px 16px 12px; font-family:Montserrat, sans-serif; box-sizing:border-box; max-height:48vh; overflow-y:auto;';
+        document.body.append(blq, bur, card);
+    }
+    return { bur: document.getElementById('tour-buraco'), card: document.getElementById('tour-card') };
+}
+function posicionarTour() {
+    if (!tourAtual) return;
+    const { bur, card } = elementosTour();
+    const el = alvoVisivelTour(tourAtual.alvoEl) ? tourAtual.alvoEl : null;
+    const W = window.innerWidth, H = window.innerHeight, TOPO = 40; // 40 = faixa roxa do modo treino
+    if (el) {
+        const r = el.getBoundingClientRect(), pad = 6;
+        const top = Math.max(TOPO, r.top - pad), base = Math.min(H - 4, r.bottom + pad);
+        Object.assign(bur.style, { left: (r.left - pad) + 'px', top: top + 'px', width: (r.width + pad * 2) + 'px', height: Math.max(0, base - top) + 'px' });
+    } else Object.assign(bur.style, { left: (W / 2) + 'px', top: (H / 2) + 'px', width: '0px', height: '0px' });
+
+    const celular = W < 700;
+    card.style.width = celular ? (W - 20) + 'px' : '370px';
+    const ch = card.offsetHeight, cw = card.offsetWidth;
+    let left, top;
+    if (!el) { left = (W - cw) / 2; top = Math.max(TOPO + 8, (H - ch) / 2); }
+    else {
+        const r = el.getBoundingClientRect();
+        if (celular) {
+            left = 10;
+            top = (r.top + r.bottom) / 2 > H / 2 ? TOPO + 8 : Math.max(TOPO + 8, H - ch - 84); // longe do alvo, acima da barra de baixo
+        } else {
+            left = Math.min(Math.max(10, r.left), W - cw - 10);
+            if (r.bottom + 14 + ch < H) top = r.bottom + 14;
+            else if (r.top - 14 - ch > TOPO) top = r.top - 14 - ch;
+            else { top = Math.max(TOPO + 8, (H - ch) / 2); left = r.right + 14 + cw < W ? r.right + 14 : Math.max(10, r.left - cw - 14); }
+        }
+    }
+    card.style.left = left + 'px'; card.style.top = top + 'px';
+}
+function desenharCartaoTour() {
+    const t = tourAtual, p = t.passos[t.i], { card } = elementosTour();
+    const total = t.passos.length, ultimo = t.i === total - 1;
+    card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="font-size:0.6rem; font-weight:900; letter-spacing:1px; color:#7c3aed;">${t.emoji} ${String(t.nome).toUpperCase()} · ${t.i + 1}/${total}</span>
+            <button onclick="sairTour()" title="Sair do tour" style="background:#f3f4f6; border:none; border-radius:50%; width:28px; height:28px; font-weight:900; cursor:pointer; color:#666; flex-shrink:0;">✕</button>
+        </div>
+        <div style="background:#ede9fe; border-radius:10px; height:5px; overflow:hidden; margin-bottom:10px;"><div style="width:${((t.i + 1) / total * 100).toFixed(0)}%; height:100%; background:#7c3aed;"></div></div>
+        <h4 style="margin:0 0 6px; font-size:0.95rem; color:#2C2A2B; font-weight:900;">${p.titulo}</h4>
+        <div style="font-size:0.8rem; color:#444; line-height:1.55;">${typeof p.texto === 'function' ? p.texto() : p.texto}</div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+            ${t.i > 0 ? `<button onclick="voltarPassoTour()" style="background:#fff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:10px; padding:10px 14px; font-weight:800; font-size:0.78rem; cursor:pointer;">◀</button>` : ''}
+            <button id="btn-tour-avancar" onclick="avancarTour()" style="flex:1; background:${p.acao ? '#15803d' : '#7c3aed'}; color:#fff; border:none; border-radius:10px; padding:11px; font-weight:900; font-size:0.8rem; cursor:pointer;">${p.acao ? (p.rotuloAcao || '▶️ Simular') : (ultimo ? 'Concluir 🎉' : 'Próximo ▶')}</button>
+        </div>`;
+}
+
+// ---------- Execução ----------
+async function iniciarTour(idTrilha) {
+    if (tourAtual) await sairTour();
+    const mCentral = document.getElementById('modal-central-treino'); if (mCentral) mCentral.remove();
+    const mAjuda = document.getElementById('modal-ajuda-tela'); if (mAjuda) mAjuda.remove();
+    try { fecharMaisMenu(); } catch (e) { }
+    let nome, emoji, passos = [];
+    if (idTrilha === 'completo') {
+        const ordem = ORDEM_TOUR_COMPLETO[ehAdmTour() ? 'admin' : 'vendedor'];
+        ordem.forEach(id => { const tr = TRILHAS_TOUR.find(x => x.id === id); if (tr) passos.push(...tr.passos()); });
+        nome = 'Tour completo'; emoji = '🚀';
+    } else {
+        const tr = trilhasDoPapel().find(x => x.id === idTrilha);
+        if (!tr) return;
+        passos = tr.passos(); nome = tr.nome; emoji = tr.emoji;
+    }
+    if (!passos.length) return;
+    entrarModoTreino();
+    tourAtual = { id: idTrilha, nome, emoji, passos, i: 0, ocupado: false, alvoEl: null };
+    elementosTour();
+    window.addEventListener('resize', posicionarTour);
+    window.addEventListener('scroll', posicionarTour, true);
+    document.addEventListener('keydown', teclaTour);
+    await executarPassoTour(1);
+}
+function teclaTour(e) { if (e.key === 'Escape') sairTour(); }
+
+async function executarPassoTour(direcao) {
+    const t = tourAtual;
+    if (!t) return;
+    // Passo que não se aplica agora (ex: não tem venda fiada pra simular) é pulado
+    while (t.passos[t.i] && t.passos[t.i].se && !t.passos[t.i].se()) {
+        t.i += direcao;
+        if (t.i < 0) { t.i = 0; break; }
+        if (t.i >= t.passos.length) return concluirTour();
+    }
+    const p = t.passos[t.i];
+    t.ocupado = true;
+    try {
+        if (p.aba) { const ativa = document.querySelector('.tab-content.active'); if (!ativa || ativa.id !== 'tab-' + p.aba) switchTab(p.aba); }
+        if (p.antes) await p.antes();
+    } catch (e) { console.warn('Tour (antes):', e); }
+    if (tourAtual !== t) return;
+    await esperarTour(150);
+    const el = resolverAlvoTour(p.alvo);
+    t.alvoEl = el;
+    if (el) { el.scrollIntoView({ block: 'center' }); await esperarTour(80); }
+    desenharCartaoTour();
+    posicionarTour();
+    t.ocupado = false;
+}
+async function avancarTour() {
+    const t = tourAtual;
+    if (!t || t.ocupado) return;
+    const p = t.passos[t.i];
+    if (p.acao) {
+        t.ocupado = true;
+        const btn = document.getElementById('btn-tour-avancar'); if (btn) btn.innerHTML = '⏳ Simulando...';
+        try { await p.acao(); } catch (e) { console.warn('Tour (ação):', e); }
+        await esperarTour(p.esperaAcao || 700);
+        t.ocupado = false;
+        if (tourAtual !== t) return;
+    }
+    try { if (p.depois) await p.depois(); } catch (e) { }
+    if (t.i >= t.passos.length - 1) return concluirTour();
+    t.i++;
+    await executarPassoTour(1);
+}
+async function voltarPassoTour() {
+    const t = tourAtual;
+    if (!t || t.ocupado || t.i === 0) return;
+    t.i--;
+    await executarPassoTour(-1);
+}
+async function sairTour() {
+    if (!tourAtual) return;
+    tourAtual = null;
+    ['tour-bloqueio', 'tour-buraco', 'tour-card'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+    window.removeEventListener('resize', posicionarTour);
+    window.removeEventListener('scroll', posicionarTour, true);
+    document.removeEventListener('keydown', teclaTour);
+    fecharModaisDoTreino();
+    await sairModoTreino();
+}
+async function concluirTour() {
+    const t = tourAtual;
+    if (!t) return;
+    const completo = t.id === 'completo', nome = t.nome;
+    await sairTour();
+    mostrarAlerta('Tour concluído! 🎉', `Você terminou "${nome}". Lembrete: nada do treino foi salvo.\nQuando quiser rever qualquer tela, é só tocar no 🎓.`, 'success');
+    // Tour completo de vendedor vale a formatura 🎓 (o servidor garante 1x na vida) — já fora do modo treino.
+    // Admin testando no "visualizar como" não dá troféu pro vendedor.
+    if (completo && !ehAdmTour() && !estaVisualizandoComo()) {
+        fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ acao: 'concluir_guia', usuario: usuarioLogado }) })
+            .then(r => r.json()).then(res => { if (res.sucesso && res.novo) sincronizarDadosUnico(); }).catch(() => { });
+    }
+}
+
+// ---------- Botão 🎓 flutuante e a Central de Treinamento ----------
+function injetarBotaoTour() {
+    if (document.getElementById('btn-tour-flutuante')) return;
+    const b = document.createElement('button');
+    b.id = 'btn-tour-flutuante';
+    b.title = 'Tour guiado e treinamento';
+    b.innerHTML = '🎓';
+    b.onclick = abrirCentralTreino;
+    b.style.cssText = 'position:fixed; right:16px; bottom:calc(150px + env(safe-area-inset-bottom)); width:46px; height:46px; border-radius:50%; border:none; background:linear-gradient(135deg,#5b21b6,#8b5cf6); color:#fff; font-size:1.3rem; box-shadow:0 6px 18px rgba(124,58,237,0.45); cursor:pointer; z-index:997;';
+    document.body.appendChild(b);
+}
+
+function linhaTrilhaHtml(t) {
+    return `<button onclick="iniciarTour('${t.id}')" style="display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:#fff; border:1px solid #e9d5ff; border-radius:12px; padding:10px 12px; margin-bottom:7px; cursor:pointer; font-family:inherit;">
+        <span style="font-size:1.3rem;">${t.emoji}</span>
+        <span style="flex:1; min-width:0;"><b style="font-size:0.82rem; color:#2C2A2B; display:block;">${t.nome}</b><span style="font-size:0.66rem; color:#888;">${t.desc}</span></span>
+        <span style="color:#7c3aed; font-weight:900;">▶</span>
+    </button>`;
+}
+
+function abrirCentralTreino() {
+    const antigo = document.getElementById('modal-central-treino');
+    if (antigo) antigo.remove();
+    const telaAtual = ((document.querySelector('.tab-content.active') || {}).id || '').replace('tab-', '');
+    const trilhas = trilhasDoPapel();
+    const daTela = trilhas.filter(t => t.tela === telaAtual);
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-central-treino';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#faf8ff; border-radius:20px; max-width:440px; width:100%; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #5b21b6, #8b5cf6); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="document.getElementById('modal-central-treino').remove()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 style="margin:0; color:#fff; font-size:1rem; font-weight:900;">🎓 Central de Treinamento</h3>
+            <p style="margin:3px 0 0; color:#ede9fe; font-size:0.66rem;">O app te mostra na prática. Tudo é simulação: nada é salvo.</p>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:14px 16px;">
+            <button onclick="iniciarTour('completo')" style="width:100%; background:linear-gradient(135deg,#5b21b6,#7c3aed); color:#fff; border:none; border-radius:14px; padding:14px; font-weight:900; font-size:0.88rem; cursor:pointer; margin-bottom:14px; box-shadow:0 6px 16px rgba(124,58,237,0.35);">🚀 Tour completo — passo a passo de tudo</button>
+            ${daTela.length ? `<p style="margin:0 0 6px; font-size:0.64rem; font-weight:900; letter-spacing:1.5px; color:#7c3aed;">📍 NESTA TELA</p>${daTela.map(linhaTrilhaHtml).join('')}` : ''}
+            <p style="margin:${daTela.length ? '12px' : '0'} 0 6px; font-size:0.64rem; font-weight:900; letter-spacing:1.5px; color:#7c3aed;">📚 ESCOLHA UM ASSUNTO</p>
+            ${trilhas.filter(t => !daTela.includes(t)).map(linhaTrilhaHtml).join('')}
+            <button onclick="document.getElementById('modal-central-treino').remove(); abrirGuiaVendedor();" style="width:100%; background:#fff; color:#966178; border:1px dashed #e3c6d2; border-radius:12px; padding:11px; font-weight:800; font-size:0.74rem; cursor:pointer; margin-top:8px;">📖 Prefere ler? Abrir o Guia em lições</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+// ❓ Botão dourado de cada tela: "me mostra na prática" (tour) ou "ler a explicação" (guia)
+function abrirAjudaTela(tabId, licao) {
+    const tela = String(tabId).replace('tab-', '');
+    const trilhas = trilhasDoPapel().filter(t => t.tela === tela);
+    if (!trilhas.length) return abrirGuiaVendedor(licao);
+    const antigo = document.getElementById('modal-ajuda-tela');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-ajuda-tela';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+    <div style="background:#faf8ff; border-radius:20px; max-width:380px; width:100%; padding:18px; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <h3 style="margin:0 0 4px; color:#5b21b6; font-size:1rem; font-weight:900; text-align:center;">❓ Como usar esta tela</h3>
+        <p style="margin:0 0 12px; color:#888; font-size:0.68rem; text-align:center;">Escolha como prefere aprender:</p>
+        <p style="margin:0 0 6px; font-size:0.62rem; font-weight:900; letter-spacing:1.5px; color:#7c3aed;">▶️ ME MOSTRA NA PRÁTICA (TREINO)</p>
+        ${trilhas.map(linhaTrilhaHtml).join('')}
+        <button onclick="document.getElementById('modal-ajuda-tela').remove(); abrirGuiaVendedor('${licao || ''}');" style="width:100%; background:#fff; color:#966178; border:1px dashed #e3c6d2; border-radius:12px; padding:11px; font-weight:800; font-size:0.74rem; cursor:pointer; margin-top:6px;">📖 Ler a explicação</button>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+// 🎉 Primeira vez (pra TODO mundo, admin e vendedor): convite pro tour
+function mostrarConviteTour() {
+    localStorage.setItem('novera_tour_v1_' + usuarioLogado, 'sim');
+    localStorage.setItem('novera_tutorial_visto_v2_' + usuarioLogado, 'sim'); // o tour substitui o guia que abria sozinho
+    const antigo = document.getElementById('modal-convite-tour');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-convite-tour';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.85); z-index:99998; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px);';
+    overlay.innerHTML = `
+    <div style="background:linear-gradient(160deg,#ffffff,#f5f3ff); border-radius:24px; max-width:360px; width:100%; padding:26px 22px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.45); font-family:'Montserrat', sans-serif; border:2px solid #c4b5fd;">
+        <div style="font-size:3rem;">🎓</div>
+        <h3 style="margin:6px 0 4px; color:#5b21b6; font-size:1.15rem; font-weight:900;">Novidade: Tour Guiado!</h3>
+        <p style="margin:0 0 14px; color:#555; font-size:0.8rem; line-height:1.6;">Oi, <b>${usuarioLogado}</b>! Agora o app te ensina <b>na prática</b>: ele troca de tela sozinho, mostra onde tocar e <b>simula vendas e recebimentos</b>.<br><br>🛡️ É tudo treino: <b>nada é salvo</b> e nenhuma mensagem é enviada.</p>
+        <button class="btn-salvar" style="margin:0 0 8px; background:linear-gradient(135deg,#5b21b6,#7c3aed); box-shadow:0 4px 0 #4c1d95;" onclick="document.getElementById('modal-convite-tour').remove(); iniciarTour('completo');">🚀 Fazer o tour completo (uns 5 minutos)</button>
+        <button class="btn-salvar" style="margin:0 0 8px; background:#fff; color:#5b21b6; border:1px solid #c4b5fd; box-shadow:none;" onclick="document.getElementById('modal-convite-tour').remove(); iniciarTour('venda');">🛒 Só o essencial: fazer uma venda</button>
+        <button class="btn-modal-cancel" style="width:100%;" onclick="document.getElementById('modal-convite-tour').remove(); mostrarToastTreino('Quando quiser, o botão 🎓 fica no canto da tela!');">Agora não</button>
+    </div>`;
+    document.body.appendChild(overlay);
 }
 
 // ==========================================
