@@ -30,6 +30,7 @@
    📜 DIÁRIO DO ESTOQUE ............... todas as movimentações, com filtros
    📈 LINHA DO TEMPO DO ESTOQUE ....... gráfico com botão deslizante
    📋 MÓDULO: CONFERÊNCIA DE ESTOQUE (ADMIN)
+   🎁 KITS ............................ ficha do kit, montar e desmontar (Admin)
 
    ── CATÁLOGO ONLINE ─────────────────────────────────────────────────────────
    🎯 CATÁLOGO SOB MEDIDA ............. produtos a dedo + preços próprios
@@ -75,7 +76,7 @@
    frontend exige subir a versão do CACHE_NAME no sw.js.
    ============================================================================ */
 
-const VERSAO_ATUAL_SISTEMA = "8.9.0";
+const VERSAO_ATUAL_SISTEMA = "9.1.0";
 const API_NOVERA = "https://bdfernando.alwaysdata.net/api";
 
 let TOKEN_ONIONSYS = localStorage.getItem('novera_onionsys_key') || "";
@@ -277,6 +278,7 @@ let rotulosGlobal = [], estoqueGlobal = [], gastosGlobal = [], vendasGlobal = []
 let encomendasGlobal = [], comprasGlobal = [], producaoGlobal = [];
 let logsGlobal = [];
 let movEstoqueGlobal = []; // 📜 movimentações físicas de estoque desde o dia 1 (canal dedicado do servidor)
+let kitsGlobal = []; // 🎁 receitas dos kits (o kit em si é um produto normal do estoque, tipo "Kit")
 let logsRenderizadosAtuais = []; // lista de logs exibida agora na tela, pro clique no card abrir o modal certo
 let usuariosGlobal = []; // <--- ADICIONE ESTA AQUI
 let bonusComissaoGlobal = []; // bônus de comissão ativos por produto (Estoque Parado)
@@ -480,9 +482,14 @@ const cabecalhoAuth = () => {
 };
 
 function aplicarVersao() {
-    document.querySelectorAll('.app-version').forEach(el => el.innerText = "v" + VERSAO_ATUAL_SISTEMA);
+    document.querySelectorAll('.app-version').forEach(el => {
+        el.innerText = "v" + VERSAO_ATUAL_SISTEMA;
+        el.style.cursor = 'pointer';
+        el.title = 'Ver as novidades desta versão';
+        el.onclick = abrirModalNovidades; // tocar na versão reabre as novidades
+    });
     const txtModal = document.getElementById('texto-versao-modal');
-    if (txtModal) txtModal.innerText = "Atualização - Versão " + VERSAO_ATUAL_SISTEMA;
+    if (txtModal) txtModal.innerText = `Versão ${VERSAO_ATUAL_SISTEMA} · tudo o que chegou desde a 8.9.0`;
 }
 
 document.addEventListener('input', function (e) {
@@ -807,6 +814,8 @@ function aplicarPermissoes() {
         if (btnExgV) btnExgV.style.display = 'none';
         const btnPrecoV = document.getElementById('btn-ajuste-precos');
         if (btnPrecoV) btnPrecoV.style.display = 'none';
+        const btnKitsV = document.getElementById('btn-kits');
+        if (btnKitsV) btnKitsV.style.display = 'none';
         
         // LIMITA AS OPÇÕES DE PAGAMENTO (Só Pendente e Pago)
         if (selectStatusVenda) {
@@ -832,6 +841,8 @@ function aplicarPermissoes() {
         if (btnExgA) btnExgA.style.display = 'block';
         const btnPrecoA = document.getElementById('btn-ajuste-precos');
         if (btnPrecoA) btnPrecoA.style.display = 'block';
+        const btnKitsA = document.getElementById('btn-kits');
+        if (btnKitsA) btnKitsA.style.display = 'block';
 
         const inputSocio = document.getElementById('v-socio');
         if (inputSocio) { inputSocio.readOnly = false; inputSocio.style.background = "#fafafa"; inputSocio.style.color = "var(--brand-dark)"; }
@@ -906,6 +917,7 @@ async function sincronizarDadosUnico() {
             bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
             cashbackSaldosGlobal = dados.cashbackSaldos || [];
+            kitsGlobal = dados.kits || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -2323,6 +2335,10 @@ function renderizarEstoque() {
         const btnEditarEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 10px;" onclick="abrirModalEditarEstoque('${nomeEncode}')" title="Editar Distribução">✏️</button>` : '';
         const btnTransferirEst = (isAdmin && qtdExibicao > 0) ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" onclick="abrirModalTransferirEstoque('${nomeEncode}')" title="Transferir Entre Locais">🔄</button>` : '';
         const btnExtratoEst = isAdmin ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#fdf5f7; color:#966178; border-color:#f3d8e2;" onclick="abrirExtratoProduto('${nomeEncode}')" title="Extrato: o filme completo deste produto">📜</button>` : '';
+        // 🎁 Kit: mostra o que vem dentro (todos) e o atalho pra montar/desmontar (Diretoria)
+        const fichaKitEst = fichaKitDe(e.nome);
+        const htmlKitEst = fichaKitEst ? `<p style="margin:5px 0 0; font-size:0.68rem; color:#92400e; line-height:1.4;">🎁 Vem: ${escKit(textoConteudoKit(fichaKitEst))}</p>` : '';
+        const btnKitEst = (isAdmin && fichaKitEst) ? `<button class="btn-acao" style="width: 36px; height: 36px; margin-left: 6px; background:#fffbeb; color:#a16207; border-color:#fde68a;" onclick="abrirModalKits('${nomeEncode}')" title="Montar / desmontar este kit">🎁</button>` : '';
 
         gruposEstoque[tipoKey].itens.push(`
         <div class="rotulo-card card-estoque-list" style="${opacidade}">
@@ -2334,6 +2350,7 @@ function renderizarEstoque() {
                         <p style="margin:0; font-size:0.8rem; color:var(--primary); font-weight:700;">Venda: ${safeFmt(e.preco)}</p>
                         ${txtCusto}
                     </div>
+                    ${htmlKitEst}
                     ${badgeEncomenda}
                 </div>
             </div>
@@ -2348,6 +2365,7 @@ function renderizarEstoque() {
                     ${htmlInfoProducao}
                 </div>
                 <div style="display:flex; align-items:center;">
+                    ${btnKitEst}
                     ${btnExtratoEst}
                     ${btnTransferirEst}
                     ${btnEditarEst}
@@ -3344,7 +3362,7 @@ function abrirExtratoProduto(nomeEncoded) {
     });
 
     // 3) DIÁRIO DE BORDO: só o que mexe fisicamente no estoque e cita este produto
-    const marcadores = ['🏭', '🍾', '📦', '🔄', '🧳', '📋'];
+    const marcadores = ['🏭', '🍾', '📦', '🔄', '🧳', '📋', '🎁 Montou kit:', '🎁 Desmontou kit:'];
     const palavras = ['ajust', 'confer', 'transfer', 'envas', 'fabric', 'estoque'];
     logsMovimentoEstoque().forEach(l => {
         const det = String(l.detalhe || '');
@@ -3434,7 +3452,8 @@ function coletarMovimentosEstoque() {
         const det = String(l.detalhe || '');
         const detNorm = normalizarNomeBusca(det);
         let tipo = '';
-        if (det.includes('🔄') || det.includes('🧳') || detNorm.includes('transfer')) tipo = 'transfer';
+        if (det.includes('🎁 Montou kit:') || det.includes('🎁 Desmontou kit:')) tipo = 'kit';
+        else if (det.includes('🔄') || det.includes('🧳') || detNorm.includes('transfer')) tipo = 'transfer';
         else if (det.includes('🍾') || det.includes('🏭') || detNorm.includes('envas') || detNorm.includes('fabricou')) tipo = 'fabrica';
         else if (det.includes('📦') || detNorm.includes('ajust') || detNorm.includes('confer')) tipo = 'ajuste';
         if (!tipo) return; // só o que mexe fisicamente no estoque
@@ -3509,6 +3528,14 @@ function reconstruirSerieEstoque() {
         if ((r = det.match(/🍾 Envase: ([\d.,]+)x \[(.+?)\]/))) add(iso, r[2], num(r[1]));
         else if ((r = det.match(/🏭 Fabricou ([\d.,]+)x \[(.+?)\]/))) add(iso, r[2], num(r[1]));
         else if ((r = det.match(/📦 Ajuste \[(.+?)\]: Tinha ([\d.,]+) un\s*(?:->|→)\s*Ficou com ([\d.,]+) un/))) add(iso, r[1], num(r[3]) - num(r[2]));
+        else if ((r = det.match(/🎁 (Montou|Desmontou) kit: ([\d.,]+)x \[(.+?)\] em .*? — (?:saíram|voltaram): (.*)$/))) {
+            // Montar: os itens saem e o kit entra. Desmontar: o contrário.
+            const sinal = r[1] === 'Montou' ? 1 : -1;
+            add(iso, r[3], sinal * num(r[2]));
+            const listaItens = r[4].split(' · ')[0];
+            let ri; const reItem = /([\d.,]+)x \[(.+?)\]/g;
+            while ((ri = reItem.exec(listaItens))) add(iso, ri[2], -sinal * num(ri[1]));
+        }
         else if (det.startsWith('📋 Conferência de estoque')) {
             // Formato: "Nome [Local]: antes → depois; Nome2 [Local]: antes → depois"
             const corpo = det.split('): ')[1] || '';
@@ -3613,6 +3640,7 @@ function renderizarExtratoGeral() {
         chip(exgTipo === 'fabrica', "setFiltroExg('tipo','fabrica')", '🏭 Fábrica') +
         chip(exgTipo === 'transfer', "setFiltroExg('tipo','transfer')", '🔄 Transferências') +
         chip(exgTipo === 'ajuste', "setFiltroExg('tipo','ajuste')", '📦 Ajustes') +
+        chip(exgTipo === 'kit', "setFiltroExg('tipo','kit')", '🎁 Kits') +
         chip(exgTipo === 'venda', "setFiltroExg('tipo','venda')", '🛒 Vendas') +
         chip(exgTipo === 'brinde', "setFiltroExg('tipo','brinde')", '🎁 Brindes');
 
@@ -4277,6 +4305,14 @@ async function gerarCatalogoPDFFrontend() {
                 ${linhaNota('FUNDO', fichaCat.notas_fundo)}` : ''}
                 ${chipsOcasioes}`;
         }
+        // 🎁 Kit: no lugar da ficha olfativa, o que vem dentro
+        const fichaKitCat = fichaKitDe(e.nome);
+        if (fichaKitCat) {
+            htmlFichaCat = `${fichaKitCat.descricao ? `<div style="font-family: Georgia, 'Times New Roman', serif; font-size: 10.5px; color: #6d5c66; font-style: italic; line-height: 1.55; margin: 7px 0 0 0;">“${escKit(String(fichaKitCat.descricao).substring(0, 200))}”</div>` : ''}
+                <div style="height: 1px; background: linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0)); margin: 8px 0 5px 0;"></div>
+                <div style="font-size: 7.5px; font-weight: 800; color: ${pal.suave}; letter-spacing: 2px;">VEM NO KIT</div>
+                <div style="font-size: 9px; color: #6d5c66; line-height: 1.6; margin-top: 2px;">${textoConteudoKit(fichaKitCat).split(' + ').map(x => '• ' + escKit(x)).join('<br>')}</div>`;
+        }
 
         return `<div style="border: 1px solid ${pal.filete}; border-radius: 18px; overflow: hidden; background: #fff; display: flex; align-items: stretch;">
             ${imgTag}
@@ -4285,7 +4321,7 @@ async function gerarCatalogoPDFFrontend() {
                     ${e.codigo ? `<span style="font-size: 10px; font-weight: 800; color: ${pal.forte}; letter-spacing: 3px;">${e.codigo}</span>` : '<span></span>'}
                     <span style="font-size: 8.5px; color: ${pal.micro}; letter-spacing: 1.5px; text-transform: uppercase;">${(fichaCat && fichaCat.familia) ? `<span style="color: ${pal.medio}; font-weight: 800;">${fichaCat.familia}</span> &nbsp;·&nbsp; ` : ''}${iconeGeneroCat(e.genero)}</span>
                 </div>
-                <div style="font-size: 7.5px; color: ${pal.micro}; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">Inspiração</div>
+                <div style="font-size: 7.5px; color: ${pal.micro}; text-transform: uppercase; letter-spacing: 3px; margin-top: 6px;">${fichaKitCat ? 'Kit' : 'Inspiração'}</div>
                 <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #2C2A2B; line-height: 1.2; margin-top: 2px;">${nomeSemTipo}</div>
                 ${htmlFichaCat}
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 9px; border-top: 1px solid ${pal.filete};">
@@ -5094,6 +5130,9 @@ function atualizarAvisoBonusProduto(nomeProduto) {
         partes.push(`💸 Promoção <b>-${descAtivo.percentual}%</b>${cheio ? `: de <s>${fmt(cheio)}</s> por <b>${fmt(cheio * (1 - descAtivo.percentual / 100))}</b>` : ''} — o valor abaixo já está com desconto.`);
     }
     if (bonusAtivo && usuarioCargo !== 'Admin') partes.push(`🔥 Esse produto tem bônus de <b>+${bonusAtivo.bonusPercentual}%</b> de comissão${bonusAtivo.validade ? ` (${textoPrazoIncentivo(bonusAtivo.validade)})` : ' hoje'}!${bonusAtivo.motivo ? ` 🎉 ${String(bonusAtivo.motivo).replace(/</g, '&lt;')}` : ''}`);
+    // 🎁 Kit: a vendedora vê na hora o que vai dentro (pra explicar pro cliente)
+    const fichaKitPdv = fichaKitDe(nomeProduto);
+    if (fichaKitPdv) partes.push(`🎁 <b>Kit</b> — vem: ${escKit(textoConteudoKit(fichaKitPdv))}`);
     if (!nomeProduto || !partes.length) { aviso.style.display = 'none'; return; }
 
     aviso.innerHTML = partes.join('<br>');
@@ -5472,7 +5511,7 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
     const mapaBonus = {};
     if (comBonus) bonusComissaoGlobal.forEach(b => mapaBonus[b.nomeProduto] = b.bonusPercentual);
 
-    const iconesPorTipo = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼' };
+    const iconesPorTipo = { 'perfume': '🌸', 'creme': '🧴', 'home spray': '🏠', 'vela': '🕯️', 'sabonete líquido': '🧼', 'sabonete liquido': '🧼', 'kit': '🎁' };
     const iconeDoTipo = (tipo) => iconesPorTipo[String(tipo || '').toLowerCase().trim()] || '📦';
 
     const iconeGenero = (codigo) => {
@@ -5484,7 +5523,7 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
         return '⚪';
     };
 
-    const abreviacoesPorTipo = { 'perfume': 'Perf.', 'creme': 'Creme', 'home spray': 'H.Spray', 'vela': 'Vela', 'sabonete líquido': 'Sab.Líq.', 'sabonete liquido': 'Sab.Líq.' };
+    const abreviacoesPorTipo = { 'perfume': 'Perf.', 'creme': 'Creme', 'home spray': 'H.Spray', 'vela': 'Vela', 'sabonete líquido': 'Sab.Líq.', 'sabonete liquido': 'Sab.Líq.', 'kit': 'Kit' };
     const abreviarTipo = (tipo) => {
         const chave = String(tipo || '').toLowerCase().trim();
         if (abreviacoesPorTipo[chave]) return abreviacoesPorTipo[chave];
@@ -5541,7 +5580,7 @@ function montarOptionsAgrupadasPorTipo(itens, opcoes = {}) {
             const exibeCodigo = e.codigo ? e.codigo + ' - ' : '';
             const bonusItem = comBonus ? mapaBonus[e.nome] : null;
             const descItem = descontosProdutoGlobal.find(dd => dd.nomeProduto === e.nome);
-            const iconeLinha = bonusItem ? '🔥' : (descItem ? '💸' : iconeGenero(e.codigo));
+            const iconeLinha = bonusItem ? '🔥' : (descItem ? '💸' : (ehProdutoKit(e) ? '🎁' : iconeGenero(e.codigo)));
             const nomeAbreviado = e.nome.replace(substituirTipoDoNome, tipoAbreviado + ' ');
             const sufixoBonus = bonusItem ? ` +${bonusItem}%` : '';
             const sufixoDesc = descItem ? ` PROMO -${descItem.percentual}%` : '';
@@ -7118,6 +7157,470 @@ function excluirTrofeuCustom(id) {
 }
 
 // ==========================================
+// 🎁 KITS (só Diretoria): o kit é um PRODUTO de verdade (tipo "Kit", com código, preço, foto e
+// estoque próprios). A ficha diz do que ele é feito:
+//   MONTAR    → os produtos da ficha saem do estoque daquele local e o kit entra
+//   DESMONTAR → o kit sai e os produtos voltam (os extras, tipo embalagem, viram perda)
+// Depois de montado vende como qualquer produto: PDV, comissão, cashback, selos, mala e catálogo.
+// ==========================================
+const escKit = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const fmtQtdKit = (q) => String(Math.round((parseFloat(q) || 0) * 100) / 100).replace('.', ',');
+let _kitFoco = '', _kitEditor = null, _kitAcaoMax = {}, salvandoKit = false;
+
+function fichaKitDe(nomeProduto) {
+    const alvo = normalizarNomeBusca(nomeProduto);
+    if (!alvo) return null;
+    return (kitsGlobal || []).find(k => normalizarNomeBusca(k.nome) === alvo) || null;
+}
+function ehProdutoKit(e) {
+    return !!e && (String(e.tipo || '').toLowerCase().trim() === 'kit' || !!fichaKitDe(e.nome));
+}
+// "1x Perfume Good Girl + 1x Creme Good Girl + Caixa personalizada"
+function textoConteudoKit(k) {
+    return [...k.itens.map(i => `${fmtQtdKit(i.qtd)}x ${i.produto}`), ...(k.extras || []).map(x => x.nome)].join(' + ');
+}
+function produtoEstoqueDe(nome) { return estoqueAgrupado[padronizarTexto(nome)] || null; }
+
+// A conta da ficha com os custos e preços de HOJE dos produtos
+function contaKit(itens, extras, precoKit) {
+    let custoItens = 0, avulso = 0;
+    itens.forEach(i => {
+        const p = produtoEstoqueDe(i.produto);
+        if (!p) return;
+        custoItens += parseDinheiro(p.custo) * (parseFloat(i.qtd) || 0);
+        avulso += parseDinheiro(p.preco) * (parseFloat(i.qtd) || 0);
+    });
+    const custoExtras = extras.reduce((s, x) => s + (parseDinheiro(x.custo) || 0), 0);
+    const custo = Math.round((custoItens + custoExtras) * 100) / 100;
+    const lucro = (precoKit || 0) - custo;
+    return { custoItens, custoExtras, custo, avulso, lucro, margem: precoKit > 0 ? (lucro / precoKit) * 100 : 0 };
+}
+
+// Quantos kits dá pra montar em cada local (manda o item que tem menos)
+function capacidadeMontagemKit(k) {
+    const locais = new Set();
+    k.itens.forEach(i => { const p = produtoEstoqueDe(i.produto); if (p) Object.keys(p.locais).forEach(l => locais.add(l)); });
+    const res = {};
+    locais.forEach(loc => {
+        let cap = Infinity;
+        k.itens.forEach(i => {
+            const p = produtoEstoqueDe(i.produto);
+            cap = Math.min(cap, Math.floor((p ? (p.locais[loc] || 0) : 0) / (parseFloat(i.qtd) || 1)));
+        });
+        if (cap > 0 && cap !== Infinity) res[loc] = cap;
+    });
+    return res;
+}
+
+function sugerirCodigoKit() {
+    let maior = 0;
+    Object.values(estoqueAgrupado).forEach(e => { const m = String(e.codigo || '').toUpperCase().match(/^KIT\s*(\d+)$/); if (m) maior = Math.max(maior, parseInt(m[1])); });
+    return 'KIT' + String(maior + 1).padStart(2, '0');
+}
+
+function abrirModalKits(focoNome) {
+    if (usuarioCargo !== 'Admin') return;
+    _kitFoco = focoNome ? decodeURIComponent(focoNome) : '';
+    fecharModalKits();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-kits';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(24,16,32,0.8); z-index:99998; display:flex; align-items:center; justify-content:center; padding:14px; backdrop-filter:blur(4px);';
+    overlay.onclick = (e) => { if (e.target === overlay) fecharModalKits(); };
+    overlay.innerHTML = `
+    <div style="background:#fbf8f9; border-radius:20px; max-width:560px; width:100%; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,0.5); font-family:'Montserrat', sans-serif;" onclick="event.stopPropagation()">
+        <div style="background:linear-gradient(135deg, #a16207, #d97706); padding:16px 20px; position:relative; flex-shrink:0;">
+            <button onclick="fecharModalKits()" style="position:absolute; top:12px; right:14px; background:rgba(255,255,255,0.2); border:none; width:32px; height:32px; border-radius:50%; font-weight:bold; color:#fff; cursor:pointer;">×</button>
+            <h3 id="kits-titulo" style="margin:0; color:#fff; font-size:1rem; font-weight:900;">🎁 Kits</h3>
+            <p id="kits-subtitulo" style="margin:3px 0 0; color:#fef3c7; font-size:0.64rem; padding-right:30px;"></p>
+        </div>
+        <div id="kits-corpo" style="flex:1; overflow-y:auto; padding:12px 16px;"></div>
+    </div>`;
+    document.body.appendChild(overlay);
+    renderizarListaKits();
+}
+function fecharModalKits() { const m = document.getElementById('modal-kits'); if (m) m.remove(); _kitEditor = null; }
+function cabecalhoKits(titulo, sub) {
+    const t = document.getElementById('kits-titulo'), s = document.getElementById('kits-subtitulo');
+    if (t) t.innerText = titulo;
+    if (s) s.innerText = sub;
+}
+const estiloBtnKit = (fundo, cor, borda) => `background:${fundo}; color:${cor}; border:1px solid ${borda || fundo}; padding:7px 11px; border-radius:8px; font-size:0.7rem; font-weight:800; cursor:pointer; font-family:inherit;`;
+
+function renderizarListaKits() {
+    const corpo = document.getElementById('kits-corpo');
+    if (!corpo) return;
+    _kitEditor = null;
+    cabecalhoKits('🎁 Kits', 'Crie a ficha, monte os kits e eles vendem como qualquer produto.');
+    const ativos = kitsGlobal.filter(k => k.ativo), arquivados = kitsGlobal.filter(k => !k.ativo);
+    let html = `
+    <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 12px; margin-bottom:12px; font-size:0.7rem; color:#78350f; line-height:1.55;">
+        <b>Como funciona:</b><br>
+        1️⃣ <b>Crie o kit</b>: nome, preço e o que vai dentro (produtos + embalagem).<br>
+        2️⃣ <b>Monte</b>: os produtos saem do estoque e o kit entra pronto pra vender.<br>
+        3️⃣ <b>Venda normal</b> no PDV — a equipe já vê o kit na lista. Sobrou? <b>Desmonte</b> e os produtos voltam.
+    </div>
+    <button class="btn-salvar" style="margin:0 0 14px; background:#a16207; box-shadow:0 4px 0 #78350f;" onclick="abrirEditorKit()">➕ Criar kit novo</button>`;
+    if (!kitsGlobal.length) html += `<p style="text-align:center; color:#999; font-size:0.8rem; padding:10px 0;">Nenhum kit criado ainda.</p>`;
+    html += ativos.map(cartaoKitHtml).join('');
+    if (arquivados.length) html += `<details style="margin-top:14px;"><summary style="cursor:pointer; font-size:0.75rem; font-weight:800; color:#888;">🗄️ Arquivados (${arquivados.length})</summary><div style="margin-top:8px;">${arquivados.map(cartaoKitHtml).join('')}</div></details>`;
+    corpo.innerHTML = html;
+
+    // Veio de um cartão do estoque (ou acabou de salvar)? Leva direto até o kit
+    if (_kitFoco) {
+        const k = fichaKitDe(_kitFoco);
+        _kitFoco = '';
+        const card = k ? document.getElementById('kit-card-' + k.id) : null;
+        if (card) {
+            const det = card.closest('details'); if (det) det.open = true;
+            card.style.boxShadow = '0 0 0 3px #fcd34d';
+            setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+        }
+    }
+}
+
+function cartaoKitHtml(k) {
+    const p = produtoEstoqueDe(k.nome);
+    const preco = p ? parseDinheiro(p.preco) : 0;
+    const conta = contaKit(k.itens, k.extras, preco);
+    const custoPrateleira = p ? parseDinheiro(p.custo) : 0;
+    const montados = p ? Object.keys(p.locais).filter(l => p.locais[l] > 0) : [];
+    const cap = capacidadeMontagemKit(k);
+    const capTxt = Object.keys(cap).map(l => `${escKit(l)}: <b>${cap[l]}</b>`);
+    const sumidos = k.itens.filter(i => !produtoEstoqueDe(i.produto)).map(i => i.produto);
+    const economia = conta.avulso - preco;
+    const foto = p ? (melhorFotoUrl(p.foto) || 'logo.png') : 'logo.png';
+    const chip = (fundo, borda, cor, txt) => `<span style="background:${fundo}; border:1px solid ${borda}; color:${cor}; padding:3px 8px; border-radius:6px; font-weight:800;">${txt}</span>`;
+
+    let linhaMontar;
+    if (sumidos.length) linhaMontar = `<span style="color:#991b1b;">⚠️ "${escKit(sumidos[0])}" não está mais no estoque — edite o kit</span>`;
+    else if (capTxt.length) linhaMontar = capTxt.join(' · ');
+    else linhaMontar = `<span style="color:#b45309;">falta produto em todos os locais</span>`;
+
+    return `
+    <div id="kit-card-${k.id}" style="background:#fff; border:1px solid var(--border-color); border-radius:14px; padding:12px; margin-bottom:10px;${k.ativo ? '' : ' opacity:0.8;'}">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+            <img src="${escKit(foto)}" onerror="this.src='logo.png'" style="width:54px; height:54px; object-fit:cover; border-radius:10px; flex-shrink:0; background:#fdf5f7;">
+            <div style="flex:1; min-width:0;">
+                <p style="margin:0; font-size:0.86rem; font-weight:900; color:var(--brand-dark);">${p && p.codigo ? `<span style="background:#a16207; color:#fff; padding:1px 6px; border-radius:4px; font-size:0.6rem; margin-right:4px; vertical-align:middle;">${escKit(p.codigo)}</span>` : ''}${escKit(k.nome)}</p>
+                <p style="margin:3px 0 0; font-size:0.66rem; color:#666; line-height:1.4;">🎁 ${escKit(textoConteudoKit(k))}</p>
+            </div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; font-size:0.64rem;">
+            ${chip('#f0fdf4', '#bbf7d0', '#166534', 'Venda ' + fmt(preco))}
+            ${chip('#f3f4f6', '#e5e7eb', '#4b5563', 'Custo ' + fmt(conta.custo))}
+            ${chip(conta.lucro >= 0 ? '#fffbeb' : '#fee2e2', conta.lucro >= 0 ? '#fde68a' : '#fecaca', conta.lucro >= 0 ? '#92400e' : '#991b1b', `Lucro ${fmt(conta.lucro)} (${Math.round(conta.margem)}%)`)}
+            ${economia > 0.009 ? chip('#fdf5f7', '#f3d8e2', '#966178', 'Cliente economiza ' + fmt(economia)) : ''}
+        </div>
+        <p style="margin:8px 0 0; font-size:0.68rem; color:var(--brand-dark);">📦 <b>Montados:</b> ${montados.length ? montados.map(l => `${escKit(l)}: <b>${fmtQtdKit(p.locais[l])}</b>`).join(' · ') : '<span style="color:#999;">nenhum ainda</span>'}</p>
+        <p style="margin:3px 0 0; font-size:0.68rem; color:var(--brand-dark);">🔧 <b>Dá pra montar:</b> ${linhaMontar}</p>
+        ${montados.length && custoPrateleira > 0 && Math.abs(custoPrateleira - conta.custo) > 0.01 ? `<p style="margin:3px 0 0; font-size:0.6rem; color:#999;">Os kits já montados custaram ${fmt(custoPrateleira)} cada (custo dos produtos no dia da montagem).</p>` : ''}
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+            ${k.ativo ? `<button style="${estiloBtnKit('#a16207', '#fff')}" onclick="abrirAcaoKit(${k.id}, 'montar')">🔧 Montar</button>` : ''}
+            ${montados.length ? `<button style="${estiloBtnKit('#fff', '#966178', '#e8b4c8')}" onclick="abrirAcaoKit(${k.id}, 'desmontar')">↩️ Desmontar</button>` : ''}
+            <button style="${estiloBtnKit('#fff', 'var(--brand-dark)', 'var(--border-color)')}" onclick="abrirEditorKit(${k.id})">✏️ Editar</button>
+            <button style="${estiloBtnKit('#fff', 'var(--brand-dark)', 'var(--border-color)')}" onclick="abrirEditorKit(${k.id}, true)">📄 Duplicar</button>
+            <button style="${estiloBtnKit('#fff', '#6b7280', 'var(--border-color)')}" onclick="arquivarKit(${k.id}, ${k.ativo ? 'false' : 'true'})">${k.ativo ? '🗄️ Arquivar' : '♻️ Reativar'}</button>
+            ${!montados.length ? `<button style="${estiloBtnKit('#fff', '#991b1b', '#fecaca')}" onclick="excluirKit(${k.id})" title="Excluir kit">🗑️</button>` : ''}
+        </div>
+        <div id="kit-acao-${k.id}" style="display:none;"></div>
+    </div>`;
+}
+
+// 🔧/↩️ Painel de montar ou desmontar, aberto dentro do próprio cartão
+function abrirAcaoKit(id, modo) {
+    const k = kitsGlobal.find(x => x.id === id);
+    const box = document.getElementById('kit-acao-' + id);
+    if (!k || !box) return;
+    document.querySelectorAll('[id^="kit-acao-"]').forEach(el => { if (el !== box) { el.style.display = 'none'; el.innerHTML = ''; } });
+    if (box.style.display === 'block' && box.dataset.modo === modo) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.dataset.modo = modo;
+    const montar = modo === 'montar';
+    const p = produtoEstoqueDe(k.nome);
+    const opcoes = {};
+    if (montar) Object.assign(opcoes, capacidadeMontagemKit(k));
+    else if (p) Object.keys(p.locais).forEach(l => { if (p.locais[l] >= 1) opcoes[l] = Math.floor(p.locais[l]); });
+    _kitAcaoMax[id] = opcoes;
+    const locais = Object.keys(opcoes);
+    const cor = montar ? '#a16207' : '#966178';
+    if (!locais.length) {
+        box.innerHTML = `<p style="margin:10px 0 0; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:10px; font-size:0.7rem;">${montar ? 'Nenhum local tem todos os produtos pra montar este kit. Abasteça (ou transfira) o que falta e tente de novo.' : 'Nenhum kit montado pra desmontar.'}</p>`;
+        box.style.display = 'block';
+        return;
+    }
+    const localPadrao = locais.find(l => normalizarNomeBusca(l) === 'sede') || locais[0];
+    box.innerHTML = `
+    <div style="margin-top:10px; background:${montar ? '#fffbeb' : '#fdf5f7'}; border:1px dashed ${montar ? '#f59e0b' : '#e8b4c8'}; border-radius:12px; padding:10px 12px;">
+        <p style="margin:0 0 8px; font-size:0.74rem; font-weight:900; color:${cor};">${montar ? '🔧 Montar kits' : '↩️ Desmontar kits'}</p>
+        <div style="display:flex; gap:8px;">
+            <div style="flex:1.5; min-width:0;"><label style="font-size:0.58rem; font-weight:800; color:${cor};">ONDE</label>
+                <select id="kit-acao-local-${id}" onchange="previaAcaoKit(${id})" style="width:100%; box-sizing:border-box; margin:0; padding:8px; border-radius:8px; font-weight:700;">${locais.map(l => `<option value="${escKit(l)}"${l === localPadrao ? ' selected' : ''}>${escKit(l)} (${montar ? 'dá pra ' : 'tem '}${opcoes[l]})</option>`).join('')}</select></div>
+            <div style="flex:0.6;"><label style="font-size:0.58rem; font-weight:800; color:${cor};">QUANTOS</label>
+                <input type="number" id="kit-acao-qtd-${id}" min="1" step="1" value="1" oninput="previaAcaoKit(${id})" style="width:100%; box-sizing:border-box; margin:0; padding:8px; text-align:center; font-weight:900; border-radius:8px;"></div>
+        </div>
+        <p id="kit-acao-previa-${id}" style="margin:8px 0 0; font-size:0.66rem; color:#555; line-height:1.5;"></p>
+        <button class="btn-salvar" style="margin:8px 0 0; padding:10px; font-size:0.8rem; background:${cor}; box-shadow:none;" onclick="confirmarAcaoKit(${id})">${montar ? '✅ Montar agora' : '✅ Desmontar agora'}</button>
+    </div>`;
+    box.style.display = 'block';
+    previaAcaoKit(id);
+}
+
+function lerAcaoKit(id) {
+    const k = kitsGlobal.find(x => x.id === id);
+    const box = document.getElementById('kit-acao-' + id);
+    const selLocal = document.getElementById('kit-acao-local-' + id);
+    const inpQtd = document.getElementById('kit-acao-qtd-' + id);
+    if (!k || !box || !selLocal || !inpQtd) return null;
+    const local = selLocal.value;
+    return { k, montar: box.dataset.modo === 'montar', local, qtd: parseInt(inpQtd.value) || 0, max: (_kitAcaoMax[id] || {})[local] || 0 };
+}
+
+function previaAcaoKit(id) {
+    const a = lerAcaoKit(id);
+    const prev = document.getElementById('kit-acao-previa-' + id);
+    if (!a || !prev) return;
+    const { k, montar, local, qtd, max } = a;
+    if (qtd < 1) { prev.innerHTML = ''; return; }
+    if (qtd > max) { prev.innerHTML = `<span style="color:#991b1b; font-weight:800;">⚠️ Em ${escKit(local)} ${montar ? 'dá pra montar' : 'tem'} no máximo ${max}.</span>`; return; }
+    const itensTxt = k.itens.map(i => `${fmtQtdKit(i.qtd * qtd)}x ${escKit(i.produto)}`).join(', ');
+    const custoExtras = k.extras.reduce((s, x) => s + (parseFloat(x.custo) || 0), 0);
+    const nomesExtras = k.extras.map(x => escKit(x.nome)).join(', ');
+    prev.innerHTML = montar
+        ? `📤 <b>Saem de ${escKit(local)}:</b> ${itensTxt}<br>📥 <b>Entram:</b> ${qtd}x ${escKit(k.nome)}${k.extras.length ? `<br>🎀 Separe também: ${nomesExtras} (${qtd} de cada)` : ''}`
+        : `📤 <b>Saem:</b> ${qtd}x ${escKit(k.nome)}<br>📥 <b>Voltam pra ${escKit(local)}:</b> ${itensTxt}${custoExtras > 0 ? `<br><span style="color:#b45309;">🎀 Os extras (${nomesExtras}) não voltam pro estoque — perda de ${fmt(custoExtras * qtd)}.</span>` : ''}`;
+}
+
+function confirmarAcaoKit(id) {
+    const a = lerAcaoKit(id);
+    if (!a) return;
+    const { k, montar, local, qtd, max } = a;
+    if (qtd < 1) return mostrarAlerta('Quantos kits?', 'Digite a quantidade (pelo menos 1).', 'warning');
+    if (qtd > max) return mostrarAlerta('Passou do limite', `Em ${local} ${montar ? 'dá pra montar' : 'tem'} no máximo ${max}.`, 'warning');
+    const linhasItens = k.itens.map(i => `• ${fmtQtdKit(i.qtd * qtd)}x ${i.produto}`).join('\n');
+    const texto = montar
+        ? `Em ${local}:\n\nSAEM do estoque:\n${linhasItens}\n\nENTRAM:\n• ${qtd}x ${k.nome}`
+        : `Em ${local}:\n\nSAEM:\n• ${qtd}x ${k.nome}\n\nVOLTAM pro estoque:\n${linhasItens}`;
+    abrirConfirmacao(montar ? `Montar ${qtd} kit(s)? 🎁` : `Desmontar ${qtd} kit(s)?`, texto, '🎁', '#a16207', '#78350f', montar ? '🔧 Montar' : '↩️ Desmontar',
+        () => executarAcaoKit(id, montar ? 'montar_kit' : 'desmontar_kit', local, qtd));
+}
+
+// Envia uma ação de kit pro servidor, sincroniza e redesenha a tela de kits
+async function enviarAcaoKit(payload) {
+    mostrarLoading('Salvando...');
+    try {
+        const r = await fetch(API_NOVERA, { method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify({ usuario: usuarioLogado, ...payload }) });
+        const res = await r.json();
+        if (!res.sucesso) { mostrarAlerta('Não deu certo', res.erro || 'Falha ao salvar.', 'warning'); return null; }
+        await sincronizarDadosUnico();
+        return res;
+    } catch (e) {
+        mostrarAlerta('Erro', 'Falha na conexão.', 'error');
+        return null;
+    } finally { ocultarLoading(); }
+}
+
+async function executarAcaoKit(id, acao, local, qtd) {
+    const k = kitsGlobal.find(x => x.id === id);
+    const res = await enviarAcaoKit({ acao, id_kit: id, local, qtd });
+    if (!res) return;
+    _kitFoco = k ? k.nome : '';
+    renderizarListaKits();
+    if (acao === 'montar_kit') mostrarAlerta('Kits montados! 🎁', `${qtd}x ${k ? k.nome : 'kit'} já estão no estoque de ${local}, prontos pra vender no PDV.`, 'success');
+    else mostrarAlerta('Kits desmontados', `Os produtos voltaram pro estoque de ${local}.`, 'success');
+}
+
+function arquivarKit(id, ativar) {
+    const k = kitsGlobal.find(x => x.id === id);
+    if (!k) return;
+    const fazer = async () => { const res = await enviarAcaoKit({ acao: 'arquivar_kit', id_kit: id, ativo: ativar }); if (res) { _kitFoco = k.nome; renderizarListaKits(); } };
+    if (ativar) return fazer();
+    abrirConfirmacao('Arquivar kit?', `"${k.nome}" sai da lista de montagem. O que já está montado continua no estoque e vendendo normal — dá pra reativar quando quiser.`, '🗄️', '#a16207', '#78350f', '🗄️ Arquivar', fazer);
+}
+
+function excluirKit(id) {
+    const k = kitsGlobal.find(x => x.id === id);
+    if (!k) return;
+    abrirConfirmacao('Excluir kit?', `"${k.nome}" some de vez (ficha e produto). Só dá pra excluir kit que nunca foi vendido — senão, use Arquivar.`, '🗑️', '#A05252', '#803f3f', '🗑️ Excluir', async () => {
+        const res = await enviarAcaoKit({ acao: 'excluir_kit', id_kit: id });
+        if (res) { renderizarListaKits(); mostrarAlerta('Kit excluído', `"${k.nome}" foi removido.`, 'success'); }
+    });
+}
+
+// ✏️ Editor da ficha (novo, editar ou duplicar), desenhado dentro da mesma janela
+function abrirEditorKit(id, duplicar) {
+    const corpo = document.getElementById('kits-corpo');
+    if (!corpo) return;
+    const k = id ? kitsGlobal.find(x => x.id === id) : null;
+    const editando = !!k && !duplicar;
+    const p = k ? produtoEstoqueDe(k.nome) : null;
+    _kitEditor = { id: editando ? k.id : null, nome: editando ? k.nome : '' };
+    cabecalhoKits(editando ? '✏️ Editar kit' : (duplicar ? '📄 Duplicar kit' : '➕ Novo kit'), editando ? 'O nome fica fixo; o resto você ajusta à vontade.' : 'Dê um nome, escolha o que vai dentro e o preço.');
+    const nomeIni = editando ? k.nome : (duplicar && k ? k.nome + ' 2' : '');
+    const codIni = editando && p ? (p.codigo || '') : sugerirCodigoKit();
+    const precoIni = k && p && parseDinheiro(p.preco) > 0 ? fmt(parseDinheiro(p.preco)) : '';
+    const fotoIni = editando && p ? (melhorFotoUrl(p.foto) || '') : '';
+    const rot = (txt) => `<label style="font-size:0.6rem; font-weight:800; color:#92400e; letter-spacing:0.3px;">${txt}</label>`;
+    const dica = (txt) => `<p style="margin:3px 0 0; font-size:0.6rem; color:#999; line-height:1.4;">${txt}</p>`;
+    const estiloCampo = 'width:100%; box-sizing:border-box; margin:0; padding:10px; border-radius:8px;';
+    corpo.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>${rot('NOME DO KIT')}
+            <input type="text" id="kit-ed-nome" value="${escKit(nomeIni)}" placeholder="Ex: Kit Natal Good Girl" maxlength="140" ${editando ? 'readonly' : ''} style="${estiloCampo}${editando ? ' background:#f3f4f6; color:#666;' : ''}">
+            ${dica(editando ? 'O nome não muda depois de criado — é ele que liga as vendas e o estoque ao kit.' : 'Dica: coloque a fragrância no nome. Cada combinação é um kit (use "📄 Duplicar" pra criar as outras rapidinho).')}</div>
+        <div style="display:flex; gap:8px;">
+            <div style="flex:1;">${rot('CÓDIGO')}<input type="text" id="kit-ed-codigo" value="${escKit(codIni)}" placeholder="KIT01" maxlength="20" style="${estiloCampo} text-transform:uppercase;"></div>
+            <div style="flex:1;">${rot('PREÇO DE VENDA DO KIT')}<input type="text" id="kit-ed-preco" class="mask-money" inputmode="numeric" value="${escKit(precoIni)}" placeholder="R$ 0,00" oninput="atualizarResumoKit()" style="${estiloCampo} font-weight:800;"></div>
+        </div>
+        <div>${rot('🛍️ PRODUTOS DENTRO DO KIT')}
+            <div id="kit-ed-itens" style="margin-top:4px;"></div>
+            <button style="${estiloBtnKit('#fff', '#a16207', '#fcd34d')}" onclick="addLinhaKit('item')">+ Adicionar produto</button></div>
+        <div>${rot('🎀 EXTRAS — embalagem, laço, cartão... (custo de 1 kit)')}
+            <div id="kit-ed-extras" style="margin-top:4px;"></div>
+            <button style="${estiloBtnKit('#fff', '#a16207', '#fcd34d')}" onclick="addLinhaKit('extra')">+ Adicionar extra</button>
+            ${dica('Os extras entram só no custo do kit (não são contados no estoque). Digite 2 letras que eu puxo o último preço das suas compras 🧠.')}</div>
+        <div>${rot('📷 FOTO DO KIT (opcional)')}
+            <div style="display:flex; gap:10px; align-items:center; margin-top:4px;">
+                <img id="kit-ed-foto-prev" src="${escKit(fotoIni || 'logo.png')}" onerror="this.src='logo.png'" style="width:54px; height:54px; object-fit:cover; border-radius:10px; background:#fdf5f7; flex-shrink:0;">
+                <input type="file" id="kit-ed-foto" accept="image/*" onchange="previaFotoKit(this)" style="flex:1; min-width:0; font-size:0.7rem;">
+            </div></div>
+        <div>${rot('📝 TEXTO PRO CATÁLOGO ONLINE (opcional)')}
+            <textarea id="kit-ed-desc" rows="2" maxlength="300" placeholder="Ex: Presente pronto, com caixa personalizada e cartão." style="${estiloCampo} resize:vertical; font-family:inherit;">${escKit(k ? k.descricao || '' : '')}</textarea></div>
+        <div id="kit-ed-resumo"></div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-salvar" style="margin:0; flex:0.8; background:#fff; color:var(--brand-dark); border:1px solid var(--border-color); box-shadow:none;" onclick="renderizarListaKits()">← Voltar</button>
+            <button class="btn-salvar" style="margin:0; flex:1.2; background:#a16207; box-shadow:0 4px 0 #78350f;" onclick="salvarEditorKit()">💾 Salvar kit</button>
+        </div>
+    </div>`;
+    desenharLinhasKit(
+        k ? k.itens.map(i => ({ produto: i.produto, qtd: i.qtd })) : [{ produto: '', qtd: 1 }],
+        k ? k.extras.map(x => ({ nome: x.nome, custo: x.custo })) : [{ nome: '', custo: 0 }]
+    );
+    corpo.scrollTop = 0;
+}
+
+function desenharLinhasKit(itens, extras) {
+    const boxItens = document.getElementById('kit-ed-itens'), boxExtras = document.getElementById('kit-ed-extras');
+    if (!boxItens || !boxExtras) return;
+    const prods = Object.values(estoqueAgrupado).filter(e => !ehProdutoKit(e));
+    const opcoesProdutos = montarOptionsAgrupadasPorTipo(prods, { comQtd: true });
+    const btnTirar = (tipo, i) => `<button class="btn-acao" style="width:36px; height:36px; flex-shrink:0; background:#fff0f6; border-color:#fce7f3; color:#be185d;" onclick="removerLinhaKit('${tipo}', ${i})" title="Tirar">🗑️</button>`;
+
+    boxItens.innerHTML = itens.map((it, i) => `
+        <div class="kit-linha-item" style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+            <select class="kit-it-prod" onchange="atualizarResumoKit()" style="flex:1; min-width:0; margin:0; padding:8px; font-size:0.74rem; border-radius:8px;"><option value="">Escolha o produto...</option>${opcoesProdutos}</select>
+            <input type="number" class="kit-it-qtd" min="1" step="1" value="${parseInt(it.qtd) || 1}" oninput="atualizarResumoKit()" title="Quantidade no kit" style="width:52px; flex-shrink:0; margin:0; padding:8px; text-align:center; font-weight:800; border-radius:8px;">
+            ${btnTirar('item', i)}
+        </div>`).join('');
+    boxItens.querySelectorAll('.kit-it-prod').forEach((sel, i) => {
+        const alvo = itens[i].produto || '';
+        sel.value = alvo;
+        if (alvo && sel.value !== alvo) { // produto que saiu do cadastro: continua visível pra pessoa decidir
+            sel.insertAdjacentHTML('afterbegin', `<option value="${escKit(alvo)}">⚠️ ${escKit(alvo)} (não está mais no estoque)</option>`);
+            sel.value = alvo;
+        }
+    });
+
+    boxExtras.innerHTML = extras.map((x, i) => `
+        <div class="kit-linha-extra" style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+            <input type="text" id="kit-ex-nome-${i}" class="kit-ex-nome" value="${escKit(x.nome)}" placeholder="Ex: Caixa personalizada" autocomplete="off" oninput="atualizarResumoKit()" style="width:100%; box-sizing:border-box; margin:0; padding:8px; font-size:0.74rem; border-radius:8px;">
+            <input type="text" id="kit-ex-custo-${i}" class="kit-ex-custo mask-money" inputmode="numeric" value="${parseFloat(x.custo) > 0 ? fmt(parseFloat(x.custo)) : ''}" placeholder="R$ 0,00" oninput="atualizarResumoKit()" style="width:96px; flex-shrink:0; margin:0; padding:8px; font-size:0.74rem; border-radius:8px;">
+            ${btnTirar('extra', i)}
+        </div>`).join('');
+    extras.forEach((x, i) => {
+        iniciarSugestorCompra(`kit-ex-nome-${i}`, null, `kit-ex-custo-${i}`, null, () => atualizarResumoKit());
+        const inp = document.getElementById(`kit-ex-nome-${i}`);
+        if (inp && inp.parentNode) { inp.parentNode.style.flex = '1'; inp.parentNode.style.minWidth = '0'; } // o sugestor embrulha o campo: o embrulho é que estica
+    });
+    atualizarResumoKit();
+}
+
+function lerLinhasKit() {
+    const itens = [...document.querySelectorAll('#kit-ed-itens .kit-linha-item')].map(r => ({ produto: r.querySelector('.kit-it-prod').value, qtd: parseInt(r.querySelector('.kit-it-qtd').value) || 0 }));
+    const extras = [...document.querySelectorAll('#kit-ed-extras .kit-linha-extra')].map(r => ({ nome: r.querySelector('.kit-ex-nome').value.trim(), custo: parseDinheiro(r.querySelector('.kit-ex-custo').value) }));
+    return { itens, extras };
+}
+function addLinhaKit(tipo) {
+    const d = lerLinhasKit();
+    if (tipo === 'item') d.itens.push({ produto: '', qtd: 1 }); else d.extras.push({ nome: '', custo: 0 });
+    desenharLinhasKit(d.itens, d.extras);
+}
+function removerLinhaKit(tipo, i) {
+    const d = lerLinhasKit();
+    (tipo === 'item' ? d.itens : d.extras).splice(i, 1);
+    desenharLinhasKit(d.itens, d.extras);
+}
+function previaFotoKit(input) {
+    const img = document.getElementById('kit-ed-foto-prev');
+    if (img && input.files && input.files[0]) img.src = URL.createObjectURL(input.files[0]);
+}
+
+// 🧮 A conta ao vivo: custo, quanto sairia separado, economia do cliente e lucro
+function atualizarResumoKit() {
+    const el = document.getElementById('kit-ed-resumo');
+    if (!el) return;
+    const d = lerLinhasKit();
+    const itensOk = d.itens.filter(i => i.produto && i.qtd > 0);
+    if (!itensOk.length) { el.innerHTML = `<p style="margin:0; font-size:0.66rem; color:#999; text-align:center;">Escolha os produtos pra ver a conta do kit.</p>`; return; }
+    const preco = parseDinheiro((document.getElementById('kit-ed-preco') || {}).value);
+    const c = contaKit(itensOk, d.extras, preco);
+    const linha = (rotulo, valor, cor, forte) => `<div style="display:flex; justify-content:space-between; gap:10px; font-size:0.72rem; padding:2px 0; color:${cor || 'var(--brand-dark)'};${forte ? ' font-weight:900;' : ''}"><span>${rotulo}</span><b>${valor}</b></div>`;
+    el.innerHTML = `
+    <div style="background:#fff; border:2px solid #fcd34d; border-radius:12px; padding:10px 12px;">
+        <p style="margin:0 0 6px; font-size:0.68rem; font-weight:900; color:#92400e;">🧮 A CONTA DO KIT</p>
+        ${linha('Custo dos produtos', fmt(c.custoItens))}
+        ${linha('Extras (embalagem etc.)', fmt(c.custoExtras))}
+        ${linha('= Custo do kit', fmt(c.custo), null, true)}
+        <div style="border-top:1px dashed #e5e7eb; margin:6px 0;"></div>
+        ${linha('Separado, o cliente pagaria', fmt(c.avulso))}
+        ${preco > 0 ? linha('No kit', fmt(preco)) : ''}
+        ${preco > 0 && c.avulso - preco > 0.009 ? linha('🎉 Cliente economiza', fmt(c.avulso - preco), '#166534') : ''}
+        ${preco > 0
+            ? linha('💰 Lucro antes da comissão', `${fmt(c.lucro)} (${Math.round(c.margem)}%)`, c.lucro >= 0 ? '#166534' : '#991b1b', true)
+            : `<p style="margin:4px 0 0; font-size:0.64rem; color:#b45309;">Digite o preço de venda pra ver o lucro.</p>`}
+        ${preco > 0 && c.lucro < 0 ? `<p style="margin:6px 0 0; font-size:0.66rem; color:#991b1b; font-weight:800;">⚠️ Esse preço não paga o custo do kit.</p>` : ''}
+    </div>`;
+}
+
+async function salvarEditorKit() {
+    if (salvandoKit || !_kitEditor) return;
+    const editando = !!_kitEditor.id;
+    const nome = editando ? _kitEditor.nome : padronizarTexto(document.getElementById('kit-ed-nome').value);
+    const codigo = document.getElementById('kit-ed-codigo').value.trim().toUpperCase();
+    const preco = parseDinheiro(document.getElementById('kit-ed-preco').value);
+    const descricao = document.getElementById('kit-ed-desc').value.trim();
+    const d = lerLinhasKit();
+    // O mesmo produto escolhido duas vezes vira uma linha só, somando
+    const somaItens = {};
+    d.itens.filter(i => i.produto && i.qtd > 0).forEach(i => { somaItens[i.produto] = (somaItens[i.produto] || 0) + i.qtd; });
+    const itens = Object.keys(somaItens).map(produto => ({ produto, qtd: somaItens[produto] }));
+    const extras = d.extras.filter(x => x.nome).map(x => ({ nome: x.nome, custo: x.custo }));
+
+    if (!nome) return mostrarAlerta('Falta o nome', 'Dê um nome pro kit — ex: "Kit Natal Good Girl".', 'warning');
+    if (!editando && produtoEstoqueDe(nome)) return mostrarAlerta('Nome já usado', `Já existe um produto chamado "${nome}". Escolha outro nome pro kit.`, 'warning');
+    if (!itens.length) return mostrarAlerta('Falta o que vai dentro', 'Escolha pelo menos um produto pro kit.', 'warning');
+    if (!(preco > 0)) return mostrarAlerta('Falta o preço', 'Digite o preço de venda do kit.', 'warning');
+    const donoCodigo = codigo ? Object.values(estoqueAgrupado).find(e => String(e.codigo || '').toUpperCase().trim() === codigo && normalizarNomeBusca(e.nome) !== normalizarNomeBusca(nome)) : null;
+    if (donoCodigo) return mostrarAlerta('Código repetido', `O código ${codigo} já é do produto "${donoCodigo.nome}". Use outro (ex: ${sugerirCodigoKit()}).`, 'warning');
+
+    salvandoKit = true;
+    mostrarLoading('Salvando kit...');
+    try {
+        let foto = '';
+        const arq = document.getElementById('kit-ed-foto');
+        if (arq && arq.files && arq.files.length) {
+            if (!KEY_IMGBB && !TOKEN_ONIONSYS) throw new Error('Pra enviar foto, configure a chave de imagens (imgbb) em Configurações. Dá pra salvar o kit sem foto e colocar depois.');
+            foto = await uploadDuplo(await comprimirImagem(arq.files[0], 800, 800, 0.8));
+        }
+        const res = await enviarAcaoKit({ acao: 'salvar_kit', id_kit: _kitEditor.id, nome, codigo, preco, descricao, foto, itens, extras });
+        if (!res) return;
+        _kitFoco = res.nome || nome;
+        renderizarListaKits();
+        mostrarAlerta(editando ? 'Kit atualizado! 🎁' : 'Kit criado! 🎁', editando ? 'As mudanças já valem.' : 'Agora toque em "🔧 Montar" no cartão dele: os produtos saem do estoque e o kit entra pronto pra vender.', 'success');
+    } catch (e) {
+        mostrarAlerta('Erro', e.message || 'Falha ao salvar o kit.', 'error');
+    } finally { salvandoKit = false; ocultarLoading(); }
+}
+
+// ==========================================
 // 💰 AJUSTE DE PREÇOS EM LOTE (só Admin): reprecifica por CATEGORIA + VOLUME (ml)
 // "Perfume 40ml → R$ 55" muda todos os perfumes 40ml de uma vez — os 100ml ficam quietos.
 // ==========================================
@@ -7130,6 +7633,7 @@ function abrirAjustePrecos() {
     // Agrupa por tipo + volume extraído do nome ("Perfume Chloé 40ml" → Perfume · 40ml)
     const grupos = {};
     Object.values(estoqueAgrupado).forEach(e => {
+        if (ehProdutoKit(e)) return; // kit tem preço próprio, ajustado na ficha (🎁 Kits)
         const mMl = String(e.nome).match(/(\d+)\s*ml\b/i);
         const ml = mMl ? mMl[1] + 'ml' : 'sem ml no nome';
         const k = normalizarNomeBusca(e.tipo || 'Outros') + '|' + ml;
@@ -7168,7 +7672,7 @@ function abrirAjustePrecos() {
         </div>
         <div style="flex:1; overflow-y:auto; padding:12px 16px;">
             ${linhas}
-            <p style="font-size:0.6rem; color:#999; margin:10px 0 0; line-height:1.5;">ℹ️ Vale pro estoque, PDV e catálogo online na hora. Links de catálogo com <b>preços próprios</b> (R$ fixo por link) não mudam — esses são ajustados no próprio link. Vendas já feitas não são tocadas.</p>
+            <p style="font-size:0.6rem; color:#999; margin:10px 0 0; line-height:1.5;">ℹ️ Vale pro estoque, PDV e catálogo online na hora. Links de catálogo com <b>preços próprios</b> (R$ fixo por link) não mudam — esses são ajustados no próprio link. Vendas já feitas não são tocadas. Os <b>kits</b> ficam de fora: o preço deles é ajustado em 🎁 Kits.</p>
         </div>
         <div style="padding:12px 16px; border-top:1px solid var(--border-color); background:#fff; flex-shrink:0;">
             <button class="btn-salvar" style="margin:0; background:#15803d; box-shadow:0 4px 0 #14532d;" onclick="confirmarAjustePrecos()">👀 CONFERIR E APLICAR</button>
@@ -9707,6 +10211,7 @@ async function sincronizarDadosSilencioso() {
             bonusEquipeGlobal = dados.bonusEquipe || [];
             clubeResgatesGlobal = dados.clubeResgates || [];
             cashbackSaldosGlobal = dados.cashbackSaldos || [];
+            kitsGlobal = dados.kits || [];
             configuracoesGlobais = dados.configuracoes || {};
             aplicarConfiguracoesDinamicas();
 
@@ -9986,6 +10491,7 @@ const PAGINAS_GUIA = [
 <p style="margin-bottom:6px;">📜 <b>Diário do Estoque</b> — tudo que entrou e saiu, dia a dia, com filtros. A guia <b>📈 Linha do Tempo</b> mostra o estoque crescendo com um botão deslizante.</p>
 <p style="margin-bottom:6px;">💰 <b>Ajustar Preços</b> — reprecifica por categoria e ml de uma vez (Perfume 40ml, Creme 110ml...), com prévia antes de aplicar.</p>
 <p style="margin-bottom:6px;">📋 <b>Conferência</b> — conte o estoque de um local e o app ajusta as diferenças.</p>
+<p style="margin-bottom:6px;">🎁 <b>Kits</b> — crie o kit (nome, preço, produtos + embalagem) e toque em <b>🔧 Montar</b>: os produtos saem do estoque e o kit entra pronto pra vender. Sobrou? <b>↩️ Desmontar</b> devolve os produtos.</p>
 <p style="margin:0;">📜 Em cada produto, o botão <b>📜</b> mostra o "filme" daquele item: maceração, transferências, ajustes e vendas.</p>` },
 
 { id: 'adm_fabrica', papel: 'admin', emoji: '🧪', titulo: '[Gestão] Fábrica e Compras', html: `
@@ -10106,7 +10612,12 @@ function verificarTutorialUsuario() {
 
     // 🎓 Tour Guiado: na primeira vez aparece pra TODO MUNDO (admin e vendedor); depois é só pelo 🎓
     if (!localStorage.getItem('novera_tour_v1_' + usuarioLogado)) {
-        setTimeout(() => { mostrarConviteTour(); }, 1200);
+        setTimeout(() => {
+            // As novidades da versão estão abertas? O convite espera elas fecharem
+            const mNov = document.getElementById('modal-novidades');
+            if (mNov && mNov.style.display === 'flex') { window._conviteTourPendente = true; return; }
+            mostrarConviteTour();
+        }, 1200);
         return;
     }
 
@@ -10332,6 +10843,7 @@ const TRILHAS_TOUR = [
                 { se: ehAdmTour, alvo: '#btn-transfer-lote', titulo: '🧳 Mala de Transferência', texto: 'Escolha origem e destino UMA vez e mande vários produtos juntos. A <b>🪄 sugestão</b> completa o nível ideal de cada vendedora, e o romaneio vai pro WhatsApp dela.' },
                 { se: ehAdmTour, alvo: '#btn-extrato-geral', titulo: '📜 Diário do Estoque', texto: 'Tudo que entrou e saiu, dia a dia, com filtros. A guia <b>📈 Linha do Tempo</b> mostra o estoque crescendo com um botão deslizante.' },
                 { se: ehAdmTour, alvo: '#btn-ajuste-precos', titulo: '💰 Ajustar Preços', texto: 'Reprecifica por categoria e ml de uma vez (Perfume 40ml, Creme 110ml...), com prévia antes de aplicar. Depois ele oferece alinhar o Clube de Selos.' },
+                { se: ehAdmTour, alvo: '#btn-kits', titulo: '🎁 Kits', texto: 'Crie kits de presente (perfume + creme + embalagem...) com preço próprio. <b>🔧 Montar</b> tira os produtos do estoque e coloca o kit pronto pra vender; <b>↩️ Desmontar</b> devolve.' },
                 { se: ehAdmTour, alvo: '#btn-conferencia-estoque', titulo: '📋 Conferência', texto: 'Conte o estoque de um local e o app ajusta as diferenças sozinho.' }
             ];
         }
@@ -10972,13 +11484,120 @@ async function gerarEtiquetaPDF() {
     }
 }
 
+// ==========================================
+// 🚀 NOVIDADES DA VERSÃO 9.0 — tudo que chegou desde a 8.9.0, separado por assunto.
+// papel: 'todos' | 'admin' | 'vendedor' (no grupo ou no item). Vendedor nunca vê recurso de diretoria.
+// ==========================================
+const NOVIDADES_VERSAO = [
+    { emoji: '🎁', titulo: 'Chegou agora: Kits', papel: 'todos', itens: [
+        { t: 'Kits de presente', d: 'Em Estoque > 🎁 Kits: dê nome, preço e escolha o que vai dentro (produtos + embalagem, laço, cartão). A conta mostra custo, lucro e quanto o cliente economiza.', papel: 'admin' },
+        { t: 'Montar e desmontar', d: '🔧 Montar tira os produtos do estoque e coloca o kit pronto pra vender. Sobrou depois da campanha? ↩️ Desmontar devolve os produtos. Tudo fica no Diário do Estoque.', papel: 'admin' },
+        { t: 'Kits na venda', d: 'Os kits aparecem no grupo 🎁 KIT da lista de produtos, com o que vem dentro. Comissão, cashback e selos valem igual a qualquer produto.' },
+        { t: 'Kits no catálogo', d: 'O catálogo online e o PDF mostram os kits com a lista "Vem no kit".' }
+    ] },
+    { emoji: '🛒', titulo: 'Vendas e PDV', papel: 'todos', itens: [
+        { t: 'Venda em 3 passos', d: 'Cartões numerados ① dados, ② produtos e ③ conferir e finalizar. O histórico fica na mesma tela, logo abaixo, e o botão 📊 Histórico ⬇️ leva direto até ele.' },
+        { t: 'Lista de produtos organizada', d: 'Separada por tipo e por 🌸 feminino / 🔷 masculino, em ordem de código.' },
+        { t: 'Número do pedido', d: 'Toda venda ganha um número (#1000, #1001...). Aparece no histórico, no recibo e na busca.' },
+        { t: 'Consulta em 1 toque', d: 'Busca rápida (cliente, produto ou nº do pedido) e atalhos: Hoje, 7 dias, Este mês e 🔴 Vencidos, a lista de cobrança pronta.' },
+        { t: 'Atalho 🤝 Falta acerto', d: 'Todas as vendas pagas esperando o acerto de comissão, num toque.', papel: 'admin' },
+        { t: 'Data combinada no fiado', d: 'Venda fiada pede a data de pagamento (atalhos +7d, +15d, +30d). Vendedor ajusta pelo 📅 no cartão.' },
+        { t: 'Pagamento parcial', d: 'Levou 2 e pagou 1? O 💲 divide a venda: a parte paga entra no caixa e o resto segue pendente.' },
+        { t: 'Promoção automática', d: 'Produto em promoção já entra no carrinho com o preço com desconto.' },
+        { t: 'Recibos e cobranças', d: 'O recibo mostra o cashback ganho; o PIX aparece só na cobrança.' },
+        { t: 'Rodapé dos documentos', d: 'Agradecimento, política de trocas e PIX configuráveis nos Parâmetros.', papel: 'admin' }
+    ] },
+    { emoji: '💝', titulo: 'Clientes e fidelidade', papel: 'todos', itens: [
+        { t: 'Clube de Selos', d: 'Cartela com carimbos e datas, convite pelo WhatsApp, brinde montado em sacolinha (vários itens até o teto) e o cliente consulta os selos no catálogo.' },
+        { t: 'Selo com histórico de preço', d: 'Reajustar o valor do selo vale só daqui pra frente: ninguém perde selo já ganho.' },
+        { t: 'Cashback automático', d: 'Toda compra paga devolve uma % pro cliente usar na próxima, com validade. Vale pra qualquer cliente, sem cadastro, e aparece sozinho no PDV.' },
+        { t: 'Carteira de clientes', d: 'Clientes antigos entraram na lista sozinhos e o telefone ganhou máscara automática em todo o sistema.' }
+    ] },
+    { emoji: '🔗', titulo: 'Catálogo online', papel: 'todos', itens: [
+        { t: 'Link curto e personalizado', d: 'Filtros por categoria e gênero, escolha produto a produto e cartão com QR Code pra imprimir.' },
+        { t: 'Vitrine que vende', d: 'Destaques e queridinhos, preço "de/por" nas promoções, "chega em X dias" no que está macerando, sacolinha com fotos e pedido direto no WhatsApp de quem mandou o link.' },
+        { t: 'Notas olfativas ilustradas', d: '49 ilustrações próprias pras notas (laranja, rosa, baunilha, couro...), mais dica de uso e ingredientes.' },
+        { t: 'Meus Links', d: 'Histórico com liga/desliga e excluir. Gerar um catálogo igual reaproveita o mesmo link, e os repetidos podem ser unificados.' },
+        { t: 'Visitas e pedidos', d: 'O Painel mostra quantas vezes seu catálogo foi aberto e quantos pedidos saíram dele.' },
+        { t: 'Preços próprios por link', d: 'Links com preço especial (% ou R$ fixo) só pra quem recebe.', papel: 'admin' }
+    ] },
+    { emoji: '📦', titulo: 'Estoque', papel: 'todos', itens: [
+        { t: 'Venda de qualquer local', d: 'Cada produto mostra onde está (Sede, vendedoras). Dá pra vender o que não está com você.' },
+        { t: '🧳 Mala de Transferência', d: 'Vários produtos de uma vez, com o estoque dos dois locais, sugestão automática pelo nível ideal, conferência antes de enviar e romaneio no WhatsApp.', papel: 'admin' },
+        { t: '📜 Extrato e Diário do Estoque', d: 'O "filme" de cada produto e todas as movimentações dia a dia, com a 📈 Linha do Tempo deslizante.', papel: 'admin' },
+        { t: '💰 Ajuste de preços em lote', d: 'Reprecifica por categoria e ml de uma vez, com prévia, e oferece alinhar o Clube de Selos junto.', papel: 'admin' },
+        { t: 'Conferência de estoque', d: 'Conte um local e o sistema ajusta as diferenças.', papel: 'admin' }
+    ] },
+    { emoji: '🧪', titulo: 'Fábrica e compras', papel: 'admin', itens: [
+        { t: 'Precificação 2.0', d: 'Essência proporcional, rendimento real e busca automática dos custos nos Gastos.' },
+        { t: 'Livro de Receitas', d: 'Suas receitas num caderno, aplicadas com um toque, e dá pra criar novas.' },
+        { t: 'Fila de maceração inteligente', d: 'Cada lote mostra o estoque de hoje (🚨 zerado = prioridade), envase parcial e controle das caixinhas 3D.' },
+        { t: 'Avisos que fazem sentido', d: 'Lote pronto avisa uma vez só, e o alerta de ruptura considera o que já está macerando.' },
+        { t: 'Fichas olfativas com IA', d: 'A IA escreve a descrição, as notas e as ocasiões de cada essência.' },
+        { t: 'Etiqueta de amostras', d: 'PDF numa folha só, separado por gênero.' },
+        { t: '🧠 Memória de compras', d: 'Digite 2 letras e o planejamento completa nome, categoria e último preço pago.' }
+    ] },
+    { emoji: '🏆', titulo: 'Painel, metas e equipe', papel: 'todos', itens: [
+        { t: 'Painel novo', d: 'Troca de mês com ◀ ▶, visão de todo o período (∞), seções em gavetas e o ⚙️ pra cada um organizar o seu.' },
+        { t: 'Acelerador de meta', d: 'Vendas pagas acima da meta do mês ganham comissão extra, e a meta da semana dá medalha.' },
+        { t: 'Estante de troféus', d: 'Sala de troféus, patente de carreira e troféus novos (primeira venda, caçador de clientes, vitrine...).' },
+        { t: 'Minha Equipe', d: 'Quem indica uma vendedora ganha um bônus sobre as vendas pagas dela, e acompanha tudo no Painel.' },
+        { t: 'Comissão extra do dia', d: 'Quando a diretoria libera um bônus, o PDV mostra a mensagem e a comissão total que você ganha.', papel: 'vendedor' },
+        { t: '⚡ Incentivo em lote', d: 'Bônus de comissão ou desconto em categorias inteiras, com prazo, mensagem pra equipe e inclusão das vendas do dia.', papel: 'admin' },
+        { t: '🏆 Desafios da Casa', d: 'Crie seus próprios troféus (ex: "Cremeira do Mês").', papel: 'admin' },
+        { t: 'Previsão de entradas', d: 'Quanto entra em cada dia pelos fiados combinados, e a agenda de cobranças.', papel: 'admin' },
+        { t: 'Bônus de equipe e aceleradores', d: 'Fecham sozinhos no dia 1º, com o ✔️ de acerto igual à comissão.', papel: 'admin' }
+    ] },
+    { emoji: '🔔', titulo: 'Comunicação e inteligência', papel: 'admin', itens: [
+        { t: 'Central de Avisos (Telegram)', d: 'Liga/desliga cada aviso, escolhe horários e edita o texto de todas as mensagens.' },
+        { t: 'Central de Mensagens (WhatsApp)', d: 'Os textos que vão pro cliente: cobrança, cartela, romaneio, catálogo...' },
+        { t: 'Consultor de IA', d: 'Análise profunda do negócio, conversa continuada e instruções da diretoria que ele sempre segue.' }
+    ] },
+    { emoji: '🎓', titulo: 'Treinamento', papel: 'todos', itens: [
+        { t: 'Tour guiado', d: 'O app mostra na prática onde tocar e simula vendas e recebimentos. É treino: nada é salvo. Fica no botão 🎓 em todas as telas.' },
+        { t: 'Guia atualizado', d: 'Lições revisadas, com uma nova de Cashback.' },
+        { t: 'Lições de gestão', d: 'Estoque, fábrica, incentivos e comunicação explicados pra diretoria.', papel: 'admin' }
+    ] }
+];
+
+function renderizarNovidades() {
+    const cont = document.getElementById('lista-novidades');
+    if (!cont) return;
+    const papel = usuarioCargo === 'Admin' ? 'admin' : 'vendedor';
+    const vale = (p) => !p || p === 'todos' || p === papel;
+    const titulo = document.getElementById('titulo-novidades');
+    if (titulo) titulo.innerText = `Novera ${VERSAO_ATUAL_SISTEMA}`;
+    let total = 0;
+    const html = NOVIDADES_VERSAO.filter(g => vale(g.papel)).map((g, i) => {
+        const itens = g.itens.filter(it => vale(it.papel));
+        if (!itens.length) return '';
+        total += itens.length;
+        return `<details ${i === 0 ? 'open' : ''} style="background:#fdf5f7; border:1px solid var(--border-color); border-radius:12px; padding:10px 12px; margin-bottom:8px;">
+            <summary style="cursor:pointer; font-weight:900; font-size:0.86rem; color:var(--primary-dark);">${g.emoji} ${g.titulo} <span style="font-weight:700; font-size:0.66rem; color:#999;">· ${itens.length}</span></summary>
+            ${itens.map(it => `<p style="margin:8px 0 0;"><b>${it.t}:</b> ${it.d}</p>`).join('')}
+        </details>`;
+    }).join('');
+    cont.innerHTML = `<p style="margin:0 0 10px; font-size:0.74rem; color:#888; text-align:center;">${total} melhorias desde a versão 8.9.0. Toque num assunto pra abrir.</p>` + html;
+}
+
 function abrirModalNovidades() {
+    renderizarNovidades();
+    const lista = document.getElementById('lista-novidades'); if (lista) lista.scrollTop = 0;
     document.getElementById('modal-novidades').style.display = 'flex';
 }
 
-function fecharModalNovidades() {
+function fecharModalNovidades(abrirTour) {
     localStorage.setItem('novera_versao_vista', VERSAO_ATUAL_SISTEMA);
     document.getElementById('modal-novidades').style.display = 'none';
+    if (abrirTour) {
+        // o botão do tour já resolve o convite: não abre os dois
+        localStorage.setItem('novera_tour_v1_' + usuarioLogado, 'sim');
+        window._conviteTourPendente = false;
+        setTimeout(() => abrirCentralTreino(), 250);
+        return;
+    }
+    // O convite do tour esperou as novidades fecharem pra não abrir uma janela em cima da outra
+    if (window._conviteTourPendente) { window._conviteTourPendente = false; setTimeout(() => mostrarConviteTour(), 400); }
 }
 
 function verificarNovidades() {

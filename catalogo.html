@@ -72,6 +72,9 @@
     .nota-itens { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
     .nota-i { display: inline-flex; align-items: center; background: #fcfafb; border: 1px solid #eee; border-radius: 20px; padding: 2px 9px 2px 6px; white-space: nowrap; line-height: 1.5; }
     .ic-nota { width: 17px; height: 17px; display: inline-block; vertical-align: -3px; flex-shrink: 0; }
+    .kit-conteudo { margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; font-size: 0.74rem; color: #6d5c66; }
+    .kit-conteudo b { font-size: 0.6rem; font-weight: 800; letter-spacing: 2px; }
+    .kit-conteudo ul { margin: 5px 0 0; padding-left: 18px; line-height: 1.6; }
     .chips { margin-top: 11px; }
     .chip { display: inline-block; border-radius: 20px; padding: 4.5px 13px; font-size: 0.6rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 5px 5px 0; border: 1px solid; }
     .rodape-cartao { display: flex; justify-content: space-between; align-items: baseline; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--filete, #eadfe4); }
@@ -659,7 +662,10 @@
                 ${f.dica ? `<p><b>Como usar:</b> ${esc(f.dica)}</p>` : ''}
                 ${f.ingredientes ? `<p><b>Ingredientes:</b> ${esc(f.ingredientes)}</p>` : ''}
             </details>` : '';
-        const fichaHtml = (f.descricao ? `<div class="descricao">“${esc(String(f.descricao).substring(0, 220))}”</div>` : '') +
+        // 🎁 Kit: no lugar da ficha olfativa, a lista do que vem dentro
+        const kitHtml = item.kit ? (item.kit.descricao ? `<div class="descricao">“${esc(String(item.kit.descricao).substring(0, 220))}”</div>` : '') +
+            `<div class="kit-conteudo" style="border-color:${pal.filete}"><b style="color:${pal.forte}">🎁 VEM NO KIT</b><ul>${[...(item.kit.itens || []), ...(item.kit.extras || [])].map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+        const fichaHtml = item.kit ? kitHtml : (f.descricao ?`<div class="descricao">“${esc(String(f.descricao).substring(0, 220))}”</div>` : '') +
             (f.notas_saida ? `<div class="filete" style="background:linear-gradient(90deg, ${pal.filete}, rgba(255,255,255,0))"></div>${nota('SAÍDA', f.notas_saida)}${nota('CORAÇÃO', f.notas_coracao)}${nota('FUNDO', f.notas_fundo)}` : '') + chips + maisInfo;
 
         // ⏳ Esgotado com lote na fábrica: mostra o prazo — "sob encomenda" vira reserva, não desistência
@@ -685,7 +691,7 @@
                     <span class="codigo" style="color:${pal.forte}">${esc(item.codigo || '')} <button onclick="compartilharProduto('${slugProduto(item)}')" title="Compartilhar este produto" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:${pal.micro}; padding:0 4px;">🔗</button></span>
                     <span class="meta" style="color:${pal.micro}">${f.familia ? `<span style="color:${pal.medio}; font-weight:800;">${esc(f.familia)}</span> &nbsp;·&nbsp; ` : ''}${iconeGenero(item.genero)}</span>
                 </div>
-                <div class="insp" style="color:${pal.micro}">Inspiração</div>
+                <div class="insp" style="color:${pal.micro}">${item.kit ? 'Kit' : 'Inspiração'}</div>
                 <div class="nome">${esc(nome)}${item.queridinho ? ' <span class="selo-q">⭐ QUERIDINHO</span>' : ''}</div>
                 ${fichaHtml}
                 <div class="rodape-cartao">
